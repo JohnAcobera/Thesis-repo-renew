@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter (custom Supabase auth)",
+      "type": "dart",
+      "request": "launch",
+      "toolArgs": [
+        "--dart-define-from-file=supabase_config.json"
+      ]
+    }
+  ]
+}
