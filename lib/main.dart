@@ -10,8 +10,9 @@ Future<void> main() async {
   await dotenv.load(fileName: '.env', isOptional: true);
   final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
   final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  final isConfigured = _hasValidConfiguration(supabaseUrl, supabaseAnonKey);
 
-  if (supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty) {
+  if (isConfigured) {
     await Supabase.initialize(
       url: supabaseUrl,
       publishableKey: supabaseAnonKey,
@@ -19,8 +20,17 @@ Future<void> main() async {
   }
 
   runApp(
-    MainApp(isConfigured: supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty),
+    MainApp(isConfigured: isConfigured),
   );
+}
+
+bool _hasValidConfiguration(String url, String key) {
+  return url.startsWith('https://') &&
+      url.endsWith('.supabase.co') &&
+      key.isNotEmpty &&
+      !key.startsWith('REPLACE_') &&
+      !key.startsWith('YOUR_') &&
+      !key.contains('publishable-key');
 }
 
 class MainApp extends StatelessWidget {
@@ -71,8 +81,8 @@ class _ConfigurationScreen extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            'Supabase is not configured.\nAdd SUPABASE_URL and '
-            'SUPABASE_ANON_KEY to the .env file.',
+            'Supabase is not configured.\nAdd your real public Supabase '
+            'anon/publishable key to the .env file.',
             textAlign: TextAlign.center,
           ),
         ),
