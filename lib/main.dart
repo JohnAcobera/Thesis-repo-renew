@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/auth/login_screen.dart';
@@ -6,10 +7,9 @@ import 'screens/auth/login_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // These are compile-time variable names. Pass their values with
-  // --dart-define when launching the app.
-  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  await dotenv.load(fileName: '.env', isOptional: true);
+  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
 
   if (supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty) {
     await Supabase.initialize(
@@ -71,8 +71,8 @@ class _ConfigurationScreen extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            'Supabase is not configured.\nRun with SUPABASE_URL and '
-            'SUPABASE_ANON_KEY using --dart-define.',
+            'Supabase is not configured.\nAdd SUPABASE_URL and '
+            'SUPABASE_ANON_KEY to the .env file.',
             textAlign: TextAlign.center,
           ),
         ),
