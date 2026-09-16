@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import '../landing/landing_screen.dart';
 import 'register_screen.dart';
 import '../home/instructor_home_screen.dart';
 import '../home/student_home_screen.dart';
@@ -78,6 +79,18 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => const LandingScreen(),
+            ),
+          ),
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to landing page',
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

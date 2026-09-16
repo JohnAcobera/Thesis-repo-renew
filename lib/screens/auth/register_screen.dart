@@ -4,7 +4,9 @@ import '../../services/auth_service.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  const RegisterScreen({this.initialRole = 'student', super.key});
+
+  final String initialRole;
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -17,11 +19,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   final _service = AuthService();
-  String _role = 'student';
+  late String _role;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _role = widget.initialRole;
+  }
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
@@ -62,7 +70,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create account')),
+      appBar: AppBar(
+        title: const Text('Create account'),
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => const LoginScreen(),
+            ),
+          ),
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to login',
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),

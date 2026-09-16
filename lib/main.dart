@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'screens/auth/login_screen.dart';
+import 'screens/landing/landing_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,7 +66,7 @@ class MainApp extends StatelessWidget {
           ),
         ),
       ),
-      home: isConfigured ? const LoginScreen() : const _ConfigurationScreen(),
+      home: isConfigured ? const LandingScreen() : const _ConfigurationScreen(),
     );
   }
 }
