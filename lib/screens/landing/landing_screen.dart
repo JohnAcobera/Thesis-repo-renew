@@ -32,9 +32,12 @@ class _LandingScreenState extends State<LandingScreen> {
     final destination = user.role == 'instructor'
         ? InstructorHomeScreen(user: user)
         : StudentHomeScreen(user: user);
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => destination),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => destination),
+      );
+    });
   }
 
   void _openLogin() {

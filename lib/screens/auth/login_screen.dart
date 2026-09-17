@@ -64,9 +64,12 @@ class _LoginScreenState extends State<LoginScreen> {
     final screen = user.role == 'instructor'
         ? InstructorHomeScreen(user: user)
         : StudentHomeScreen(user: user);
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute<void>(builder: (_) => screen));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute<void>(builder: (_) => screen));
+    });
   }
 
   @override
