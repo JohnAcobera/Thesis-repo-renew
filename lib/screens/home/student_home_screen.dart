@@ -44,6 +44,7 @@ class _HomeScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
+      automaticallyImplyLeading: false,
       title: Text(title),
       actions: [
         IconButton(
