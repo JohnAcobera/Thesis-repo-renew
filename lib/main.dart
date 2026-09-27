@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/landing/landing_screen.dart';
@@ -7,9 +6,8 @@ import 'screens/landing/landing_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: '.env', isOptional: true);
-  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
   final isConfigured = _hasValidConfiguration(supabaseUrl, supabaseAnonKey);
 
   if (isConfigured) {
@@ -82,7 +80,8 @@ class _ConfigurationScreen extends StatelessWidget {
           padding: EdgeInsets.all(24),
           child: Text(
             'Supabase is not configured.\nAdd your real public Supabase '
-            'anon/publishable key to the .env file.',
+            'anon/publishable key to the .env file and pass it with '
+            '--dart-define-from-file=.env.',
             textAlign: TextAlign.center,
           ),
         ),

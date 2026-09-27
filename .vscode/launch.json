@@ -4,7 +4,10 @@
     {
       "name": "Flutter (custom Supabase auth)",
       "type": "dart",
-      "request": "launch"
+      "request": "launch",
+      "toolArgs": [
+        "--dart-define-from-file=.env"
+      ]
     }
   ]
 }
