@@ -7,10 +7,12 @@ Copy `.env.example` to `.env` and set `SUPABASE_URL` and
 key. The `.env` file is ignored by Git and is not bundled as an app asset.
 
 Pass the file to Flutter when running or building so the values are compiled
-into the app:
+into the app. In VS Code, start the `Flutter (custom Supabase auth)` launch
+configuration with F5. From a terminal, use:
 
 ```sh
 flutter run --dart-define-from-file=.env
+flutter build appbundle --release --dart-define-from-file=.env
 flutter build web --dart-define-from-file=.env --no-wasm-dry-run
 ```
 

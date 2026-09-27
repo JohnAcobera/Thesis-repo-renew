@@ -20,6 +20,8 @@ class LandingScreen extends StatefulWidget {
 }
 
 class _LandingScreenState extends State<LandingScreen> {
+  bool _sessionRestoreFailed = false;
+
   @override
   void initState() {
     super.initState();
@@ -27,17 +29,26 @@ class _LandingScreenState extends State<LandingScreen> {
   }
 
   Future<void> _restoreSession() async {
-    final user = await AuthService().restoreSession();
-    if (!mounted || user == null) return;
-    final destination = user.role == 'instructor'
-        ? InstructorHomeScreen(user: user)
-        : StudentHomeScreen(user: user);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => destination),
-      );
-    });
+    try {
+      final user = await AuthService().restoreSession();
+      if (!mounted ||
+          user == null ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      final destination = user.role == 'instructor'
+          ? InstructorHomeScreen(user: user)
+          : StudentHomeScreen(user: user);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => destination),
+        );
+      });
+    } on Exception {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      setState(() => _sessionRestoreFailed = true);
+    }
   }
 
   void _openLogin() {
@@ -73,6 +84,17 @@ class _LandingScreenState extends State<LandingScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
+                    if (_sessionRestoreFailed) ...[
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: Text(
+                          'Could not restore your saved session. You can still '
+                          'log in.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Color(0xFFA33A2B)),
+                        ),
+                      ),
+                    ],
                     _TopNav(
                       onLogin: _openLogin,
                       onCreate: _openRegister,
