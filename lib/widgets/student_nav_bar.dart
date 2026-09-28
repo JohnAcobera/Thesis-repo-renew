@@ -12,6 +12,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     this.onProfileSelected,
     this.onSettingsSelected,
     this.onLogoutSelected,
+    this.leading,
     super.key,
   });
 
@@ -22,6 +23,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onProfileSelected;
   final VoidCallback? onSettingsSelected;
   final VoidCallback? onLogoutSelected;
+  final Widget? leading;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight + 2);
@@ -45,6 +47,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
       preferredSize: const Size.fromHeight(2),
       child: Container(height: 2, color: const Color(0xFFF4773C)),
     ),
+    leading: leading,
     title: Text(title),
     actions: [
       IconButton(
