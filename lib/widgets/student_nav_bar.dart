@@ -8,6 +8,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     this.title = 'Student Dashboard',
     this.username = '',
     this.email = '',
+    this.onImportSelected,
     this.onProfileSelected,
     this.onSettingsSelected,
     this.onLogoutSelected,
@@ -17,6 +18,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final String username;
   final String email;
+  final VoidCallback? onImportSelected;
   final VoidCallback? onProfileSelected;
   final VoidCallback? onSettingsSelected;
   final VoidCallback? onLogoutSelected;
@@ -45,6 +47,11 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     ),
     title: Text(title),
     actions: [
+      IconButton(
+        tooltip: 'Import',
+        onPressed: onImportSelected,
+        icon: const Icon(Icons.add),
+      ),
       PopupMenuButton<_StudentNavAction>(
         tooltip: 'Open profile menu',
         icon: const CircleAvatar(

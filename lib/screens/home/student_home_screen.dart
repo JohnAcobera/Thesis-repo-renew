@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/user_model.dart';
+import '../import_screen.dart';
 import '../../widgets/student_nav_bar.dart';
 
 class StudentHomeScreen extends StatelessWidget {
@@ -10,7 +11,18 @@ class StudentHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: StudentNavBar(username: user.fullName, email: user.email),
+    appBar: StudentNavBar(
+      username: user.fullName,
+      email: user.email,
+      onImportSelected: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                ImportScreen(username: user.fullName, email: user.email),
+          ),
+        );
+      },
+    ),
     body: LayoutBuilder(
       builder: (context, viewport) {
         final isWide = viewport.maxWidth >= 800;
