@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/user_model.dart';
 import '../import_screen.dart';
-import '../../widgets/student_nav_bar.dart';
+import '../../widgets/student_side_menu.dart';
 
 class StudentHomeScreen extends StatelessWidget {
   const StudentHomeScreen({required this.user, super.key});
@@ -22,12 +22,11 @@ class StudentHomeScreen extends StatelessWidget {
       );
     }
 
-    return Scaffold(
-      appBar: StudentNavBar(
-        username: user.fullName,
-        email: user.email,
-        onImportSelected: openImportScreen,
-      ),
+    return StudentScaffold(
+      title: 'Student Dashboard',
+      username: user.fullName,
+      email: user.email,
+      onImportSelected: openImportScreen,
       body: LayoutBuilder(
         builder: (context, viewport) {
           final isWide = viewport.maxWidth >= 800;

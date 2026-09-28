@@ -43,6 +43,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     automaticallyImplyLeading: false,
     backgroundColor: const Color(0xFFFFF8F3),
     surfaceTintColor: Colors.transparent,
+    iconTheme: const IconThemeData(color: Color(0xFFF4773C)),
     bottom: PreferredSize(
       preferredSize: const Size.fromHeight(2),
       child: Container(height: 2, color: const Color(0xFFF4773C)),
