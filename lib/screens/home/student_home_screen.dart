@@ -1,37 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../models/user_model.dart';
-import '../../services/auth_service.dart';
-import '../auth/login_screen.dart';
+import '../../widgets/student_nav_bar.dart';
 
 class StudentHomeScreen extends StatelessWidget {
   const StudentHomeScreen({required this.user, super.key});
 
   final UserModel user;
 
-  Future<void> _logout(BuildContext context) async {
-    await AuthService().logout();
-    if (context.mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
-        (_) => false,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      automaticallyImplyLeading: false,
-      title: const Text('Student space'),
-      actions: [
-        IconButton(
-          onPressed: () => _logout(context),
-          icon: const Icon(Icons.logout),
-          tooltip: 'Log out',
-        ),
-      ],
-    ),
+    appBar: StudentNavBar(username: user.fullName, email: user.email),
     body: LayoutBuilder(
       builder: (context, viewport) {
         final isWide = viewport.maxWidth >= 800;
