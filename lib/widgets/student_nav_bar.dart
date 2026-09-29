@@ -8,22 +8,22 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     this.title = 'Student Dashboard',
     this.username = '',
     this.email = '',
-    this.onImportSelected,
     this.onProfileSelected,
     this.onSettingsSelected,
     this.onLogoutSelected,
     this.leading,
+    this.leadingWidth,
     super.key,
   });
 
   final String title;
   final String username;
   final String email;
-  final VoidCallback? onImportSelected;
   final VoidCallback? onProfileSelected;
   final VoidCallback? onSettingsSelected;
   final VoidCallback? onLogoutSelected;
   final Widget? leading;
+  final double? leadingWidth;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight + 2);
@@ -49,23 +49,15 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
       child: Container(height: 2, color: const Color(0xFFF4773C)),
     ),
     leading: leading,
+    leadingWidth: leadingWidth,
     title: Text(title),
     actions: [
-      IconButton(
-        tooltip: 'Import',
-        onPressed: onImportSelected,
-        icon: const Icon(Icons.add),
-      ),
       PopupMenuButton<_StudentNavAction>(
         tooltip: 'Open profile menu',
         icon: const CircleAvatar(
           radius: 22,
           backgroundColor: Color(0xFFFFE5D5),
-          child: Icon(
-            Icons.account_circle,
-            size: 38,
-            color: Color(0xFFF4773C),
-          ),
+          child: Icon(Icons.account_circle, size: 38, color: Color(0xFFF4773C)),
         ),
         onSelected: (action) {
           switch (action) {
@@ -84,10 +76,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
         itemBuilder: (context) => [
           PopupMenuItem<_StudentNavAction>(
             enabled: false,
-            child: _StudentNavProfileHeader(
-              username: username,
-              email: email,
-            ),
+            child: _StudentNavProfileHeader(username: username, email: email),
           ),
           const PopupMenuDivider(),
           const PopupMenuItem(
@@ -106,10 +95,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
           ),
           const PopupMenuItem(
             value: _StudentNavAction.logout,
-            child: _StudentNavMenuItem(
-              icon: Icons.logout,
-              label: 'Logout',
-            ),
+            child: _StudentNavMenuItem(icon: Icons.logout, label: 'Logout'),
           ),
         ],
       ),
@@ -118,10 +104,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
 }
 
 class _StudentNavProfileHeader extends StatelessWidget {
-  const _StudentNavProfileHeader({
-    required this.username,
-    required this.email,
-  });
+  const _StudentNavProfileHeader({required this.username, required this.email});
 
   final String username;
   final String email;

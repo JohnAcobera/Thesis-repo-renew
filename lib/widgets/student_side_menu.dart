@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import 'student_nav_bar.dart';
 
 enum StudentMenuItem {
+  dashboard,
   profile,
   achievements,
   quiz,
@@ -17,6 +18,7 @@ enum StudentMenuItem {
 
 extension StudentMenuItemPresentation on StudentMenuItem {
   String get label => switch (this) {
+    StudentMenuItem.dashboard => 'Dashboard',
     StudentMenuItem.profile => 'Profile',
     StudentMenuItem.achievements => 'Achievements',
     StudentMenuItem.quiz => 'Quiz',
@@ -26,6 +28,7 @@ extension StudentMenuItemPresentation on StudentMenuItem {
   };
 
   IconData get icon => switch (this) {
+    StudentMenuItem.dashboard => Icons.dashboard_outlined,
     StudentMenuItem.profile => Icons.person_outline,
     StudentMenuItem.achievements => Icons.emoji_events_outlined,
     StudentMenuItem.quiz => Icons.quiz_outlined,
@@ -43,8 +46,8 @@ class StudentScaffold extends StatefulWidget {
     required this.body,
     this.selectedMenu,
     this.onMenuSelected,
-    this.onImportSelected,
     this.onSettingsSelected,
+    this.onBack,
     super.key,
   });
 
@@ -54,8 +57,8 @@ class StudentScaffold extends StatefulWidget {
   final Widget body;
   final StudentMenuItem? selectedMenu;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
-  final VoidCallback? onImportSelected;
   final VoidCallback? onSettingsSelected;
+  final VoidCallback? onBack;
 
   @override
   State<StudentScaffold> createState() => _StudentScaffoldState();
@@ -117,13 +120,24 @@ class _StudentScaffoldState extends State<StudentScaffold> {
       title: widget.title,
       username: widget.username,
       email: widget.email,
-      onImportSelected: widget.onImportSelected,
       onProfileSelected: () => _selectMenuItem(StudentMenuItem.profile),
       onSettingsSelected: widget.onSettingsSelected,
-      leading: IconButton(
-        tooltip: _isMenuOpen ? 'Close menu' : 'Open menu',
-        onPressed: _toggleMenu,
-        icon: const Icon(Icons.menu),
+      leadingWidth: widget.onBack == null ? null : 112,
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: _isMenuOpen ? 'Close menu' : 'Open menu',
+            onPressed: _toggleMenu,
+            icon: const Icon(Icons.menu),
+          ),
+          if (widget.onBack case final onBack?)
+            IconButton(
+              tooltip: 'Back',
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back),
+            ),
+        ],
       ),
     ),
     body: LayoutBuilder(

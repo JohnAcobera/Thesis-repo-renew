@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/user_model.dart';
 import '../import_screen.dart';
+import '../profile_screen.dart';
 import '../../widgets/student_side_menu.dart';
 
 class StudentHomeScreen extends StatelessWidget {
@@ -22,11 +23,25 @@ class StudentHomeScreen extends StatelessWidget {
       );
     }
 
+    void openProfileScreen() {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              ProfileScreen(username: user.fullName, email: user.email),
+        ),
+      );
+    }
+
     return StudentScaffold(
       title: 'Student Dashboard',
       username: user.fullName,
       email: user.email,
-      onImportSelected: openImportScreen,
+      selectedMenu: StudentMenuItem.dashboard,
+      onMenuSelected: (item) {
+        if (item == StudentMenuItem.profile) {
+          openProfileScreen();
+        }
+      },
       body: LayoutBuilder(
         builder: (context, viewport) {
           final isWide = viewport.maxWidth >= 800;

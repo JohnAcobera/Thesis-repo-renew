@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
-import '../widgets/student_nav_bar.dart';
+import 'profile_screen.dart';
+import '../widgets/student_side_menu.dart';
 
 const _primary = Color(0xFFF4773C);
-const _scaffold = Color(0xFFFFF8EE);
 const _inputFill = Color(0xFFFFF1DF);
 const _border = Color(0xFFE8D7C2);
 const _heading = Color(0xFF3B2419);
@@ -29,7 +29,7 @@ class _ImportScreenState extends State<ImportScreen> {
   Future<void> _pickFile() async {
     try {
       if (!mounted) return;
-      
+
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
@@ -48,7 +48,9 @@ class _ImportScreenState extends State<ImportScreen> {
             content: Text('Failed to pick file: $e'),
             backgroundColor: const Color(0xFFA33A2B),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -71,10 +73,14 @@ class _ImportScreenState extends State<ImportScreen> {
       setState(() => _isGenerating = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Generated $_selectedItemCount questions from ${_selectedFile!.name}'),
+          content: Text(
+            'Generated $_selectedItemCount questions from ${_selectedFile!.name}',
+          ),
           backgroundColor: _primary,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }
@@ -82,17 +88,22 @@ class _ImportScreenState extends State<ImportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _scaffold,
-      appBar: StudentNavBar(
-        title: 'Generate a Study Material',
-        username: widget.username,
-        email: widget.email,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
+    return StudentScaffold(
+      title: 'Generate a Study Material',
+      username: widget.username,
+      email: widget.email,
+      onMenuSelected: (item) {
+        if (item == StudentMenuItem.dashboard) {
+          Navigator.of(context).pop();
+        } else if (item == StudentMenuItem.profile) {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  ProfileScreen(username: widget.username, email: widget.email),
+            ),
+          );
+        }
+      },
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -125,13 +136,15 @@ class _ImportScreenState extends State<ImportScreen> {
                   const SizedBox(height: 16),
                   _ItemCountPanel(
                     selectedCount: _selectedItemCount,
-                    onChanged: (count) => setState(() => _selectedItemCount = count),
+                    onChanged: (count) =>
+                        setState(() => _selectedItemCount = count),
                   ),
                   const SizedBox(height: 24),
                   _GenerateButton(
                     onPressed: _generate,
                     isLoading: _isGenerating,
-                    isEnabled: _selectedFile != null && _selectedTypes.isNotEmpty,
+                    isEnabled:
+                        _selectedFile != null && _selectedTypes.isNotEmpty,
                   ),
                   const SizedBox(height: 24),
                 ],
@@ -200,9 +213,7 @@ class _FilePickerPanel extends StatelessWidget {
       icon: Icons.upload_file_outlined,
       title: 'Source File',
       description: 'Upload a PDF, Word document, or text file',
-      child: selectedFile == null
-          ? _buildDropZone()
-          : _buildFileInfo(),
+      child: selectedFile == null ? _buildDropZone() : _buildFileInfo(),
     );
   }
 
@@ -234,7 +245,11 @@ class _FilePickerPanel extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(Icons.cloud_upload_outlined, color: _primary, size: 32),
+              child: const Icon(
+                Icons.cloud_upload_outlined,
+                color: _primary,
+                size: 32,
+              ),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -302,7 +317,10 @@ class _FilePickerPanel extends StatelessWidget {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: _primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
@@ -317,10 +335,7 @@ class _FilePickerPanel extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      size,
-                      style: TextStyle(fontSize: 13, color: _subtle),
-                    ),
+                    Text(size, style: TextStyle(fontSize: 13, color: _subtle)),
                   ],
                 ),
               ],
@@ -450,7 +465,11 @@ class _QuestionTypeChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(type.icon, color: isSelected ? Colors.white : _primary, size: 22),
+            Icon(
+              type.icon,
+              color: isSelected ? Colors.white : _primary,
+              size: 22,
+            ),
             const SizedBox(width: 10),
             Text(
               type.label,
@@ -478,10 +497,7 @@ enum QuestionType {
 }
 
 class _ItemCountPanel extends StatelessWidget {
-  const _ItemCountPanel({
-    required this.selectedCount,
-    required this.onChanged,
-  });
+  const _ItemCountPanel({required this.selectedCount, required this.onChanged});
 
   final int selectedCount;
   final void Function(int) onChanged;
@@ -502,10 +518,12 @@ class _ItemCountPanel extends StatelessWidget {
           }
           return Row(
             children: items
-                .expand((count) => [
-                      Expanded(child: _buildRadioItem(count)),
-                      if (count != items.last) const SizedBox(width: 12),
-                    ])
+                .expand(
+                  (count) => [
+                    Expanded(child: _buildRadioItem(count)),
+                    if (count != items.last) const SizedBox(width: 12),
+                  ],
+                )
                 .toList(),
           );
         },
@@ -553,7 +571,9 @@ class _ItemCountPanel extends StatelessWidget {
             Text(
               count == 1 ? 'Item' : 'Items',
               style: TextStyle(
-                color: isSelected ? Colors.white.withValues(alpha: 0.9) : _subtle,
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.9)
+                    : _subtle,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -587,7 +607,9 @@ class _GenerateButton extends StatelessWidget {
           backgroundColor: _primary,
           foregroundColor: Colors.white,
           disabledBackgroundColor: _border,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           elevation: isEnabled ? 4 : 0,
           shadowColor: _primary.withValues(alpha: 0.4),
         ),
