@@ -98,6 +98,136 @@ void main() {
     expect(find.text('Student Name'), findsWidgets);
   });
 
+  testWidgets('returning to dashboard restores its selected menu item', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: StudentHomeScreen(
+          user: UserModel(
+            id: 1,
+            fullName: 'Student Name',
+            email: 'student@example.com',
+            role: 'student',
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dashboard'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+
+    Text menuTitle(String label) {
+      final tile = tester.widget<ListTile>(
+        find
+            .ancestor(of: find.text(label), matching: find.byType(ListTile))
+            .first,
+      );
+      return tile.title! as Text;
+    }
+
+    final dashboardTitle = menuTitle('Dashboard');
+    expect(dashboardTitle.style?.color, const Color(0xFFF4773C));
+    expect(menuTitle('Profile').style?.color, const Color(0xFF3B2419));
+  });
+
+  testWidgets('profile streak calendar marks supplied days and changes month', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(420, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final now = DateTime.now();
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProfileScreen(
+          username: 'Student Name',
+          email: 'student@example.com',
+          streakDays: {DateTime(now.year, now.month, 15, 12)},
+        ),
+      ),
+    );
+
+    expect(
+      find.text('${monthNames[now.month - 1]} ${now.year}'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<Text>(find.text('15')).style?.color,
+      const Color(0xFFFFFFFF),
+    );
+
+    final nextMonth = DateTime(now.year, now.month + 1);
+    await tester.ensureVisible(find.byTooltip('Next month'));
+    await tester.tap(find.byTooltip('Next month'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('${monthNames[nextMonth.month - 1]} ${nextMonth.year}'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'profile shows an empty achievements section below the calendar',
+    (tester) async {
+      tester.view.physicalSize = const Size(420, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ProfileScreen(
+            username: 'Student Name',
+            email: 'student@example.com',
+          ),
+        ),
+      );
+
+      final calendar = find.text('Learning streak');
+      final achievements = find.text('Your Achievements');
+      expect(calendar, findsOneWidget);
+      expect(achievements, findsOneWidget);
+      expect(
+        tester.getTopLeft(achievements).dy,
+        greaterThan(tester.getTopLeft(calendar).dy),
+      );
+      expect(find.text('No achievements yet'), findsOneWidget);
+      expect(find.text('Your achievements will appear here.'), findsOneWidget);
+    },
+  );
+
   testWidgets('menu pushes the body and selects a menu item', (tester) async {
     StudentMenuItem? selectedItem;
     const bodyKey = ValueKey<String>('student-body');

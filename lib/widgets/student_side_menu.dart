@@ -98,7 +98,7 @@ class _StudentScaffoldState extends State<StudentScaffold> {
 
   void _selectMenuItem(StudentMenuItem item) {
     setState(() {
-      _selectedMenu = item;
+      _selectedMenu = widget.selectedMenu ?? item;
       _isMenuOpen = false;
     });
     widget.onMenuSelected?.call(item);
