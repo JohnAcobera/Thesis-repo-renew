@@ -23,6 +23,7 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 supabase_config.json
+supabase/.temp/
 .env
 .env.*
 !.env.example

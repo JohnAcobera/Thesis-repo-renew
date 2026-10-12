@@ -28,6 +28,8 @@ class AuthService {
   final SupabaseClient _client;
   final FlutterSecureStorage _storage;
 
+  Future<String?> getSessionToken() => _storage.read(key: _sessionKey);
+
   Future<void> register({
     required String fullName,
     required String email,

@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
 import 'profile_screen.dart';
+import 'quiz_screen.dart';
+import '../services/quiz_service.dart';
 import '../widgets/student_side_menu.dart';
 
 const _primary = Color(0xFFF4773C);
@@ -25,6 +29,7 @@ class _ImportScreenState extends State<ImportScreen> {
   final Set<QuestionType> _selectedTypes = {QuestionType.multipleChoice};
   int _selectedItemCount = 10;
   bool _isGenerating = false;
+  String? _generationStatus;
 
   Future<void> _pickFile() async {
     try {
@@ -32,27 +37,21 @@ class _ImportScreenState extends State<ImportScreen> {
 
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
-        withData: false,
+        allowedExtensions: ['pdf', 'docx', 'txt'],
+        withData: true,
         allowMultiple: false,
       );
       if (result != null && result.files.isNotEmpty) {
-        if (mounted) {
-          setState(() => _selectedFile = result.files.first);
+        final file = result.files.first;
+        if (file.size > 3 * 1024 * 1024) {
+          _showMessage('Choose a file that is 3 MB or smaller.');
+          return;
         }
+        if (mounted) setState(() => _selectedFile = file);
       }
     } on Exception catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick file: $e'),
-            backgroundColor: const Color(0xFFA33A2B),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
+        _showMessage('Failed to pick file: $e', isError: true);
       }
     }
   }
@@ -65,31 +64,116 @@ class _ImportScreenState extends State<ImportScreen> {
     if (_selectedFile == null) return;
     if (_selectedTypes.isEmpty) return;
 
-    setState(() => _isGenerating = true);
+    setState(() {
+      _isGenerating = true;
+      _generationStatus = 'Preparing your source material...';
+    });
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final file = _selectedFile!;
+      final bytes = file.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        throw const QuizServiceException(
+          'The selected file could not be read. Please select it again.',
+        );
+      }
 
-    if (mounted) {
+      final extension = file.extension?.toLowerCase();
+      String? sourceText;
+      if (extension == 'txt') {
+        sourceText = utf8.decode(bytes, allowMalformed: true).trim();
+      } else if (extension == 'pdf' || extension == 'docx') {
+        setState(() => _generationStatus = 'Extracting text from your file...');
+        sourceText = await QuizService().extractSourceText(
+          fileName: file.name,
+          fileBase64: base64Encode(bytes),
+          mimeType: extension == 'pdf'
+              ? 'application/pdf'
+              : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        );
+      } else {
+        throw const QuizServiceException(
+          'Use a PDF, DOCX, or TXT file to generate a quiz.',
+        );
+      }
+
+      if (!mounted) return;
+      if (sourceText.trim().isEmpty) {
+        throw const QuizServiceException(
+          'No readable text was found in the selected file.',
+        );
+      }
+      if (sourceText.length > 100000) {
+        throw const QuizServiceException(
+          'The extracted text is too long. Choose a shorter file.',
+        );
+      }
+
+      if (!mounted) return;
+      setState(
+        () => _generationStatus =
+            'Generating $_selectedItemCount questions. This may take up to a minute...',
+      );
+      final questions = await QuizService().generateQuiz(
+        questionCount: _selectedItemCount,
+        fileName: file.name,
+        sourceText: sourceText,
+      );
+      if (!mounted) return;
       setState(() => _isGenerating = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Generated $_selectedItemCount questions from ${_selectedFile!.name}',
-          ),
-          backgroundColor: _primary,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+
+      final completed = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => QuizScreen(
+            username: widget.username,
+            email: widget.email,
+            title: _quizTitle(file.name),
+            sourceFile: file.name,
+            questions: questions,
           ),
         ),
       );
+      if (completed == true && mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } on QuizServiceException catch (error) {
+      if (mounted) _showMessage(error.message, isError: true);
+    } on Exception catch (error) {
+      if (mounted) {
+        _showMessage('Quiz generation failed: $error', isError: true);
+      }
+    } finally {
+      if (mounted && _isGenerating) {
+        setState(() {
+          _isGenerating = false;
+          _generationStatus = null;
+        });
+      }
     }
+  }
+
+  String _quizTitle(String fileName) {
+    final extensionIndex = fileName.lastIndexOf('.');
+    return extensionIndex > 0
+        ? fileName.substring(0, extensionIndex)
+        : fileName;
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? const Color(0xFFA33A2B) : _primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return StudentScaffold(
-      title: 'Generate a Study Material',
+      title: 'Create a Quiz',
       username: widget.username,
       email: widget.email,
       onMenuSelected: (item) {
@@ -146,6 +230,31 @@ class _ImportScreenState extends State<ImportScreen> {
                     isEnabled:
                         _selectedFile != null && _selectedTypes.isNotEmpty,
                   ),
+                  if (_isGenerating && _generationStatus != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          color: _subtle,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            _generationStatus!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: _subtle,
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 24),
                 ],
               ),
@@ -167,7 +276,7 @@ class _ImportScreenState extends State<ImportScreen> {
             borderRadius: BorderRadius.circular(30),
           ),
           child: const Text(
-            'CREATE STUDY MATERIAL',
+            'CREATE A QUIZ',
             style: TextStyle(
               color: _primary,
               fontSize: 12,
@@ -178,7 +287,7 @@ class _ImportScreenState extends State<ImportScreen> {
         ),
         const SizedBox(height: 16),
         const Text(
-          'Upload your notes and generate practice questions',
+          'Upload your notes and generate a practice quiz',
           style: TextStyle(
             color: _heading,
             fontSize: 28,
@@ -188,7 +297,7 @@ class _ImportScreenState extends State<ImportScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Select a file, choose question types, and set the number of items.',
+          'Select a file, choose the number of questions, and take your quiz.',
           style: TextStyle(fontSize: 16, height: 1.5, color: _subtle),
         ),
       ],
@@ -212,7 +321,7 @@ class _FilePickerPanel extends StatelessWidget {
     return _SettingsPanel(
       icon: Icons.upload_file_outlined,
       title: 'Source File',
-      description: 'Upload a PDF, Word document, or text file',
+      description: 'Upload a PDF, Word (DOCX), or text file',
       child: selectedFile == null ? _buildDropZone() : _buildFileInfo(),
     );
   }
@@ -263,7 +372,7 @@ class _FilePickerPanel extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Supported: PDF, DOC, DOCX, TXT (max 10MB)',
+              'Supported: PDF, DOCX, TXT (max 3 MB)',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: _subtle),
             ),
@@ -409,7 +518,7 @@ class _QuestionTypesPanel extends StatelessWidget {
     return _SettingsPanel(
       icon: Icons.quiz_outlined,
       title: 'Question Types',
-      description: 'Select one or more question formats to generate',
+      description: 'Choose the multiple-choice format for your quiz',
       child: Wrap(
         spacing: 12,
         runSpacing: 12,
@@ -487,9 +596,7 @@ class _QuestionTypeChip extends StatelessWidget {
 }
 
 enum QuestionType {
-  multipleChoice('Multiple Choice', Icons.format_list_numbered_rounded),
-  trueFalse('True or False', Icons.check_box_outlined),
-  identification('Identification', Icons.edit_outlined);
+  multipleChoice('Multiple Choice', Icons.format_list_numbered_rounded);
 
   const QuestionType(this.label, this.icon);
   final String label;
@@ -624,7 +731,7 @@ class _GenerateButton extends StatelessWidget {
               )
             : const Icon(Icons.auto_awesome_rounded, size: 24),
         label: Text(
-          isLoading ? 'Generating...' : 'Generate Study Material',
+          isLoading ? 'Generating...' : 'Generate Quiz',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),

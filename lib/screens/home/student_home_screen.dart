@@ -3,24 +3,37 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/user_model.dart';
+import '../../services/quiz_service.dart';
 import '../import_screen.dart';
 import '../profile_screen.dart';
 import '../../widgets/student_side_menu.dart';
 
-class StudentHomeScreen extends StatelessWidget {
+class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({required this.user, super.key});
 
   final UserModel user;
 
   @override
+  State<StudentHomeScreen> createState() => _StudentHomeScreenState();
+}
+
+class _StudentHomeScreenState extends State<StudentHomeScreen> {
+  int _activityRevision = 0;
+
+  @override
   Widget build(BuildContext context) {
-    void openImportScreen() {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
+    final user = widget.user;
+
+    Future<void> openImportScreen() async {
+      final completed = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
           builder: (_) =>
               ImportScreen(username: user.fullName, email: user.email),
         ),
       );
+      if (completed == true && mounted) {
+        setState(() => _activityRevision++);
+      }
     }
 
     void openProfileScreen() {
@@ -60,11 +73,13 @@ class StudentHomeScreen extends StatelessWidget {
                         child: _WideStudentDashboard(
                           user: user,
                           onImportSelected: openImportScreen,
+                          activityRevision: _activityRevision,
                         ),
                       )
                     : _StackedStudentDashboard(
                         user: user,
                         onImportSelected: openImportScreen,
+                        activityRevision: _activityRevision,
                       ),
               ),
             ),
@@ -79,10 +94,12 @@ class _WideStudentDashboard extends StatelessWidget {
   const _WideStudentDashboard({
     required this.user,
     required this.onImportSelected,
+    required this.activityRevision,
   });
 
   final UserModel user;
   final VoidCallback onImportSelected;
+  final int activityRevision;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -110,7 +127,7 @@ class _WideStudentDashboard extends StatelessWidget {
               icon: Icons.auto_stories_outlined,
               title: 'Learning overview',
               description: 'Your learning progress will appear here.',
-              actionLabel: 'Generate study material',
+              actionLabel: 'Generate a quiz',
               onAction: onImportSelected,
               centerContent: true,
             ),
@@ -118,13 +135,14 @@ class _WideStudentDashboard extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 20),
-      const Expanded(
+      Expanded(
         flex: 4,
         child: _DashboardPanel(
           key: _DashboardPanel.recentActivityPanelKey,
           icon: Icons.history,
           title: 'Recent activity',
-          description: 'Your recent learning activity will appear here.',
+          description: 'Your completed quizzes',
+          content: _RecentActivityContent(key: ValueKey<int>(activityRevision)),
         ),
       ),
     ],
@@ -135,10 +153,12 @@ class _StackedStudentDashboard extends StatelessWidget {
   const _StackedStudentDashboard({
     required this.user,
     required this.onImportSelected,
+    required this.activityRevision,
   });
 
   final UserModel user;
   final VoidCallback onImportSelected;
+  final int activityRevision;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -159,19 +179,177 @@ class _StackedStudentDashboard extends StatelessWidget {
         icon: Icons.auto_stories_outlined,
         title: 'Learning overview',
         description: 'Your learning progress will appear here.',
-        actionLabel: 'Generate study material',
+        actionLabel: 'Generate a quiz',
         onAction: onImportSelected,
         centerContent: true,
       ),
       const SizedBox(height: 16),
-      const _DashboardPanel(
+      _DashboardPanel(
         key: _DashboardPanel.recentActivityPanelKey,
         icon: Icons.history,
         title: 'Recent activity',
-        description: 'Your recent learning activity will appear here.',
+        description: 'Your completed quizzes',
+        content: _RecentActivityContent(key: ValueKey<int>(activityRevision)),
       ),
     ],
   );
+}
+
+class _RecentActivityContent extends StatefulWidget {
+  const _RecentActivityContent({super.key});
+
+  @override
+  State<_RecentActivityContent> createState() => _RecentActivityContentState();
+}
+
+class _RecentActivityContentState extends State<_RecentActivityContent> {
+  late Future<List<QuizActivity>> _activities;
+
+  @override
+  void initState() {
+    super.initState();
+    _activities = _loadActivities();
+  }
+
+  void _retry() {
+    setState(() => _activities = _loadActivities());
+  }
+
+  Future<List<QuizActivity>> _loadActivities() {
+    try {
+      return QuizService().recentAttempts();
+    } on Object catch (error, stackTrace) {
+      return Future<List<QuizActivity>>.error(error, stackTrace);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<QuizActivity>>(
+    future: _activities,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: CircularProgressIndicator(color: Color(0xFFF4773C)),
+          ),
+        );
+      }
+      if (snapshot.hasError) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Could not load recent activity: ${snapshot.error}',
+              style: const TextStyle(color: Color(0xFF725F53), height: 1.4),
+            ),
+            TextButton.icon(
+              onPressed: _retry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try again'),
+            ),
+          ],
+        );
+      }
+
+      final activities = snapshot.data ?? const <QuizActivity>[];
+      if (activities.isEmpty) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Text(
+            'Your completed quizzes will appear here.',
+            style: TextStyle(color: Color(0xFF725F53)),
+          ),
+        );
+      }
+
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount: activities.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final activity = activities[index];
+          final percentage = (activity.score / activity.totalQuestions * 100)
+              .round();
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1DF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.quiz_outlined,
+                    color: Color(0xFFF4773C),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        activity.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF3B2419),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${activity.sourceFile} · ${_formatActivityDate(activity.createdAt)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF725F53),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$percentage%',
+                  style: const TextStyle(
+                    color: Color(0xFFF4773C),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+
+  String _formatActivityDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final localDate = date.toLocal();
+    return '${months[localDate.month - 1]} ${localDate.day}';
+  }
 }
 
 class _DashboardPanel extends StatelessWidget {

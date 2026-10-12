@@ -30,3 +30,24 @@ For hosting under a subpath, set the corresponding base href, for example:
 ```sh
 flutter build web --dart-define-from-file=.env --no-wasm-dry-run --base-href=/your-subpath/
 ```
+
+## Generative quizzes
+
+Run `supabase/quiz_attempts.sql` in the Supabase SQL Editor to create the quiz
+attempt table and the custom-session RPCs. Deploy both Edge Functions with the
+Supabase CLI:
+
+```sh
+supabase functions deploy extract-source-text
+supabase functions deploy generate-quiz
+```
+
+The quiz-generation function reads `GEMINI_API_KEY_1` through
+`GEMINI_API_KEY_6` from Edge Function secrets and rotates keys on transient
+Gemini failures. It tries `gemini-3.8-flash` first, then falls back to
+`gemini-3.1-flash-lite` if the primary model is unavailable. Keep these keys
+out of the Flutter app. Both functions validate the app's custom session token;
+they do not use Supabase Auth JWTs. PDF and DOCX text is extracted by
+`extract-source-text` before it is sent to Gemini. TXT files are decoded by the
+app. Quiz sources may be PDF, DOCX, or TXT files up to 3 MB. Scanned PDFs
+without selectable text require OCR before they can be used.
