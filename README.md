@@ -44,10 +44,12 @@ supabase functions deploy generate-quiz
 
 The quiz-generation function reads `GEMINI_API_KEY_1` through
 `GEMINI_API_KEY_6` from Edge Function secrets and rotates keys on transient
-Gemini failures. It tries `gemini-3.8-flash` first, then falls back to
-`gemini-3.1-flash-lite` if the primary model is unavailable. Keep these keys
-out of the Flutter app. Both functions validate the app's custom session token;
-they do not use Supabase Auth JWTs. PDF and DOCX text is extracted by
+Gemini failures. It tries `gemini-3.8-flash` first, then falls back through
+`gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`,
+`gemini-3.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`.
+Gemini 2.5 models are intentionally excluded. Keep these keys out of the
+Flutter app. Both functions validate the app's custom session token; they do
+not use Supabase Auth JWTs. PDF and DOCX text is extracted by
 `extract-source-text` before it is sent to Gemini. TXT files are decoded by the
 app. Quiz sources may be PDF, DOCX, or TXT files up to 3 MB. Scanned PDFs
 without selectable text require OCR before they can be used.

@@ -93,9 +93,9 @@ Deno.serve(async (request: Request) => {
   }
   if (
     typeof questionCount !== "number" ||
-    ![10, 30, 50].includes(questionCount)
+    ![10, 20, 30].includes(questionCount)
   ) {
-    return jsonResponse(400, { error: "Choose 10, 30, or 50 questions." });
+    return jsonResponse(400, { error: "Choose 10, 20, or 30 questions." });
   }
   if (
     typeof sourceFileName !== "string" ||
@@ -169,7 +169,15 @@ Deno.serve(async (request: Request) => {
     });
   }
 
-  const models = ["gemini-3.8-flash", "gemini-3.1-flash-lite"];
+  const models = [
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3.1-pro-preview",
+    "gemini-3-flash-preview",
+  ];
   let rateLimitedKeys = 0;
   let overloadedKeys = 0;
   let rejectedKeys = 0;
@@ -178,8 +186,8 @@ Deno.serve(async (request: Request) => {
   let lastProviderStatus = 0;
   let lastProviderMessage: string | undefined;
   const retryDeadline = Date.now() + 60_000;
-  for (const model of models) {
-    for (const [keyIndex, key] of geminiKeys.entries()) {
+  for (const [keyIndex, key] of geminiKeys.entries()) {
+    for (const model of models) {
       const remainingMs = retryDeadline - Date.now();
       if (remainingMs <= 0) break;
 
@@ -210,7 +218,7 @@ Deno.serve(async (request: Request) => {
         networkFailures++;
         console.error("Gemini request could not be completed", {
           model,
-          attempt: keyIndex + 1,
+          keyAttempt: keyIndex + 1,
           error: error instanceof Error ? error.name : "Unknown network error",
         });
         continue;
@@ -233,13 +241,12 @@ Deno.serve(async (request: Request) => {
         if (response.status === 429) rateLimitedKeys++;
         if (response.status === 503) overloadedKeys++;
         if (response.status === 401 || response.status === 403) rejectedKeys++;
-        if (response.status === 503) {
-          break;
-        }
         if (
-          response.status === 429 || response.status === 401 ||
-          response.status === 403 || response.status >= 500
+          response.status === 400 || response.status === 401 ||
+          response.status === 403 || response.status === 404 ||
+          response.status === 429 || response.status >= 500
         ) {
+          if (response.status === 401 || response.status === 403) break;
           continue;
         }
         return jsonResponse(502, {
@@ -258,16 +265,14 @@ Deno.serve(async (request: Request) => {
         if (typeof generatedText !== "string") {
           const finishReason = candidate?.finishReason;
           if (finishReason === "MAX_TOKENS") {
-            return jsonResponse(502, {
-              error:
-                "Gemini stopped before finishing the quiz. Try selecting fewer questions.",
-            });
+            lastProviderMessage =
+              "Gemini stopped before finishing the quiz. Try fewer questions.";
+            continue;
           }
           if (finishReason === "SAFETY") {
-            return jsonResponse(502, {
-              error:
-                "Gemini could not generate questions from this source. Try a different file.",
-            });
+            lastProviderMessage =
+              "Gemini could not generate questions from this source.";
+            continue;
           }
           throw new Error("Gemini response did not contain quiz text.");
         }
@@ -309,10 +314,9 @@ Deno.serve(async (request: Request) => {
             ? error.message
             : "Unknown response error",
         });
-        return jsonResponse(502, {
-          error:
-            "Gemini returned an incomplete or invalid quiz. Try fewer questions or generate it again.",
-        });
+        lastProviderMessage =
+          "Gemini returned an incomplete or invalid quiz. Try fewer questions.";
+        continue;
       }
     }
   }
@@ -320,7 +324,8 @@ Deno.serve(async (request: Request) => {
   if (attemptedResponses > 0 && rateLimitedKeys === attemptedResponses) {
     return new Response(
       JSON.stringify({
-        error: "All configured Gemini keys are currently rate-limited.",
+        error:
+          "All attempted Gemini models and API keys are currently rate-limited.",
       }),
       { status: 503, headers: { ...corsHeaders, "Retry-After": "60" } },
     );
@@ -329,7 +334,7 @@ Deno.serve(async (request: Request) => {
     return new Response(
       JSON.stringify({
         error:
-          "Gemini is temporarily overloaded for all configured keys. Please wait a minute and try again.",
+          "All attempted Gemini models are temporarily overloaded. Please wait a minute and try again.",
       }),
       { status: 503, headers: { ...corsHeaders, "Retry-After": "60" } },
     );
@@ -340,7 +345,7 @@ Deno.serve(async (request: Request) => {
   ) {
     return jsonResponse(502, {
       error:
-        `Gemini rejected the configured API keys (HTTP ${lastProviderStatus}). ` +
+        `Gemini rejected all attempted API keys (HTTP ${lastProviderStatus}). ` +
         lastProviderMessage,
     });
   }
@@ -353,14 +358,14 @@ Deno.serve(async (request: Request) => {
   if (lastProviderStatus > 0 && lastProviderMessage) {
     return jsonResponse(502, {
       error:
-        `Gemini could not generate the quiz after trying configured keys (last HTTP ${lastProviderStatus}). ` +
+        `Gemini could not generate the quiz after trying available models and configured keys (last HTTP ${lastProviderStatus}). ` +
         lastProviderMessage,
     });
   }
   if (lastProviderStatus > 0) {
     return jsonResponse(502, {
       error:
-        `Gemini could not generate the quiz after trying configured keys (last HTTP ${lastProviderStatus}).`,
+        `Gemini could not generate the quiz after trying available models and configured keys (last HTTP ${lastProviderStatus}).`,
     });
   }
   if (networkFailures > 0) {

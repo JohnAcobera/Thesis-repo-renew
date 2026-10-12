@@ -53,16 +53,11 @@ begin
       check (score >= 0 and score <= total_questions);
   end if;
 
-  if not exists (
-    select 1
-    from pg_constraint
-    where conrelid = 'public.quiz_attempts'::regclass
-      and conname = 'quiz_attempts_total_questions_check'
-  ) then
-    alter table public.quiz_attempts
-      add constraint quiz_attempts_total_questions_check
-      check (total_questions in (10, 30, 50));
-  end if;
+  alter table public.quiz_attempts
+    drop constraint if exists quiz_attempts_total_questions_check;
+  alter table public.quiz_attempts
+    add constraint quiz_attempts_total_questions_check
+    check (total_questions in (10, 20, 30, 50));
 end;
 $$;
 
@@ -97,7 +92,7 @@ begin
      or p_source_file is null or length(trim(p_source_file)) = 0
      or length(p_source_file) > 200
      or p_score is null or p_total_questions is null
-     or p_total_questions not in (10, 30, 50)
+     or p_total_questions not in (10, 20, 30, 50)
      or p_score < 0 or p_score > p_total_questions then
     raise exception 'Invalid quiz attempt';
   end if;

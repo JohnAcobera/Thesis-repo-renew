@@ -617,7 +617,7 @@ class _ItemCountPanel extends StatelessWidget {
       description: 'Choose how many questions to generate',
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final items = [10, 30, 50];
+          final items = [10, 20, 30];
           if (constraints.maxWidth < 400) {
             return Column(
               children: items.map((count) => _buildRadioItem(count)).toList(),
