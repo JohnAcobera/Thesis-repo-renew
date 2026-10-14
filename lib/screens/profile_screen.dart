@@ -1,24 +1,88 @@
 import 'package:flutter/material.dart';
 
+import '../services/auth_service.dart';
 import '../widgets/student_side_menu.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     required this.username,
     required this.email,
-    this.streakDays = const {},
+    this.streakDays,
+    this.authService,
     super.key,
   });
 
   final String username;
   final String email;
-  final Set<DateTime> streakDays;
+  final Set<DateTime>? streakDays;
+  final AuthService? authService;
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late Future<Set<DateTime>> _loginDatesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.streakDays == null) {
+      _loginDatesFuture = _loadLoginDates();
+    }
+  }
+
+  Future<Set<DateTime>> _loadLoginDates() async =>
+      (await (widget.authService ?? AuthService()).loginDates());
+
+  Widget _buildStreakCalendar() {
+    final suppliedDates = widget.streakDays;
+    if (suppliedDates != null) {
+      return _StreakCalendar(
+        streakDays: suppliedDates,
+        currentStreak: _currentStreak(suppliedDates),
+      );
+    }
+
+    return FutureBuilder<Set<DateTime>>(
+      future: _loginDatesFuture,
+      builder: (context, snapshot) {
+        final loginDates = snapshot.data ?? const <DateTime>{};
+        return _StreakCalendar(
+          streakDays: loginDates,
+          currentStreak: _currentStreak(loginDates),
+          isLoading: !snapshot.hasData && !snapshot.hasError,
+          hasError: snapshot.hasError,
+          onRetry: () => setState(() => _loginDatesFuture = _loadLoginDates()),
+        );
+      },
+    );
+  }
+
+  int _currentStreak(Set<DateTime> loginDates) {
+    final normalizedDates = loginDates
+        .map((date) => DateTime(date.year, date.month, date.day))
+        .toSet();
+    final today = DateTime.now();
+    final currentDay = DateTime(today.year, today.month, today.day);
+    var streakEnd = normalizedDates.contains(currentDay)
+        ? currentDay
+        : currentDay.subtract(const Duration(days: 1));
+    if (!normalizedDates.contains(streakEnd)) return 0;
+
+    var streak = 0;
+    while (normalizedDates.contains(streakEnd)) {
+      streak++;
+      streakEnd = streakEnd.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
 
   @override
   Widget build(BuildContext context) => StudentScaffold(
     title: 'Profile',
-    username: username,
-    email: email,
+    username: widget.username,
+    email: widget.email,
     selectedMenu: StudentMenuItem.profile,
     onMenuSelected: (item) {
       if (item == StudentMenuItem.dashboard) {
@@ -78,7 +142,7 @@ class ProfileScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              username,
+                              widget.username,
                               textAlign: TextAlign.center,
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
@@ -94,20 +158,20 @@ class ProfileScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                       _ProfileDetail(
                         label: 'Full name',
-                        value: username,
+                        value: widget.username,
                         icon: Icons.person_outline,
                       ),
                       const SizedBox(height: 20),
                       _ProfileDetail(
                         label: 'Email address',
-                        value: email,
+                        value: widget.email,
                         icon: Icons.email_outlined,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 24),
-                _StreakCalendar(streakDays: streakDays),
+                _buildStreakCalendar(),
                 const SizedBox(height: 24),
                 const _AchievementsSection(),
               ],
@@ -120,9 +184,19 @@ class ProfileScreen extends StatelessWidget {
 }
 
 class _StreakCalendar extends StatefulWidget {
-  const _StreakCalendar({this.streakDays = const {}});
+  const _StreakCalendar({
+    required this.streakDays,
+    required this.currentStreak,
+    this.isLoading = false,
+    this.hasError = false,
+    this.onRetry,
+  });
 
   final Set<DateTime> streakDays;
+  final int currentStreak;
+  final bool isLoading;
+  final bool hasError;
+  final VoidCallback? onRetry;
 
   @override
   State<_StreakCalendar> createState() => _StreakCalendarState();
@@ -225,6 +299,19 @@ class _StreakCalendarState extends State<_StreakCalendar> {
                       'Your learning activity, day by day.',
                       style: TextStyle(color: Color(0xFF765C4F)),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.isLoading
+                          ? 'Loading streak...'
+                          : widget.hasError
+                          ? 'Streak unavailable'
+                          : '${widget.currentStreak} '
+                                '${widget.currentStreak == 1 ? 'day' : 'days'} in a row',
+                      style: const TextStyle(
+                        color: Color(0xFFF4773C),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -297,17 +384,54 @@ class _StreakCalendarState extends State<_StreakCalendar> {
           const SizedBox(height: 12),
           const Divider(color: Color(0xFFE8D7C2)),
           const SizedBox(height: 4),
-          const Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            children: [
-              CircleAvatar(radius: 5, backgroundColor: Color(0xFFF4773C)),
-              Text(
-                'Streak days will be highlighted here.',
-                style: TextStyle(color: Color(0xFF765C4F)),
-              ),
-            ],
-          ),
+          if (widget.isLoading)
+            const Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFFF4773C),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Loading login history...',
+                  style: TextStyle(color: Color(0xFF765C4F)),
+                ),
+              ],
+            )
+          else if (widget.hasError)
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              children: [
+                const Text(
+                  'Unable to load login history.',
+                  style: TextStyle(color: Color(0xFF765C4F)),
+                ),
+                TextButton.icon(
+                  onPressed: widget.onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try again'),
+                ),
+              ],
+            )
+          else
+            const Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              children: [
+                CircleAvatar(radius: 5, backgroundColor: Color(0xFFF4773C)),
+                Text(
+                  'Days you log in will be highlighted here.',
+                  style: TextStyle(color: Color(0xFF765C4F)),
+                ),
+              ],
+            ),
         ],
       ),
     );

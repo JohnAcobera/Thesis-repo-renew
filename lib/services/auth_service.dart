@@ -95,6 +95,26 @@ class AuthService {
     }
   }
 
+  Future<Set<DateTime>> loginDates() async {
+    final token = await _storage.read(key: _sessionKey);
+    if (token == null || token.isEmpty) {
+      throw const AuthException('Please sign in again to view your streak.');
+    }
+
+    try {
+      final response = await _client.rpc<Map<String, dynamic>>(
+        'get_login_activity',
+        params: {'p_session_token': token},
+      );
+      final dates = response['login_dates'] as List<dynamic>;
+      return dates.map((date) => DateTime.parse(date as String)).toSet();
+    } on PostgrestException {
+      throw const AuthException(
+        'Unable to load your learning streak. Please try again.',
+      );
+    }
+  }
+
   Future<void> logout() async {
     final token = await _storage.read(key: _sessionKey);
     try {

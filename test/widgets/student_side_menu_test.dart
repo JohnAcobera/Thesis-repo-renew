@@ -228,6 +228,44 @@ void main() {
     },
   );
 
+  testWidgets('profile streak counts consecutive login days', (tester) async {
+    final today = DateTime.now();
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProfileScreen(
+          username: 'Student Name',
+          email: 'student@example.com',
+          streakDays: {today, yesterday},
+        ),
+      ),
+    );
+
+    expect(find.text('2 days in a row'), findsOneWidget);
+  });
+
+  testWidgets('profile resets the streak after a missed day', (tester) async {
+    final today = DateTime.now();
+    final lastLogin = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(const Duration(days: 2));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProfileScreen(
+          username: 'Student Name',
+          email: 'student@example.com',
+          streakDays: {lastLogin},
+        ),
+      ),
+    );
+
+    expect(find.text('0 days in a row'), findsOneWidget);
+  });
+
   testWidgets('menu pushes the body and selects a menu item', (tester) async {
     StudentMenuItem? selectedItem;
     const bodyKey = ValueKey<String>('student-body');

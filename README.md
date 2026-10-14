@@ -42,6 +42,10 @@ supabase functions deploy extract-source-text
 supabase functions deploy generate-quiz
 ```
 
+Run `supabase/learning_streak.sql` in the Supabase SQL Editor to enable profile
+login-date highlights and consecutive-day streak counts. The migration records
+future logins and backfills dates from existing custom sessions.
+
 The quiz-generation function reads `GEMINI_API_KEY_1` through
 `GEMINI_API_KEY_6` from Edge Function secrets and rotates keys on transient
 Gemini failures. It tries `gemini-3.8-flash` first, then falls back through
