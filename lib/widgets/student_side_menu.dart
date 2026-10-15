@@ -6,35 +6,21 @@ import '../screens/auth/login_screen.dart';
 import '../services/auth_service.dart';
 import 'student_nav_bar.dart';
 
-enum StudentMenuItem {
-  dashboard,
-  profile,
-  achievements,
-  quiz,
-  summarizer,
-  flashcard,
-  reviewer,
-}
+enum StudentMenuItem { dashboard, profile, achievements, classroom }
 
 extension StudentMenuItemPresentation on StudentMenuItem {
   String get label => switch (this) {
     StudentMenuItem.dashboard => 'Dashboard',
     StudentMenuItem.profile => 'Profile',
     StudentMenuItem.achievements => 'Achievements',
-    StudentMenuItem.quiz => 'Quiz',
-    StudentMenuItem.summarizer => 'Summarizer',
-    StudentMenuItem.flashcard => 'Flashcard',
-    StudentMenuItem.reviewer => 'Reviewer',
+    StudentMenuItem.classroom => 'My Classroom',
   };
 
   IconData get icon => switch (this) {
     StudentMenuItem.dashboard => Icons.dashboard_outlined,
     StudentMenuItem.profile => Icons.person_outline,
     StudentMenuItem.achievements => Icons.emoji_events_outlined,
-    StudentMenuItem.quiz => Icons.quiz_outlined,
-    StudentMenuItem.summarizer => Icons.summarize_outlined,
-    StudentMenuItem.flashcard => Icons.style_outlined,
-    StudentMenuItem.reviewer => Icons.rate_review_outlined,
+    StudentMenuItem.classroom => Icons.class_outlined,
   };
 }
 

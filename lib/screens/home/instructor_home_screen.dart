@@ -4,14 +4,21 @@ import 'package:flutter/material.dart';
 
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/classroom_service.dart';
+import '../classroom/classroom_screen.dart';
 import '../../widgets/instructor_side_menu.dart';
 import '../../widgets/student_nav_bar.dart';
 import '../auth/login_screen.dart';
 
 class InstructorHomeScreen extends StatefulWidget {
-  const InstructorHomeScreen({required this.user, super.key});
+  const InstructorHomeScreen({
+    required this.user,
+    this.classroomService,
+    super.key,
+  });
 
   final UserModel user;
+  final ClassroomRepository? classroomService;
 
   @override
   State<InstructorHomeScreen> createState() => _InstructorHomeScreenState();
@@ -62,7 +69,9 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8EE),
       appBar: StudentNavBar(
-        title: 'Instructor Dashboard',
+        title: _selectedMenu == InstructorMenuItem.classroom
+            ? 'My Classroom'
+            : 'Instructor Dashboard',
         username: user.fullName,
         email: user.email,
         onSettingsSelected: () {},
@@ -128,7 +137,14 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
                 width: constraints.maxWidth,
                 child: Stack(
                   children: [
-                    const Positioned.fill(child: _InstructorDashboard()),
+                    Positioned.fill(
+                      child: _selectedMenu == InstructorMenuItem.classroom
+                          ? ClassroomScreen(
+                              user: user,
+                              classroomService: widget.classroomService,
+                            )
+                          : const _InstructorDashboard(),
+                    ),
                     if (_isMenuOpen)
                       Positioned.fill(
                         child: GestureDetector(

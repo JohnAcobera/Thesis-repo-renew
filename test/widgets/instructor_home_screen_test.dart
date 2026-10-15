@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:thesis_repo_renew/models/classroom_model.dart';
 import 'package:thesis_repo_renew/models/user_model.dart';
+import 'package:thesis_repo_renew/services/classroom_service.dart';
 import 'package:thesis_repo_renew/screens/home/instructor_home_screen.dart';
 
 void main() {
@@ -17,6 +19,7 @@ void main() {
         MaterialApp(
           home: InstructorHomeScreen(
             key: ValueKey(size),
+            classroomService: _FakeClassroomRepository(),
             user: const UserModel(
               id: 1,
               fullName: 'Instructor Name',
@@ -73,6 +76,72 @@ void main() {
       }
 
       expect(tester.takeException(), isNull);
+
+      await tester.tap(find.byTooltip('Close menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('My Classroom'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your classrooms'), findsOneWidget);
+      expect(find.text('Grade 11 - STEM A'), findsOneWidget);
+      expect(find.text('General Biology 1'), findsOneWidget);
+      await tester.tap(find.text('Grade 11 - STEM A'));
+      await tester.pumpAndSettle();
+      expect(find.text('0 students'), findsOneWidget);
+      expect(find.text('Join code: ABCD2345'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('My Classroom'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Open menu'), findsOneWidget);
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      expect(find.text('Instructor Name'), findsOneWidget);
+      await tester.tap(find.byTooltip('Close menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Your classrooms'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your classrooms'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     }
   });
+}
+
+class _FakeClassroomRepository implements ClassroomRepository {
+  @override
+  Future<ClassroomModel> joinClassroom({required String code}) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<ClassroomModel> createClassroom({
+    required String name,
+    required String subject,
+    required String iconKey,
+  }) async => ClassroomModel(
+    id: 'test-id',
+    name: name,
+    subject: subject,
+    code: 'ABCD2345',
+    createdAt: DateTime.utc(2026),
+    iconKey: iconKey,
+  );
+
+  @override
+  Future<List<ClassroomModel>> listClassrooms() async => [
+    ClassroomModel(
+      id: 'test-id',
+      name: 'Grade 11 - STEM A',
+      subject: 'General Biology 1',
+      code: 'ABCD2345',
+      createdAt: DateTime.utc(2026),
+      iconKey: 'book',
+    ),
+  ];
+
+  @override
+  Future<List<ClassroomModel>> listStudentClassrooms() async => [];
 }

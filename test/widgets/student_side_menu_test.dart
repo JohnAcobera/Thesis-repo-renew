@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:thesis_repo_renew/models/classroom_model.dart';
+import 'package:thesis_repo_renew/services/classroom_service.dart';
 import 'package:thesis_repo_renew/screens/import_screen.dart';
 import 'package:thesis_repo_renew/screens/home/student_home_screen.dart';
 import 'package:thesis_repo_renew/models/user_model.dart';
@@ -96,6 +98,70 @@ void main() {
     expect(find.byType(ProfileScreen), findsOneWidget);
     expect(find.text('Your profile'), findsOneWidget);
     expect(find.text('Student Name'), findsWidgets);
+  });
+
+  testWidgets('student can open My Classroom and join using its code', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _FakeStudentClassroomRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudentHomeScreen(
+          user: const UserModel(
+            id: 2,
+            fullName: 'Student Name',
+            email: 'student@example.com',
+            role: 'student',
+          ),
+          classroomService: repository,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('My Classroom').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Join classroom'), findsOneWidget);
+    expect(find.text('Create classroom'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('My Classroom'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
+    for (final removedItem in ['Quiz', 'Summarizer', 'Flashcard', 'Reviewer']) {
+      expect(find.text(removedItem), findsNothing);
+    }
+    await tester.tap(find.text('My Classroom').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Join classroom'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Classroom code'),
+      ' abcd2345 ',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Join classroom').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.joinedCode, 'ABCD2345');
+    expect(find.text('Joined Biology'), findsOneWidget);
+    expect(find.text('Biology'), findsOneWidget);
+    expect(find.text('Code: ABCD2345'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('returning to dashboard restores its selected menu item', (
@@ -309,12 +375,10 @@ void main() {
     );
     expect(find.text('Profile'), findsOneWidget);
     expect(find.text('Achievements'), findsOneWidget);
-    expect(find.text('Quiz'), findsOneWidget);
-    await tester.dragFrom(const Offset(150, 300), const Offset(0, -300));
-    await tester.pumpAndSettle();
-    expect(find.text('Summarizer'), findsOneWidget);
-    expect(find.text('Flashcard'), findsOneWidget);
-    expect(find.text('Reviewer'), findsOneWidget);
+    expect(find.text('My Classroom'), findsOneWidget);
+    for (final removedItem in ['Quiz', 'Summarizer', 'Flashcard', 'Reviewer']) {
+      expect(find.text(removedItem), findsNothing);
+    }
     final menuDivider = tester.widget<Divider>(find.byType(Divider).first);
     expect(
       tester.getSize(find.byWidget(menuDivider)).width,
@@ -325,12 +389,10 @@ void main() {
       greaterThan(initialBodyLeft),
     );
 
-    await tester.dragFrom(const Offset(150, 300), const Offset(0, 300));
-    await tester.pumpAndSettle();
-    await tester.tapAt(Offset(150, tester.getCenter(find.text('Quiz')).dy));
+    await tester.tap(find.text('My Classroom'));
     await tester.pumpAndSettle();
 
-    expect(selectedItem, StudentMenuItem.quiz);
+    expect(selectedItem, StudentMenuItem.classroom);
     expect(find.byTooltip('Open menu'), findsOneWidget);
   });
 
@@ -347,7 +409,7 @@ void main() {
           username: 'Student Name',
           email: 'student@example.com',
           body: const Center(child: Text('Mobile body')),
-          selectedMenu: StudentMenuItem.quiz,
+          selectedMenu: StudentMenuItem.classroom,
         ),
       ),
     );
@@ -356,7 +418,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Mobile body'), findsOneWidget);
-    expect(find.text('Quiz'), findsOneWidget);
+    expect(find.text('My Classroom'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.tapAt(const Offset(350, 300));
@@ -406,4 +468,37 @@ void main() {
 
     expect(tester.getTopLeft(find.byKey(panelKey)).dx, greaterThan(184));
   });
+}
+
+class _FakeStudentClassroomRepository implements ClassroomRepository {
+  String? joinedCode;
+  final classroom = ClassroomModel(
+    id: 'class-id',
+    name: 'Biology',
+    subject: 'General Biology 1',
+    code: 'ABCD2345',
+    createdAt: DateTime.utc(2026),
+    iconKey: 'science',
+    studentCount: 1,
+  );
+
+  @override
+  Future<ClassroomModel> createClassroom({
+    required String name,
+    required String subject,
+    required String iconKey,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<ClassroomModel> joinClassroom({required String code}) async {
+    joinedCode = code.toUpperCase();
+    return classroom;
+  }
+
+  @override
+  Future<List<ClassroomModel>> listClassrooms() async => [];
+
+  @override
+  Future<List<ClassroomModel>> listStudentClassrooms() async =>
+      joinedCode == null ? [] : [classroom];
 }
