@@ -37,9 +37,13 @@ shows this as the account's join date.
 
 ## Generative quizzes
 
-Run `supabase/quiz_attempts.sql` in the Supabase SQL Editor to create the quiz
-attempt table and the custom-session RPCs. Deploy both Edge Functions with the
-Supabase CLI:
+Run `supabase/quiz_attempts.sql` (or re-run it on an existing project) in the
+Supabase SQL Editor to enable saved quizzes and the custom-session RPCs.
+Generated quizzes are saved only after the student completes them. Completed
+quizzes can be retaken from the dashboard, which shows each quiz's attempt
+count and score history; the recent activity list has no fixed item limit.
+Existing quiz-attempt scores are retained but are not associated with saved
+quizzes. Deploy both Edge Functions with the Supabase CLI:
 
 ```sh
 supabase functions deploy extract-source-text

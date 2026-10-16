@@ -8,6 +8,7 @@ import '../../services/quiz_service.dart';
 import '../classroom/classroom_screen.dart';
 import '../import_screen.dart';
 import '../profile_screen.dart';
+import '../quiz_screen.dart';
 import '../../widgets/student_side_menu.dart';
 
 class StudentHomeScreen extends StatefulWidget {
@@ -101,12 +102,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                                 user: user,
                                 onImportSelected: openImportScreen,
                                 activityRevision: _activityRevision,
+                                onQuizCompleted: () =>
+                                    setState(() => _activityRevision++),
+                                onMenuSelected: _selectMenuItem,
                               ),
                             )
                           : _StackedStudentDashboard(
                               user: user,
                               onImportSelected: openImportScreen,
                               activityRevision: _activityRevision,
+                              onQuizCompleted: () =>
+                                  setState(() => _activityRevision++),
+                              onMenuSelected: _selectMenuItem,
                             ),
                     ),
                   ),
@@ -133,11 +140,15 @@ class _WideStudentDashboard extends StatelessWidget {
     required this.user,
     required this.onImportSelected,
     required this.activityRevision,
+    required this.onQuizCompleted,
+    required this.onMenuSelected,
   });
 
   final UserModel user;
   final VoidCallback onImportSelected;
   final int activityRevision;
+  final VoidCallback onQuizCompleted;
+  final ValueChanged<StudentMenuItem> onMenuSelected;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -180,7 +191,14 @@ class _WideStudentDashboard extends StatelessWidget {
           icon: Icons.history,
           title: 'Recent activity',
           description: 'Your completed quizzes',
-          content: _RecentActivityContent(key: ValueKey<int>(activityRevision)),
+          content: _RecentActivityContent(
+            key: ValueKey<int>(activityRevision),
+            user: user,
+            onQuizCompleted: onQuizCompleted,
+            onMenuSelected: onMenuSelected,
+            scrollable: true,
+          ),
+          expandContent: true,
         ),
       ),
     ],
@@ -192,11 +210,15 @@ class _StackedStudentDashboard extends StatelessWidget {
     required this.user,
     required this.onImportSelected,
     required this.activityRevision,
+    required this.onQuizCompleted,
+    required this.onMenuSelected,
   });
 
   final UserModel user;
   final VoidCallback onImportSelected;
   final int activityRevision;
+  final VoidCallback onQuizCompleted;
+  final ValueChanged<StudentMenuItem> onMenuSelected;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -227,14 +249,30 @@ class _StackedStudentDashboard extends StatelessWidget {
         icon: Icons.history,
         title: 'Recent activity',
         description: 'Your completed quizzes',
-        content: _RecentActivityContent(key: ValueKey<int>(activityRevision)),
+        content: _RecentActivityContent(
+          key: ValueKey<int>(activityRevision),
+          user: user,
+          onQuizCompleted: onQuizCompleted,
+          onMenuSelected: onMenuSelected,
+        ),
       ),
     ],
   );
 }
 
 class _RecentActivityContent extends StatefulWidget {
-  const _RecentActivityContent({super.key});
+  const _RecentActivityContent({
+    required this.user,
+    required this.onQuizCompleted,
+    required this.onMenuSelected,
+    this.scrollable = false,
+    super.key,
+  });
+
+  final UserModel user;
+  final VoidCallback onQuizCompleted;
+  final ValueChanged<StudentMenuItem> onMenuSelected;
+  final bool scrollable;
 
   @override
   State<_RecentActivityContent> createState() => _RecentActivityContentState();
@@ -302,67 +340,74 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
       }
 
       return ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
+        shrinkWrap: !widget.scrollable,
+        physics: widget.scrollable
+            ? null
+            : const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.zero,
         itemCount: activities.length,
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final activity = activities[index];
-          final percentage = (activity.score / activity.totalQuestions * 100)
+          final latestScore = activity.latestScore!;
+          final percentage = (latestScore / activity.totalQuestions * 100)
               .round();
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF1DF),
-                    borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: () => _showQuizDetails(activity),
+              borderRadius: BorderRadius.circular(12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF1DF),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.quiz_outlined,
+                      color: Color(0xFFF4773C),
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.quiz_outlined,
-                    color: Color(0xFFF4773C),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        activity.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF3B2419),
-                          fontWeight: FontWeight.w700,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          activity.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF3B2419),
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${activity.sourceFile} · ${_formatActivityDate(activity.createdAt)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF725F53),
-                          fontSize: 12,
+                        const SizedBox(height: 3),
+                        Text(
+                          '${activity.sourceFile} · ${_formatActivityDate(activity.createdAt)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF725F53),
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '$percentage%',
-                  style: const TextStyle(
-                    color: Color(0xFFF4773C),
-                    fontWeight: FontWeight.w800,
+                  const SizedBox(width: 8),
+                  Text(
+                    '$percentage% · ${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
+                    style: const TextStyle(
+                      color: Color(0xFFF4773C),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
@@ -388,6 +433,77 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
     final localDate = date.toLocal();
     return '${months[localDate.month - 1]} ${localDate.day}';
   }
+
+  Future<void> _showQuizDetails(QuizActivity activity) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(activity.title),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Based on ${activity.sourceFile}'),
+                const SizedBox(height: 16),
+                Text(
+                  'Attempts (${activity.attempts.length})',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                ...activity.attempts.map(
+                  (attempt) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(
+                      '${attempt.score} / ${attempt.totalQuestions} correct',
+                    ),
+                    subtitle: Text(_formatActivityDate(attempt.createdAt)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _retakeQuiz(activity);
+            },
+            icon: const Icon(Icons.replay_rounded),
+            label: const Text('Retake quiz'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _retakeQuiz(QuizActivity activity) async {
+    final user = widget.user;
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => QuizScreen(
+          username: user.fullName,
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt,
+          onMenuSelected: widget.onMenuSelected,
+          title: activity.title,
+          sourceFile: activity.sourceFile,
+          questions: activity.questions,
+          quizId: activity.id,
+        ),
+      ),
+    );
+    if (completed == true && mounted) widget.onQuizCompleted();
+  }
 }
 
 class _DashboardPanel extends StatelessWidget {
@@ -401,6 +517,7 @@ class _DashboardPanel extends StatelessWidget {
     this.centerContent = false,
     this.titleAtTop = false,
     this.content,
+    this.expandContent = false,
     this.titleSize = 22,
   });
 
@@ -416,6 +533,7 @@ class _DashboardPanel extends StatelessWidget {
   final bool centerContent;
   final bool titleAtTop;
   final Widget? content;
+  final bool expandContent;
   final double titleSize;
 
   @override
@@ -478,7 +596,10 @@ class _DashboardPanel extends StatelessWidget {
               textAlign: centerContent ? TextAlign.center : TextAlign.start,
             ),
           ],
-          if (content != null) ...[const SizedBox(height: 4), content!],
+          if (content != null) ...[
+            const SizedBox(height: 4),
+            if (expandContent) Expanded(child: content!) else content!,
+          ],
           if (hasAction) ...[
             const SizedBox(height: 12),
             LayoutBuilder(

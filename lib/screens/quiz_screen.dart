@@ -17,6 +17,7 @@ class QuizScreen extends StatefulWidget {
     required this.title,
     required this.sourceFile,
     required this.questions,
+    this.quizId,
     this.role = 'student',
     this.createdAt,
     this.onMenuSelected,
@@ -28,6 +29,7 @@ class QuizScreen extends StatefulWidget {
   final String title;
   final String sourceFile;
   final List<QuizQuestion> questions;
+  final String? quizId;
   final String role;
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
@@ -46,6 +48,7 @@ class _QuizScreenState extends State<QuizScreen> {
   bool _showResults = false;
   bool _isSaving = false;
   bool _isSaved = false;
+  String? _savedQuizId;
   String? _saveError;
 
   QuizQuestion get _question => widget.questions[_questionIndex];
@@ -62,11 +65,13 @@ class _QuizScreenState extends State<QuizScreen> {
     });
 
     try {
-      await _service.saveAttempt(
+      _savedQuizId = await _service.saveAttempt(
         title: widget.title,
         sourceFile: widget.sourceFile,
         score: _score,
         totalQuestions: widget.questions.length,
+        questions: widget.questions,
+        quizId: _savedQuizId ?? widget.quizId,
       );
       if (!mounted) return;
       setState(() {

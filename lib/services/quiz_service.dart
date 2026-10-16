@@ -15,6 +15,13 @@ class QuizQuestion {
   final int answerIndex;
   final String explanation;
 
+  Map<String, dynamic> toJson() => {
+    'question': question,
+    'options': options,
+    'answerIndex': answerIndex,
+    'explanation': explanation,
+  };
+
   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
     final options = (json['options'] as List<dynamic>)
         .map((option) => option as String)
@@ -46,25 +53,64 @@ class QuizActivity {
   const QuizActivity({
     required this.id,
     required this.title,
-    required this.score,
-    required this.totalQuestions,
     required this.sourceFile,
     required this.createdAt,
+    required this.questions,
+    required this.attempts,
   });
 
   final String id;
   final String title;
-  final int score;
-  final int totalQuestions;
   final String sourceFile;
   final DateTime createdAt;
+  final List<QuizQuestion> questions;
+  final List<QuizScore> attempts;
 
-  factory QuizActivity.fromJson(Map<String, dynamic> json) => QuizActivity(
-    id: json['id'] as String,
-    title: json['title'] as String,
+  int get totalQuestions => questions.length;
+
+  int? get latestScore => attempts.isEmpty ? null : attempts.first.score;
+
+  factory QuizActivity.fromJson(Map<String, dynamic> json) {
+    final questions = (json['questions'] as List<dynamic>)
+        .map(
+          (question) =>
+              QuizQuestion.fromJson(Map<String, dynamic>.from(question as Map)),
+        )
+        .toList(growable: false);
+    final attempts = (json['attempts'] as List<dynamic>)
+        .map(
+          (attempt) =>
+              QuizScore.fromJson(Map<String, dynamic>.from(attempt as Map)),
+        )
+        .toList(growable: false);
+    if (questions.isEmpty || attempts.isEmpty) {
+      throw const FormatException('The saved quiz is incomplete.');
+    }
+    return QuizActivity(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      sourceFile: json['source_file'] as String,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      questions: questions,
+      attempts: attempts,
+    );
+  }
+}
+
+class QuizScore {
+  const QuizScore({
+    required this.score,
+    required this.totalQuestions,
+    required this.createdAt,
+  });
+
+  final int score;
+  final int totalQuestions;
+  final DateTime createdAt;
+
+  factory QuizScore.fromJson(Map<String, dynamic> json) => QuizScore(
     score: (json['score'] as num).toInt(),
     totalQuestions: (json['total_questions'] as num).toInt(),
-    sourceFile: json['source_file'] as String,
     createdAt: DateTime.parse(json['created_at'] as String),
   );
 }
@@ -177,15 +223,17 @@ class QuizService {
     }
   }
 
-  Future<void> saveAttempt({
+  Future<String> saveAttempt({
     required String title,
     required String sourceFile,
     required int score,
     required int totalQuestions,
+    required List<QuizQuestion> questions,
+    String? quizId,
   }) async {
     final token = await _requireSessionToken();
     try {
-      await _client.rpc<void>(
+      final savedQuizId = await _client.rpc<String>(
         'save_quiz_attempt',
         params: {
           'p_session_token': token,
@@ -193,8 +241,13 @@ class QuizService {
           'p_score': score,
           'p_total_questions': totalQuestions,
           'p_source_file': sourceFile,
+          'p_quiz_id': quizId,
+          'p_questions': quizId == null
+              ? questions.map((question) => question.toJson()).toList()
+              : null,
         },
       );
+      return savedQuizId;
     } on PostgrestException catch (error) {
       throw QuizServiceException(
         _databaseMessage(
@@ -210,7 +263,7 @@ class QuizService {
     final token = await _requireSessionToken();
     try {
       final response = await _client.rpc<List<dynamic>>(
-        'list_recent_quiz_attempts',
+        'list_saved_quizzes',
         params: {'p_session_token': token},
       );
       return response
