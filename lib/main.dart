@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/landing/landing_screen.dart';
 
+const _buttonColor = Color(0xFFFF7434);
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -17,9 +19,7 @@ Future<void> main() async {
     );
   }
 
-  runApp(
-    MainApp(isConfigured: isConfigured),
-  );
+  runApp(MainApp(isConfigured: isConfigured));
 }
 
 bool _hasValidConfiguration(String url, String key) {
@@ -42,8 +42,29 @@ class MainApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFF4773C),
+          seedColor: _buttonColor,
           brightness: Brightness.light,
+        ).copyWith(primary: _buttonColor),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: _buttonColor,
+            foregroundColor: Colors.white,
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _buttonColor,
+            foregroundColor: Colors.white,
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: _buttonColor,
+            side: const BorderSide(color: _buttonColor),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(foregroundColor: _buttonColor),
         ),
         scaffoldBackgroundColor: const Color(0xFFFFF8EE),
         fontFamily: 'sans',
@@ -60,7 +81,7 @@ class MainApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Color(0xFFF4773C), width: 2),
+            borderSide: const BorderSide(color: _buttonColor, width: 2),
           ),
         ),
       ),

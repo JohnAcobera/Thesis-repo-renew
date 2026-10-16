@@ -190,7 +190,7 @@ class _WideStudentDashboard extends StatelessWidget {
           key: _DashboardPanel.recentActivityPanelKey,
           icon: Icons.history,
           title: 'Recent activity',
-          description: 'Your completed quizzes',
+          description: '',
           content: _RecentActivityContent(
             key: ValueKey<int>(activityRevision),
             user: user,
@@ -248,7 +248,7 @@ class _StackedStudentDashboard extends StatelessWidget {
         key: _DashboardPanel.recentActivityPanelKey,
         icon: Icons.history,
         title: 'Recent activity',
-        description: 'Your completed quizzes',
+        description: '',
         content: _RecentActivityContent(
           key: ValueKey<int>(activityRevision),
           user: user,
@@ -333,7 +333,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
         return const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
           child: Text(
-            'Your completed quizzes will appear here.',
+            'No quiz activity yet. Complete a quiz and it will appear here.',
             style: TextStyle(color: Color(0xFF725F53)),
           ),
         );
@@ -349,65 +349,83 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final activity = activities[index];
-          final latestScore = activity.latestScore!;
-          final percentage = (latestScore / activity.totalQuestions * 100)
-              .round();
           return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: InkWell(
-              onTap: () => _showQuizDetails(activity),
-              borderRadius: BorderRadius.circular(12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF1DF),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _showQuizDetails(activity),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF1DF),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.quiz_outlined,
+                              color: Color(0xFFF4773C),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  activity.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFF3B2419),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '${activity.sourceFile} · ${_formatActivityDate(activity.createdAt)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFF725F53),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${activity.highestPercentage}% · ${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
+                            style: const TextStyle(
+                              color: Color(0xFFF4773C),
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: () => _retakeQuiz(activity),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    visualDensity: VisualDensity.compact,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
-                      Icons.quiz_outlined,
-                      color: Color(0xFFF4773C),
-                    ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          activity.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF3B2419),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '${activity.sourceFile} · ${_formatActivityDate(activity.createdAt)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF725F53),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '$percentage% · ${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
-                    style: const TextStyle(
-                      color: Color(0xFFF4773C),
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
+                  child: const Text('Retake'),
+                ),
+              ],
             ),
           );
         },
@@ -437,50 +455,254 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
   Future<void> _showQuizDetails(QuizActivity activity) async {
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(activity.title),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Based on ${activity.sourceFile}'),
-                const SizedBox(height: 16),
-                Text(
-                  'Attempts (${activity.attempts.length})',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 620),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFCF8),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFE8D7C2)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x26000000),
+                  blurRadius: 32,
+                  offset: Offset(0, 16),
                 ),
-                const SizedBox(height: 8),
-                ...activity.attempts.map(
-                  (attempt) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    title: Text(
-                      '${attempt.score} / ${attempt.totalQuestions} correct',
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1DF),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.quiz_outlined,
+                        color: Color(0xFFF4773C),
+                      ),
                     ),
-                    subtitle: Text(_formatActivityDate(attempt.createdAt)),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            activity.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF3B2419),
+                              fontSize: 21,
+                              height: 1.2,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Saved quiz · ${activity.totalQuestions} questions',
+                            style: const TextStyle(
+                              color: Color(0xFF725F53),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
                   ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8F1E9),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.insert_drive_file_outlined,
+                        size: 18,
+                        color: Color(0xFF8A6B58),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          activity.sourceFile,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF725F53),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Attempt history',
+                        style: TextStyle(
+                          color: Color(0xFF3B2419),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1DF),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
+                        style: const TextStyle(
+                          color: Color(0xFF9A512F),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: activity.attempts.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final attempt = activity.attempts[index];
+                      final percent =
+                          (attempt.score / attempt.totalQuestions * 100)
+                              .round();
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFEFE4D8)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 34,
+                              height: 34,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF1DF),
+                                borderRadius: BorderRadius.circular(11),
+                              ),
+                              child: Text(
+                                '${index + 1}',
+                                style: const TextStyle(
+                                  color: Color(0xFF9A512F),
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${attempt.score} / ${attempt.totalQuestions} correct',
+                                    style: const TextStyle(
+                                      color: Color(0xFF3B2419),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    _formatActivityDate(attempt.createdAt),
+                                    style: const TextStyle(
+                                      color: Color(0xFF8A7A70),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              '$percent%',
+                              style: const TextStyle(
+                                color: Color(0xFF9A512F),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      child: const Text('Close'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop();
+                        _retakeQuiz(activity);
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF7434),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 13,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.replay_rounded, size: 19),
+                      label: const Text('Retake'),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Close'),
-          ),
-          FilledButton.icon(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              _retakeQuiz(activity);
-            },
-            icon: const Icon(Icons.replay_rounded),
-            label: const Text('Retake quiz'),
-          ),
-        ],
       ),
     );
   }
@@ -499,6 +721,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
           sourceFile: activity.sourceFile,
           questions: activity.questions,
           quizId: activity.id,
+          previousAttempts: activity.attempts,
         ),
       ),
     );

@@ -68,7 +68,10 @@ class QuizActivity {
 
   int get totalQuestions => questions.length;
 
-  int? get latestScore => attempts.isEmpty ? null : attempts.first.score;
+  int get highestPercentage => attempts.fold(0, (highest, attempt) {
+    final percentage = (attempt.score / attempt.totalQuestions * 100).round();
+    return percentage > highest ? percentage : highest;
+  });
 
   factory QuizActivity.fromJson(Map<String, dynamic> json) {
     final questions = (json['questions'] as List<dynamic>)

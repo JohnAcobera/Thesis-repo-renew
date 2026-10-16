@@ -5,7 +5,7 @@ import '../../models/classroom_model.dart';
 import '../../models/user_model.dart';
 import '../../services/classroom_service.dart';
 
-const _primary = Color(0xFFF4773C);
+const _primary = Color(0xFFFF7434);
 const _heading = Color(0xFF3B2419);
 const _subtle = Color(0xFF765C4F);
 const _border = Color(0xFFE8D7C2);

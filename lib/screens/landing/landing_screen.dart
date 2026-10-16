@@ -7,7 +7,7 @@ import '../auth/register_screen.dart';
 import '../home/instructor_home_screen.dart';
 import '../home/student_home_screen.dart';
 
-const _primary = Color(0xFFF4773C);
+const _primary = Color(0xFFFF7434);
 const _scaffold = Color(0xFFFFF8EE);
 const _inputFill = Color(0xFFFFF1DF);
 const _border = Color(0xFFE8D7C2);
@@ -289,7 +289,7 @@ class _HeroLink extends StatelessWidget {
       onPressed: onPressed,
       label: Text(label),
       style: TextButton.styleFrom(
-        foregroundColor: _heading,
+        foregroundColor: _primary,
         textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
     );

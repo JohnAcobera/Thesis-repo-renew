@@ -32,6 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _isLoading = true;
@@ -75,9 +76,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         automaticallyImplyLeading: false,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => const LoginScreen(),
-            ),
+            MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
           ),
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back to login',
@@ -120,6 +119,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextFormField(
                       controller: _nameController,
                       textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(labelText: 'Full name'),
                       validator: (value) =>
                           value == null || value.trim().isEmpty
@@ -130,6 +130,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(labelText: 'Email'),
                       validator: _validateEmail,
                     ),
@@ -138,6 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _passwordController,
                       label: 'Password',
                       obscure: _obscurePassword,
+                      textInputAction: TextInputAction.next,
                       onToggle: () =>
                           setState(() => _obscurePassword = !_obscurePassword),
                       validator: (value) {
@@ -155,6 +157,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _confirmController,
                       label: 'Confirm password',
                       obscure: _obscureConfirm,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) {
+                        if (!_isLoading) _register();
+                      },
                       onToggle: () =>
                           setState(() => _obscureConfirm = !_obscureConfirm),
                       validator: (value) => value != _passwordController.text
@@ -201,12 +207,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required TextEditingController controller,
     required String label,
     required bool obscure,
+    required TextInputAction textInputAction,
+    ValueChanged<String>? onSubmitted,
     required VoidCallback onToggle,
     required String? Function(String?) validator,
   }) {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
+      textInputAction: textInputAction,
+      onFieldSubmitted: onSubmitted,
       decoration: InputDecoration(
         labelText: label,
         suffixIcon: IconButton(
@@ -227,7 +237,7 @@ const _headingStyle = TextStyle(
   color: Color(0xFF3B2419),
 );
 final _buttonStyle = FilledButton.styleFrom(
-  backgroundColor: const Color(0xFFF4773C),
+  backgroundColor: const Color(0xFFFF7434),
   foregroundColor: Colors.white,
   minimumSize: const Size.fromHeight(56),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),

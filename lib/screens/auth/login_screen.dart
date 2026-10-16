@@ -42,6 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _isLoading = true;
@@ -86,9 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
         automaticallyImplyLeading: false,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => const LandingScreen(),
-            ),
+            MaterialPageRoute<void>(builder: (_) => const LandingScreen()),
           ),
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back to landing page',
@@ -114,6 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(labelText: 'Email'),
                       validator: (value) => _validateEmail(value),
                     ),
@@ -121,6 +121,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextFormField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) {
+                        if (!_isLoading) _login();
+                      },
                       decoration: InputDecoration(
                         labelText: 'Password',
                         suffixIcon: IconButton(
@@ -182,7 +186,7 @@ const _headingStyle = TextStyle(
   color: Color(0xFF3B2419),
 );
 final _buttonStyle = FilledButton.styleFrom(
-  backgroundColor: const Color(0xFFF4773C),
+  backgroundColor: const Color(0xFFFF7434),
   foregroundColor: Colors.white,
   minimumSize: const Size.fromHeight(56),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),

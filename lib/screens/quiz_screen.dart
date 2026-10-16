@@ -4,7 +4,7 @@ import '../services/quiz_service.dart';
 import '../widgets/student_side_menu.dart';
 import 'profile_screen.dart';
 
-const _primary = Color(0xFFF4773C);
+const _primary = Color(0xFFFF7434);
 const _inputFill = Color(0xFFFFF1DF);
 const _border = Color(0xFFE8D7C2);
 const _heading = Color(0xFF3B2419);
@@ -18,6 +18,7 @@ class QuizScreen extends StatefulWidget {
     required this.sourceFile,
     required this.questions,
     this.quizId,
+    this.previousAttempts = const [],
     this.role = 'student',
     this.createdAt,
     this.onMenuSelected,
@@ -30,6 +31,7 @@ class QuizScreen extends StatefulWidget {
   final String sourceFile;
   final List<QuizQuestion> questions;
   final String? quizId;
+  final List<QuizScore> previousAttempts;
   final String role;
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
@@ -409,6 +411,10 @@ class _QuizScreenState extends State<QuizScreen> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              if (widget.previousAttempts.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                _buildPreviousAttempts(),
+              ],
               const SizedBox(height: 24),
               if (_saveError != null) ...[
                 Container(
@@ -460,6 +466,74 @@ class _QuizScreenState extends State<QuizScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildPreviousAttempts() => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF8EE),
+      border: Border.all(color: _border),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Previous attempts (${widget.previousAttempts.length})',
+          style: const TextStyle(
+            color: _heading,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...widget.previousAttempts.asMap().entries.map((entry) {
+          final attempt = entry.value;
+          final percentage = (attempt.score / attempt.totalQuestions * 100)
+              .round();
+          return Padding(
+            padding: EdgeInsets.only(top: entry.key == 0 ? 0 : 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${attempt.score} / ${attempt.totalQuestions} correct · ${_formatAttemptDate(attempt.createdAt)}',
+                    style: const TextStyle(color: _subtle, fontSize: 13),
+                  ),
+                ),
+                Text(
+                  '$percentage%',
+                  style: const TextStyle(
+                    color: _primary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    ),
+  );
+
+  String _formatAttemptDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final localDate = date.toLocal();
+    return '${months[localDate.month - 1]} ${localDate.day}';
   }
 }
 

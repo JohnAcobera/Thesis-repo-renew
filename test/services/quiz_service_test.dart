@@ -56,12 +56,12 @@ void main() {
         ],
         'attempts': [
           {
-            'score': 8,
+            'score': 6,
             'total_questions': 10,
             'created_at': '2026-10-16T06:00:00Z',
           },
           {
-            'score': 6,
+            'score': 8,
             'total_questions': 10,
             'created_at': '2026-10-15T06:00:00Z',
           },
@@ -71,8 +71,8 @@ void main() {
       expect(activity.id, 'saved-quiz-id');
       expect(activity.questions, hasLength(1));
       expect(activity.attempts, hasLength(2));
-      expect(activity.latestScore, 8);
-      expect(activity.attempts.last.score, 6);
+      expect(activity.highestPercentage, 80);
+      expect(activity.attempts.first.score, 6);
     });
 
     test('rejects saved quizzes without questions or completed attempts', () {

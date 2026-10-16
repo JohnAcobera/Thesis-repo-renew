@@ -8,7 +8,7 @@ import 'quiz_screen.dart';
 import '../services/quiz_service.dart';
 import '../widgets/student_side_menu.dart';
 
-const _primary = Color(0xFFF4773C);
+const _primary = Color(0xFFFF7434);
 const _inputFill = Color(0xFFFFF1DF);
 const _border = Color(0xFFE8D7C2);
 const _heading = Color(0xFF3B2419);
