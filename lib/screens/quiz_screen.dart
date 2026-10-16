@@ -42,10 +42,10 @@ class QuizScreen extends StatefulWidget {
 
 class _QuizScreenState extends State<QuizScreen> {
   final _service = QuizService();
-  late final List<int?> _answers = List<int?>.filled(
-    widget.questions.length,
-    null,
-  );
+  late final List<QuizQuestion> _questions = widget.quizId == null
+      ? List<QuizQuestion>.of(widget.questions)
+      : shuffledQuizQuestions(widget.questions);
+  late final List<int?> _answers = List<int?>.filled(_questions.length, null);
   int _questionIndex = 0;
   bool _showResults = false;
   bool _isSaving = false;
@@ -53,11 +53,12 @@ class _QuizScreenState extends State<QuizScreen> {
   String? _savedQuizId;
   String? _saveError;
 
-  QuizQuestion get _question => widget.questions[_questionIndex];
+  QuizQuestion get _question => _questions[_questionIndex];
 
-  int get _score => List.generate(widget.questions.length, (index) => index)
-      .where((index) => _answers[index] == widget.questions[index].answerIndex)
-      .length;
+  int get _score => List.generate(
+    _questions.length,
+    (index) => index,
+  ).where((index) => _answers[index] == _questions[index].answerIndex).length;
 
   Future<void> _finishQuiz() async {
     if (_isSaving || _isSaved) return;
@@ -71,8 +72,8 @@ class _QuizScreenState extends State<QuizScreen> {
         title: widget.title,
         sourceFile: widget.sourceFile,
         score: _score,
-        totalQuestions: widget.questions.length,
-        questions: widget.questions,
+        totalQuestions: _questions.length,
+        questions: _questions,
         quizId: _savedQuizId ?? widget.quizId,
       );
       if (!mounted) return;
@@ -104,7 +105,7 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _goToNextQuestion() {
-    if (_questionIndex == widget.questions.length - 1) {
+    if (_questionIndex == _questions.length - 1) {
       _finishQuiz();
       return;
     }
@@ -174,7 +175,7 @@ class _QuizScreenState extends State<QuizScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
                 child: LinearProgressIndicator(
-                  value: (_questionIndex + 1) / widget.questions.length,
+                  value: (_questionIndex + 1) / _questions.length,
                   minHeight: 10,
                   backgroundColor: _border,
                   valueColor: const AlwaysStoppedAnimation<Color>(_primary),
@@ -183,7 +184,7 @@ class _QuizScreenState extends State<QuizScreen> {
             ),
             const SizedBox(width: 14),
             Text(
-              '${_questionIndex + 1} / ${widget.questions.length}',
+              '${_questionIndex + 1} / ${_questions.length}',
               style: const TextStyle(
                 color: _subtle,
                 fontWeight: FontWeight.w700,
@@ -243,12 +244,12 @@ class _QuizScreenState extends State<QuizScreen> {
                     onPressed: _goToNextQuestion,
                     style: _buttonStyle,
                     icon: Icon(
-                      _questionIndex == widget.questions.length - 1
+                      _questionIndex == _questions.length - 1
                           ? Icons.emoji_events_outlined
                           : Icons.arrow_forward_rounded,
                     ),
                     label: Text(
-                      _questionIndex == widget.questions.length - 1
+                      _questionIndex == _questions.length - 1
                           ? 'See your score'
                           : 'Next question',
                     ),
@@ -354,7 +355,7 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   Widget _buildResults() {
-    final percent = (_score / widget.questions.length * 100).round();
+    final percent = (_score / _questions.length * 100).round();
     return Column(
       children: [
         const SizedBox(height: 16),
@@ -394,7 +395,7 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
               const SizedBox(height: 22),
               Text(
-                '$_score / ${widget.questions.length}',
+                '$_score / ${_questions.length}',
                 style: const TextStyle(
                   color: _primary,
                   fontSize: 52,

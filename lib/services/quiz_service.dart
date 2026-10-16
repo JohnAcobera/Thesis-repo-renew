@@ -1,6 +1,25 @@
+import 'dart:math';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_service.dart';
+
+List<QuizQuestion> shuffledQuizQuestions(
+  List<QuizQuestion> questions, {
+  Random? random,
+}) {
+  final randomizer = random ?? Random();
+  final shuffled = List<QuizQuestion>.of(questions)..shuffle(randomizer);
+  if (shuffled.length > 1 &&
+      List<int>.generate(
+        shuffled.length,
+        (index) => index,
+      ).every((index) => identical(shuffled[index], questions[index]))) {
+    final offset = randomizer.nextInt(shuffled.length - 1) + 1;
+    return [...shuffled.skip(offset), ...shuffled.take(offset)];
+  }
+  return shuffled;
+}
 
 class QuizQuestion {
   const QuizQuestion({

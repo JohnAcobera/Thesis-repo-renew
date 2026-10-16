@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
 
@@ -88,5 +90,36 @@ void main() {
         throwsFormatException,
       );
     });
+  });
+
+  test('shuffles questions while keeping question data intact', () {
+    final questions = [
+      for (var index = 0; index < 5; index++)
+        QuizQuestion(
+          question: 'Question $index',
+          options: ['A', 'B', 'C', 'D'],
+          answerIndex: index % 4,
+          explanation: 'Explanation $index',
+        ),
+    ];
+
+    final shuffled = shuffledQuizQuestions(questions, random: Random(1));
+
+    expect(shuffled, hasLength(questions.length));
+    expect(
+      shuffled.map((question) => question.question).toSet(),
+      questions.map((question) => question.question).toSet(),
+    );
+    expect(
+      shuffled.map((question) => question.question).toList(),
+      isNot(equals(questions.map((question) => question.question).toList())),
+    );
+    for (final question in shuffled) {
+      final original = questions.firstWhere(
+        (item) => item.question == question.question,
+      );
+      expect(question.answerIndex, original.answerIndex);
+      expect(question.explanation, original.explanation);
+    }
   });
 }
