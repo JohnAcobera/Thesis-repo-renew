@@ -17,6 +17,9 @@ class QuizScreen extends StatefulWidget {
     required this.title,
     required this.sourceFile,
     required this.questions,
+    this.role = 'student',
+    this.createdAt,
+    this.onMenuSelected,
     super.key,
   });
 
@@ -25,6 +28,9 @@ class QuizScreen extends StatefulWidget {
   final String title;
   final String sourceFile;
   final List<QuizQuestion> questions;
+  final String role;
+  final DateTime? createdAt;
+  final ValueChanged<StudentMenuItem>? onMenuSelected;
 
   @override
   State<QuizScreen> createState() => _QuizScreenState();
@@ -108,6 +114,7 @@ class _QuizScreenState extends State<QuizScreen> {
       title: _showResults ? 'Quiz Results' : 'Take your quiz',
       username: widget.username,
       email: widget.email,
+      role: _displayRole(widget.role),
       onBack: () => Navigator.of(context).maybePop(false),
       onMenuSelected: (item) {
         if (item == StudentMenuItem.dashboard) {
@@ -115,10 +122,18 @@ class _QuizScreenState extends State<QuizScreen> {
         } else if (item == StudentMenuItem.profile) {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) =>
-                  ProfileScreen(username: widget.username, email: widget.email),
+              builder: (_) => ProfileScreen(
+                username: widget.username,
+                email: widget.email,
+                role: widget.role,
+                createdAt: widget.createdAt,
+                onMenuSelected: widget.onMenuSelected,
+              ),
             ),
           );
+        } else if (item == StudentMenuItem.classroom) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          widget.onMenuSelected?.call(item);
         }
       },
       body: SafeArea(
@@ -134,6 +149,10 @@ class _QuizScreenState extends State<QuizScreen> {
       ),
     );
   }
+
+  String _displayRole(String role) => role.isEmpty
+      ? role
+      : '${role[0].toUpperCase()}${role.substring(1).toLowerCase()}';
 
   Widget _buildQuestion() {
     final selectedAnswer = _answers[_questionIndex];

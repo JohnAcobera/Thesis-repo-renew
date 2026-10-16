@@ -4,12 +4,14 @@ class UserModel {
     required this.fullName,
     required this.email,
     required this.role,
+    this.createdAt,
   });
 
   final int id;
   final String fullName;
   final String email;
   final String role;
+  final DateTime? createdAt;
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
@@ -17,6 +19,9 @@ class UserModel {
       fullName: json['full_name'] as String,
       email: json['email'] as String,
       role: json['role'] as String,
+      createdAt: json['created_at'] == null
+          ? null
+          : DateTime.parse(json['created_at'] as String),
     );
   }
 }

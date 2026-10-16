@@ -6,20 +6,18 @@ import '../screens/auth/login_screen.dart';
 import '../services/auth_service.dart';
 import 'student_nav_bar.dart';
 
-enum StudentMenuItem { dashboard, profile, achievements, classroom }
+enum StudentMenuItem { dashboard, profile, classroom }
 
 extension StudentMenuItemPresentation on StudentMenuItem {
   String get label => switch (this) {
     StudentMenuItem.dashboard => 'Dashboard',
     StudentMenuItem.profile => 'Profile',
-    StudentMenuItem.achievements => 'Achievements',
     StudentMenuItem.classroom => 'My Classroom',
   };
 
   IconData get icon => switch (this) {
     StudentMenuItem.dashboard => Icons.dashboard_outlined,
     StudentMenuItem.profile => Icons.person_outline,
-    StudentMenuItem.achievements => Icons.emoji_events_outlined,
     StudentMenuItem.classroom => Icons.class_outlined,
   };
 }
@@ -30,6 +28,7 @@ class StudentScaffold extends StatefulWidget {
     required this.username,
     required this.email,
     required this.body,
+    this.role = 'Student',
     this.selectedMenu,
     this.onMenuSelected,
     this.onSettingsSelected,
@@ -40,6 +39,7 @@ class StudentScaffold extends StatefulWidget {
   final String title;
   final String username;
   final String email;
+  final String role;
   final Widget body;
   final StudentMenuItem? selectedMenu;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
@@ -185,6 +185,7 @@ class _StudentScaffoldState extends State<StudentScaffold> {
                       child: _StudentSideMenu(
                         username: widget.username,
                         email: widget.email,
+                        role: widget.role,
                         selectedMenu: _selectedMenu,
                         onMenuSelected: _selectMenuItem,
                         onSettingsSelected: widget.onSettingsSelected,
@@ -227,6 +228,7 @@ class _StudentSideMenu extends StatelessWidget {
   const _StudentSideMenu({
     required this.username,
     required this.email,
+    required this.role,
     required this.selectedMenu,
     required this.onMenuSelected,
     required this.onSettingsSelected,
@@ -235,6 +237,7 @@ class _StudentSideMenu extends StatelessWidget {
 
   final String username;
   final String email;
+  final String role;
   final StudentMenuItem? selectedMenu;
   final ValueChanged<StudentMenuItem> onMenuSelected;
   final VoidCallback? onSettingsSelected;
@@ -280,6 +283,14 @@ class _StudentSideMenu extends StatelessWidget {
                         maxLines: 1,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: const Color(0xFF765C4F),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        role,
+                        style: const TextStyle(
+                          color: Color(0xFF765C4F),
+                          fontSize: 12,
                         ),
                       ),
                     ],

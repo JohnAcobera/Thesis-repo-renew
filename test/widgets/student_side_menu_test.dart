@@ -61,6 +61,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Student'), findsOneWidget);
 
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();
@@ -77,14 +78,17 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    final repository = _FakeStudentClassroomRepository();
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
         home: StudentHomeScreen(
+          classroomService: repository,
           user: UserModel(
             id: 1,
             fullName: 'Student Name',
             email: 'student@example.com',
             role: 'student',
+            createdAt: DateTime(2024, 3, 12),
           ),
         ),
       ),
@@ -98,6 +102,24 @@ void main() {
     expect(find.byType(ProfileScreen), findsOneWidget);
     expect(find.text('Your profile'), findsOneWidget);
     expect(find.text('Student Name'), findsWidgets);
+    expect(find.text('Student'), findsWidgets);
+    expect(find.text('March 12, 2024'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+    expect(find.text('My Classroom'), findsOneWidget);
+    await tester.tap(find.text('My Classroom'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileScreen), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('My Classroom'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Your classrooms'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('student can open My Classroom and join using its code', (
@@ -353,7 +375,7 @@ void main() {
 
     final closedMenuOpacity = tester.widget<AnimatedOpacity>(
       find.ancestor(
-        of: find.text('Achievements'),
+        of: find.text('My Classroom'),
         matching: find.byType(AnimatedOpacity),
       ),
     );
@@ -374,7 +396,7 @@ void main() {
       isFalse,
     );
     expect(find.text('Profile'), findsOneWidget);
-    expect(find.text('Achievements'), findsOneWidget);
+    expect(find.text('Achievements'), findsNothing);
     expect(find.text('My Classroom'), findsOneWidget);
     for (final removedItem in ['Quiz', 'Summarizer', 'Flashcard', 'Reviewer']) {
       expect(find.text(removedItem), findsNothing);

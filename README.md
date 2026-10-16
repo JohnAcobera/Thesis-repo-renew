@@ -31,6 +31,10 @@ For hosting under a subpath, set the corresponding base href, for example:
 flutter build web --dart-define-from-file=.env --no-wasm-dry-run --base-href=/your-subpath/
 ```
 
+Re-run `supabase/custom_auth.sql` in the Supabase SQL Editor to include the
+account creation date in login and restored-session responses. The profile
+shows this as the account's join date.
+
 ## Generative quizzes
 
 Run `supabase/quiz_attempts.sql` in the Supabase SQL Editor to create the quiz

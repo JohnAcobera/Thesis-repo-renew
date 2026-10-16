@@ -7,6 +7,9 @@ class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     required this.username,
     required this.email,
+    this.role = 'student',
+    this.createdAt,
+    this.onMenuSelected,
     this.streakDays,
     this.authService,
     super.key,
@@ -14,6 +17,9 @@ class ProfileScreen extends StatefulWidget {
 
   final String username;
   final String email;
+  final String role;
+  final DateTime? createdAt;
+  final ValueChanged<StudentMenuItem>? onMenuSelected;
   final Set<DateTime>? streakDays;
   final AuthService? authService;
 
@@ -83,10 +89,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     title: 'Profile',
     username: widget.username,
     email: widget.email,
+    role: _displayRole,
     selectedMenu: StudentMenuItem.profile,
     onMenuSelected: (item) {
-      if (item == StudentMenuItem.dashboard) {
+      if (item == StudentMenuItem.dashboard ||
+          item == StudentMenuItem.classroom) {
+        final callback = widget.onMenuSelected;
         Navigator.of(context).popUntil((route) => route.isFirst);
+        callback?.call(item);
       }
     },
     body: SafeArea(
@@ -107,7 +117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'View your student account information.',
+                  'View your account information.',
                   style: TextStyle(color: Color(0xFF765C4F)),
                 ),
                 const SizedBox(height: 24),
@@ -150,6 +160,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _displayRole,
+                              style: const TextStyle(
+                                color: Color(0xFF765C4F),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -167,6 +185,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         value: widget.email,
                         icon: Icons.email_outlined,
                       ),
+                      const SizedBox(height: 20),
+                      _ProfileDetail(
+                        label: 'Joined',
+                        value: widget.createdAt == null
+                            ? 'Not available'
+                            : _formatDate(widget.createdAt!),
+                        icon: Icons.calendar_today_outlined,
+                      ),
                     ],
                   ),
                 ),
@@ -181,6 +207,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     ),
   );
+
+  String get _displayRole => widget.role.isEmpty
+      ? widget.role
+      : '${widget.role[0].toUpperCase()}'
+            '${widget.role.substring(1).toLowerCase()}';
+
+  String _formatDate(DateTime date) {
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${monthNames[date.month - 1]} ${date.day}, ${date.year}';
+  }
 }
 
 class _StreakCalendar extends StatefulWidget {

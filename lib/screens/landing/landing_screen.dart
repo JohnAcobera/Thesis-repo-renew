@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
@@ -13,7 +14,9 @@ const _border = Color(0xFFE8D7C2);
 const _heading = Color(0xFF3B2419);
 
 class LandingScreen extends StatefulWidget {
-  const LandingScreen({super.key});
+  const LandingScreen({this.sessionRestorer, super.key});
+
+  final Future<UserModel?> Function()? sessionRestorer;
 
   @override
   State<LandingScreen> createState() => _LandingScreenState();
@@ -30,7 +33,8 @@ class _LandingScreenState extends State<LandingScreen> {
 
   Future<void> _restoreSession() async {
     try {
-      final user = await AuthService().restoreSession();
+      final user =
+          await (widget.sessionRestorer ?? AuthService().restoreSession)();
       if (!mounted ||
           user == null ||
           ModalRoute.of(context)?.isCurrent != true) {
@@ -41,9 +45,9 @@ class _LandingScreenState extends State<LandingScreen> {
           : StudentHomeScreen(user: user);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => destination),
-        );
+        Navigator.of(
+          context,
+        ).pushReplacement(MaterialPageRoute<void>(builder: (_) => destination));
       });
     } on Exception {
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
@@ -52,15 +56,15 @@ class _LandingScreenState extends State<LandingScreen> {
   }
 
   void _openLogin() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const LoginScreen()));
   }
 
   void _openRegister() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const RegisterScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const RegisterScreen()));
   }
 
   void _openTeacherRegister() {
@@ -95,16 +99,13 @@ class _LandingScreenState extends State<LandingScreen> {
                         ),
                       ),
                     ],
-                    _TopNav(
-                      onLogin: _openLogin,
-                      onCreate: _openRegister,
-                    ),
+                    _TopNav(onLogin: _openLogin),
                     _HeroSection(
                       onSignUp: _openRegister,
                       onTeacher: _openTeacherRegister,
                     ),
                     const _FeatureCarousel(),
-                    const _WhyEduSmartSection(),
+                    const _WhyQuizForgeSection(),
                     const SizedBox(height: 56),
                   ],
                 ),
@@ -118,13 +119,9 @@ class _LandingScreenState extends State<LandingScreen> {
 }
 
 class _TopNav extends StatelessWidget {
-  const _TopNav({
-    required this.onLogin,
-    required this.onCreate,
-  });
+  const _TopNav({required this.onLogin});
 
   final VoidCallback onLogin;
-  final VoidCallback onCreate;
 
   @override
   Widget build(BuildContext context) {
@@ -132,33 +129,9 @@ class _TopNav extends StatelessWidget {
       padding: const EdgeInsets.only(top: 18, bottom: 18),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final left = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const _Brand(),
-              const SizedBox(width: 24),
-              _MenuButton(
-                label: 'Study tools',
-                items: const [
-                  'AI Quiz Generator',
-                  'Flashcards',
-                  'Classrooms',
-                ],
-              ),
-            ],
-          );
           final actions = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextButton(
-                onPressed: onCreate,
-                style: TextButton.styleFrom(
-                  foregroundColor: _heading,
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                child: const Text('Create'),
-              ),
-              const SizedBox(width: 4),
               FilledButton(
                 onPressed: onLogin,
                 style: FilledButton.styleFrom(
@@ -178,16 +151,14 @@ class _TopNav extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Align(alignment: Alignment.centerLeft, child: left),
+                const Align(alignment: Alignment.centerLeft, child: _Brand()),
                 const SizedBox(height: 12),
                 Align(alignment: Alignment.centerRight, child: actions),
               ],
             );
           }
 
-          return Row(
-            children: [left, const Spacer(), actions],
-          );
+          return Row(children: [const _Brand(), const Spacer(), actions]);
         },
       ),
     );
@@ -213,7 +184,7 @@ class _Brand extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         const Text(
-          'EduSmart',
+          'QuizForge',
           style: TextStyle(
             color: _heading,
             fontSize: 20,
@@ -221,38 +192,6 @@ class _Brand extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _MenuButton extends StatelessWidget {
-  const _MenuButton({required this.label, required this.items});
-
-  final String label;
-  final List<String> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      onSelected: (_) {},
-      itemBuilder: (context) => items
-          .map((item) => PopupMenuItem<String>(value: item, child: Text(item)))
-          .toList(),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-        child: Row(
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: _heading,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const Icon(Icons.keyboard_arrow_down, size: 18),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -302,7 +241,7 @@ class _HeroSection extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 680),
             child: const Text(
               'Discover, create, and master your study material — all in one place. '
-              'Generate quizzes with AI and hit your goals with EduSmart.',
+              'Generate quizzes with AI and hit your goals with QuizForge.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 17, height: 1.5),
             ),
@@ -330,9 +269,7 @@ class _HeroSection extends StatelessWidget {
           Wrap(
             alignment: WrapAlignment.center,
             spacing: 24,
-            children: [
-              _HeroLink(label: "I'm a teacher", onPressed: onTeacher),
-            ],
+            children: [_HeroLink(label: "I'm a teacher", onPressed: onTeacher)],
           ),
         ],
       ),
@@ -417,7 +354,7 @@ class _FeatureCarousel extends StatelessWidget {
             .toList();
         if (constraints.maxWidth >= 1060) {
           return SizedBox(
-            height: 220,
+            height: 250,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -496,8 +433,8 @@ class _FeatureCard extends StatelessWidget {
   }
 }
 
-class _WhyEduSmartSection extends StatelessWidget {
-  const _WhyEduSmartSection();
+class _WhyQuizForgeSection extends StatelessWidget {
+  const _WhyQuizForgeSection();
 
   @override
   Widget build(BuildContext context) {
@@ -544,7 +481,7 @@ class _WhyEduSmartSection extends StatelessWidget {
       child: Column(
         children: [
           const Text(
-            'Why EduSmart?',
+            'Why QuizForge?',
             style: TextStyle(
               color: _heading,
               fontSize: 32,
@@ -568,7 +505,7 @@ class _WhyEduSmartSection extends StatelessWidget {
                   crossAxisCount: columns,
                   crossAxisSpacing: 18,
                   mainAxisSpacing: 18,
-                  mainAxisExtent: 190,
+                  mainAxisExtent: 270,
                 ),
                 itemBuilder: (context, index) {
                   final benefit = benefits[index];

@@ -20,11 +20,12 @@ void main() {
           home: InstructorHomeScreen(
             key: ValueKey(size),
             classroomService: _FakeClassroomRepository(),
-            user: const UserModel(
+            user: UserModel(
               id: 1,
               fullName: 'Instructor Name',
               email: 'instructor@example.com',
               role: 'instructor',
+              createdAt: DateTime(2023, 9, 5),
             ),
           ),
         ),
@@ -104,6 +105,19 @@ void main() {
       await tester.tap(find.byTooltip('Close menu'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Your classrooms'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your classrooms'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Open profile menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Profile'));
+      await tester.pumpAndSettle();
+      expect(find.text('Instructor'), findsWidgets);
+      expect(find.text('September 5, 2023'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('My Classroom'));
       await tester.pumpAndSettle();
       expect(find.text('Your classrooms'), findsOneWidget);
       expect(tester.takeException(), isNull);

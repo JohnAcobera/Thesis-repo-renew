@@ -35,8 +35,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     Future<void> openImportScreen() async {
       final completed = await Navigator.of(context).push<bool>(
         MaterialPageRoute<bool>(
-          builder: (_) =>
-              ImportScreen(username: user.fullName, email: user.email),
+          builder: (_) => ImportScreen(
+            username: user.fullName,
+            email: user.email,
+            role: user.role,
+            createdAt: user.createdAt,
+            onMenuSelected: _selectMenuItem,
+          ),
         ),
       );
       if (completed == true && mounted) {
@@ -47,10 +52,20 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     void openProfileScreen() {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              ProfileScreen(username: user.fullName, email: user.email),
+          builder: (_) => ProfileScreen(
+            username: user.fullName,
+            email: user.email,
+            role: user.role,
+            createdAt: user.createdAt,
+            onMenuSelected: _selectMenuItem,
+          ),
         ),
       );
+    }
+
+    void onMenuSelected(StudentMenuItem item) {
+      _selectMenuItem(item);
+      if (item == StudentMenuItem.profile) openProfileScreen();
     }
 
     return StudentScaffold(
@@ -59,15 +74,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           : 'Student Dashboard',
       username: user.fullName,
       email: user.email,
+      role: _displayRole(user.role),
       selectedMenu: _selectedMenu,
-      onMenuSelected: (item) {
-        if (item == StudentMenuItem.profile) {
-          openProfileScreen();
-        } else if (item == StudentMenuItem.dashboard ||
-            item == StudentMenuItem.classroom) {
-          setState(() => _selectedMenu = item);
-        }
-      },
+      onMenuSelected: onMenuSelected,
       body: _selectedMenu == StudentMenuItem.classroom
           ? ClassroomScreen(
               user: user,
@@ -106,6 +115,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             ),
     );
   }
+
+  void _selectMenuItem(StudentMenuItem item) {
+    if (item == StudentMenuItem.dashboard ||
+        item == StudentMenuItem.classroom) {
+      setState(() => _selectedMenu = item);
+    }
+  }
+
+  String _displayRole(String role) => role.isEmpty
+      ? role
+      : '${role[0].toUpperCase()}${role.substring(1).toLowerCase()}';
 }
 
 class _WideStudentDashboard extends StatelessWidget {

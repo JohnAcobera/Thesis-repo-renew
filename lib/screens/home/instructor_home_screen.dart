@@ -6,8 +6,10 @@ import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/classroom_service.dart';
 import '../classroom/classroom_screen.dart';
+import '../profile_screen.dart';
 import '../../widgets/instructor_side_menu.dart';
 import '../../widgets/student_nav_bar.dart';
+import '../../widgets/student_side_menu.dart' show StudentMenuItem;
 import '../auth/login_screen.dart';
 
 class InstructorHomeScreen extends StatefulWidget {
@@ -74,6 +76,21 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
             : 'Instructor Dashboard',
         username: user.fullName,
         email: user.email,
+        onProfileSelected: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => ProfileScreen(
+              username: user.fullName,
+              email: user.email,
+              role: user.role,
+              createdAt: user.createdAt,
+              onMenuSelected: (item) => _selectMenuItem(
+                item == StudentMenuItem.classroom
+                    ? InstructorMenuItem.classroom
+                    : InstructorMenuItem.dashboard,
+              ),
+            ),
+          ),
+        ),
         onSettingsSelected: () {},
         onLogoutSelected: _logout,
         leading: IconButton(
