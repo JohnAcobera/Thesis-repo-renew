@@ -45,6 +45,12 @@ class MainApp extends StatelessWidget {
           seedColor: _buttonColor,
           brightness: Brightness.light,
         ).copyWith(primary: _buttonColor),
+        pageTransitionsTheme: PageTransitionsTheme(
+          builders: {
+            for (final platform in TargetPlatform.values)
+              platform: const FadeUpwardsPageTransitionsBuilder(),
+          },
+        ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
             backgroundColor: _buttonColor,

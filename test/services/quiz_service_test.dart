@@ -19,6 +19,18 @@ void main() {
       expect(question.explanation, contains('Iron oxide'));
     });
 
+    test('parses a true-or-false question', () {
+      final question = QuizQuestion.fromJson({
+        'question': 'Mars is known as the Red Planet.',
+        'options': ['True', 'False'],
+        'answerIndex': 0,
+        'explanation': 'Iron oxide gives Mars its reddish appearance.',
+      });
+
+      expect(question.options, ['True', 'False']);
+      expect(question.answerIndex, 0);
+    });
+
     test('rejects malformed question options and answer indexes', () {
       expect(
         () => QuizQuestion.fromJson({
@@ -34,6 +46,15 @@ void main() {
           'question': 'Pick an answer',
           'options': ['A', 'B', 'C', 'D'],
           'answerIndex': 4,
+          'explanation': 'An explanation.',
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => QuizQuestion.fromJson({
+          'question': 'Mars is known as the Red Planet.',
+          'options': ['False', 'True'],
+          'answerIndex': 0,
           'explanation': 'An explanation.',
         }),
         throwsFormatException,

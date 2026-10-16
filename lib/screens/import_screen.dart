@@ -36,7 +36,7 @@ class ImportScreen extends StatefulWidget {
 
 class _ImportScreenState extends State<ImportScreen> {
   PlatformFile? _selectedFile;
-  final Set<QuestionType> _selectedTypes = {QuestionType.multipleChoice};
+  QuizQuestionType _selectedType = QuizQuestionType.multipleChoice;
   int _selectedItemCount = 10;
   bool _isGenerating = false;
   String? _generationStatus;
@@ -76,7 +76,6 @@ class _ImportScreenState extends State<ImportScreen> {
 
   Future<void> _generate() async {
     if (_selectedFile == null) return;
-    if (_selectedTypes.isEmpty) return;
 
     setState(() {
       _isGenerating = true;
@@ -132,6 +131,7 @@ class _ImportScreenState extends State<ImportScreen> {
         questionCount: _selectedItemCount,
         fileName: file.name,
         sourceText: sourceText,
+        questionType: _selectedType,
       );
       if (!mounted) return;
       setState(() => _isGenerating = false);
@@ -232,16 +232,8 @@ class _ImportScreenState extends State<ImportScreen> {
                   ),
                   const SizedBox(height: 16),
                   _QuestionTypesPanel(
-                    selectedTypes: _selectedTypes,
-                    onChanged: (type, selected) {
-                      setState(() {
-                        if (selected) {
-                          _selectedTypes.add(type);
-                        } else {
-                          _selectedTypes.remove(type);
-                        }
-                      });
-                    },
+                    selectedType: _selectedType,
+                    onChanged: (type) => setState(() => _selectedType = type),
                   ),
                   const SizedBox(height: 16),
                   _ItemCountPanel(
@@ -253,8 +245,7 @@ class _ImportScreenState extends State<ImportScreen> {
                   _GenerateButton(
                     onPressed: _generate,
                     isLoading: _isGenerating,
-                    isEnabled:
-                        _selectedFile != null && _selectedTypes.isNotEmpty,
+                    isEnabled: _selectedFile != null,
                   ),
                   if (_isGenerating && _generationStatus != null) ...[
                     const SizedBox(height: 12),
@@ -532,28 +523,28 @@ class _FileTypeIcon extends StatelessWidget {
 
 class _QuestionTypesPanel extends StatelessWidget {
   const _QuestionTypesPanel({
-    required this.selectedTypes,
+    required this.selectedType,
     required this.onChanged,
   });
 
-  final Set<QuestionType> selectedTypes;
-  final void Function(QuestionType, bool) onChanged;
+  final QuizQuestionType selectedType;
+  final ValueChanged<QuizQuestionType> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return _SettingsPanel(
       icon: Icons.quiz_outlined,
       title: 'Question Types',
-      description: 'Choose the multiple-choice format for your quiz',
+      description: 'Choose one question format for your quiz',
       child: Wrap(
         spacing: 12,
         runSpacing: 12,
-        children: QuestionType.values.map((type) {
-          final isSelected = selectedTypes.contains(type);
+        children: QuizQuestionType.values.map((type) {
+          final isSelected = selectedType == type;
           return _QuestionTypeChip(
             type: type,
             isSelected: isSelected,
-            onTap: () => onChanged(type, !isSelected),
+            onTap: () => onChanged(type),
           );
         }).toList(),
       ),
@@ -568,7 +559,7 @@ class _QuestionTypeChip extends StatelessWidget {
     required this.onTap,
   });
 
-  final QuestionType type;
+  final QuizQuestionType type;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -621,12 +612,16 @@ class _QuestionTypeChip extends StatelessWidget {
   }
 }
 
-enum QuestionType {
-  multipleChoice('Multiple Choice', Icons.format_list_numbered_rounded);
+extension on QuizQuestionType {
+  String get label => switch (this) {
+    QuizQuestionType.multipleChoice => 'Multiple Choice',
+    QuizQuestionType.trueOrFalse => 'True or False',
+  };
 
-  const QuestionType(this.label, this.icon);
-  final String label;
-  final IconData icon;
+  IconData get icon => switch (this) {
+    QuizQuestionType.multipleChoice => Icons.format_list_numbered_rounded,
+    QuizQuestionType.trueOrFalse => Icons.check_circle_outline_rounded,
+  };
 }
 
 class _ItemCountPanel extends StatelessWidget {

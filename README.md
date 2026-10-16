@@ -31,23 +31,27 @@ For hosting under a subpath, set the corresponding base href, for example:
 flutter build web --dart-define-from-file=.env --no-wasm-dry-run --base-href=/your-subpath/
 ```
 
-Re-run `supabase/custom_auth.sql` in the Supabase SQL Editor to include the
-account creation date in login and restored-session responses. The profile
-shows this as the account's join date.
+If the profile shows "Joined: Not available", re-run
+`supabase/custom_auth.sql` in the Supabase SQL Editor. Its login and
+restored-session RPCs return `users.created_at`, which the profile displays as
+the account's join date.
 
 ## Generative quizzes
 
 Run `supabase/quiz_attempts.sql` (or re-run it on an existing project) in the
-Supabase SQL Editor to enable saved quizzes and the custom-session RPCs.
+Supabase SQL Editor to enable saved quizzes and the custom-session RPCs. Re-run
+it to update the save function to accept both multiple-choice and True or False
+questions.
 Generated quizzes are saved only after the student completes them. Completed
 quizzes can be retaken from the dashboard, which shows each quiz's attempt
 count and score history; the recent activity list has no fixed item limit.
 Existing quiz-attempt scores are retained but are not associated with saved
-quizzes. Deploy both Edge Functions with the Supabase CLI:
+quizzes. Deploy all three Edge Functions with the Supabase CLI:
 
 ```sh
 supabase functions deploy extract-source-text
 supabase functions deploy generate-quiz
+supabase functions deploy generate-true-or-false
 ```
 
 Run `supabase/learning_streak.sql` in the Supabase SQL Editor to enable profile
@@ -68,7 +72,7 @@ Gemini failures. It tries `gemini-3.8-flash` first, then falls back through
 `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`,
 `gemini-3.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`.
 Gemini 2.5 models are intentionally excluded. Keep these keys out of the
-Flutter app. Both functions validate the app's custom session token; they do
+Flutter app. All three functions validate the app's custom session token; they do
 not use Supabase Auth JWTs. PDF and DOCX text is extracted by
 `extract-source-text` before it is sent to Gemini. TXT files are decoded by the
 app. Quiz sources may be PDF, DOCX, or TXT files up to 3 MB. Scanned PDFs

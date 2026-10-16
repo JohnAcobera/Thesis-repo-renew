@@ -67,9 +67,10 @@ class _LoginScreenState extends State<LoginScreen> {
         : StudentHomeScreen(user: user);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute<void>(builder: (_) => screen));
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => screen),
+        (_) => false,
+      );
     });
   }
 

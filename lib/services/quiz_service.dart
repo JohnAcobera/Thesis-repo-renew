@@ -4,6 +4,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_service.dart';
 
+enum QuizQuestionType {
+  multipleChoice('generate-quiz'),
+  trueOrFalse('generate-true-or-false');
+
+  const QuizQuestionType(this.functionName);
+
+  final String functionName;
+}
+
 List<QuizQuestion> shuffledQuizQuestions(
   List<QuizQuestion> questions, {
   Random? random,
@@ -50,8 +59,11 @@ class QuizQuestion {
     final explanation = json['explanation'] as String;
     if (question.trim().isEmpty ||
         explanation.trim().isEmpty ||
-        options.length != 4 ||
+        (options.length != 2 && options.length != 4) ||
         options.any((option) => option.trim().isEmpty) ||
+        (options.length == 2 &&
+            (options[0].trim().toLowerCase() != 'true' ||
+                options[1].trim().toLowerCase() != 'false')) ||
         answerIndex < 0 ||
         answerIndex >= options.length) {
       throw const FormatException(
@@ -181,9 +193,14 @@ class QuizService {
     required int questionCount,
     required String fileName,
     required String sourceText,
+    QuizQuestionType questionType = QuizQuestionType.multipleChoice,
   }) async {
+    if (questionCount < 1 || questionCount > 30) {
+      throw const QuizServiceException('Choose between 1 and 30 questions.');
+    }
+
     final token = await _requireSessionToken();
-    final response = await _invokeFunction('generate-quiz', {
+    final response = await _invokeFunction(questionType.functionName, {
       'sessionToken': token,
       'questionCount': questionCount,
       'sourceFileName': fileName,

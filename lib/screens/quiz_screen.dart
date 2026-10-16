@@ -272,9 +272,11 @@ class _QuizScreenState extends State<QuizScreen> {
           color: _inputFill,
           borderRadius: BorderRadius.circular(30),
         ),
-        child: const Text(
-          'MULTIPLE-CHOICE QUIZ',
-          style: TextStyle(
+        child: Text(
+          _question.options.length == 2
+              ? 'TRUE OR FALSE QUIZ'
+              : 'MULTIPLE-CHOICE QUIZ',
+          style: const TextStyle(
             color: _primary,
             fontSize: 12,
             fontWeight: FontWeight.w800,

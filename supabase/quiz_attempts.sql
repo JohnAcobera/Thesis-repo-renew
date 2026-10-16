@@ -150,11 +150,23 @@ begin
          or jsonb_typeof(question->'explanation') is distinct from 'string'
          or length(trim(question->>'explanation')) = 0
          or jsonb_typeof(question->'options') is distinct from 'array'
-         or jsonb_typeof(question->'answerIndex') is distinct from 'number'
-         or (question->>'answerIndex') !~ '^[0-3]$' then
+         or jsonb_typeof(question->'answerIndex') is distinct from 'number' then
         raise exception 'Invalid quiz questions';
       end if;
-      if jsonb_array_length(question->'options') <> 4 then
+      if jsonb_array_length(question->'options') not in (2, 4) then
+        raise exception 'Invalid quiz questions';
+      end if;
+      if (
+        jsonb_array_length(question->'options') = 2
+        and (
+          (question->>'answerIndex') !~ '^[0-1]$'
+          or lower(trim(question->'options'->>0)) <> 'true'
+          or lower(trim(question->'options'->>1)) <> 'false'
+        )
+      ) or (
+        jsonb_array_length(question->'options') = 4
+        and (question->>'answerIndex') !~ '^[0-3]$'
+      ) then
         raise exception 'Invalid quiz questions';
       end if;
       for option_value in
