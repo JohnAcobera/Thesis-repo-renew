@@ -15,10 +15,20 @@ const _heading = Color(0xFF3B2419);
 const _subtle = Color(0xFF725F53);
 
 class ImportScreen extends StatefulWidget {
-  const ImportScreen({required this.username, required this.email, super.key});
+  const ImportScreen({
+    required this.username,
+    required this.email,
+    this.role = 'student',
+    this.createdAt,
+    this.onMenuSelected,
+    super.key,
+  });
 
   final String username;
   final String email;
+  final String role;
+  final DateTime? createdAt;
+  final ValueChanged<StudentMenuItem>? onMenuSelected;
 
   @override
   State<ImportScreen> createState() => _ImportScreenState();
@@ -30,6 +40,10 @@ class _ImportScreenState extends State<ImportScreen> {
   int _selectedItemCount = 10;
   bool _isGenerating = false;
   String? _generationStatus;
+
+  String _displayRole(String role) => role.isEmpty
+      ? role
+      : '${role[0].toUpperCase()}${role.substring(1).toLowerCase()}';
 
   Future<void> _pickFile() async {
     try {
@@ -127,6 +141,9 @@ class _ImportScreenState extends State<ImportScreen> {
           builder: (_) => QuizScreen(
             username: widget.username,
             email: widget.email,
+            role: widget.role,
+            createdAt: widget.createdAt,
+            onMenuSelected: widget.onMenuSelected,
             title: _quizTitle(file.name),
             sourceFile: file.name,
             questions: questions,
@@ -176,16 +193,25 @@ class _ImportScreenState extends State<ImportScreen> {
       title: 'Create a Quiz',
       username: widget.username,
       email: widget.email,
+      role: _displayRole(widget.role),
       onMenuSelected: (item) {
         if (item == StudentMenuItem.dashboard) {
           Navigator.of(context).pop();
         } else if (item == StudentMenuItem.profile) {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) =>
-                  ProfileScreen(username: widget.username, email: widget.email),
+              builder: (_) => ProfileScreen(
+                username: widget.username,
+                email: widget.email,
+                role: widget.role,
+                createdAt: widget.createdAt,
+                onMenuSelected: widget.onMenuSelected,
+              ),
             ),
           );
+        } else if (item == StudentMenuItem.classroom) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          widget.onMenuSelected?.call(item);
         }
       },
       body: SafeArea(

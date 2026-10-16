@@ -3,15 +3,22 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/user_model.dart';
+import '../../services/classroom_service.dart';
 import '../../services/quiz_service.dart';
+import '../classroom/classroom_screen.dart';
 import '../import_screen.dart';
 import '../profile_screen.dart';
 import '../../widgets/student_side_menu.dart';
 
 class StudentHomeScreen extends StatefulWidget {
-  const StudentHomeScreen({required this.user, super.key});
+  const StudentHomeScreen({
+    required this.user,
+    this.classroomService,
+    super.key,
+  });
 
   final UserModel user;
+  final ClassroomRepository? classroomService;
 
   @override
   State<StudentHomeScreen> createState() => _StudentHomeScreenState();
@@ -19,6 +26,7 @@ class StudentHomeScreen extends StatefulWidget {
 
 class _StudentHomeScreenState extends State<StudentHomeScreen> {
   int _activityRevision = 0;
+  StudentMenuItem _selectedMenu = StudentMenuItem.dashboard;
 
   @override
   Widget build(BuildContext context) {
@@ -27,8 +35,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     Future<void> openImportScreen() async {
       final completed = await Navigator.of(context).push<bool>(
         MaterialPageRoute<bool>(
-          builder: (_) =>
-              ImportScreen(username: user.fullName, email: user.email),
+          builder: (_) => ImportScreen(
+            username: user.fullName,
+            email: user.email,
+            role: user.role,
+            createdAt: user.createdAt,
+            onMenuSelected: _selectMenuItem,
+          ),
         ),
       );
       if (completed == true && mounted) {
@@ -39,55 +52,80 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     void openProfileScreen() {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              ProfileScreen(username: user.fullName, email: user.email),
+          builder: (_) => ProfileScreen(
+            username: user.fullName,
+            email: user.email,
+            role: user.role,
+            createdAt: user.createdAt,
+            onMenuSelected: _selectMenuItem,
+          ),
         ),
       );
     }
 
+    void onMenuSelected(StudentMenuItem item) {
+      _selectMenuItem(item);
+      if (item == StudentMenuItem.profile) openProfileScreen();
+    }
+
     return StudentScaffold(
-      title: 'Student Dashboard',
+      title: _selectedMenu == StudentMenuItem.classroom
+          ? 'My Classroom'
+          : 'Student Dashboard',
       username: user.fullName,
       email: user.email,
-      selectedMenu: StudentMenuItem.dashboard,
-      onMenuSelected: (item) {
-        if (item == StudentMenuItem.profile) {
-          openProfileScreen();
-        }
-      },
-      body: LayoutBuilder(
-        builder: (context, viewport) {
-          final isWide = viewport.maxWidth >= 800;
-          final dashboardHeight = (viewport.maxHeight - 48)
-              .clamp(520.0, 720.0)
-              .toDouble();
+      role: _displayRole(user.role),
+      selectedMenu: _selectedMenu,
+      onMenuSelected: onMenuSelected,
+      body: _selectedMenu == StudentMenuItem.classroom
+          ? ClassroomScreen(
+              user: user,
+              classroomService: widget.classroomService,
+            )
+          : LayoutBuilder(
+              builder: (context, viewport) {
+                final isWide = viewport.maxWidth >= 800;
+                final dashboardHeight = (viewport.maxHeight - 48)
+                    .clamp(520.0, 720.0)
+                    .toDouble();
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1280),
-                child: isWide
-                    ? SizedBox(
-                        height: dashboardHeight,
-                        child: _WideStudentDashboard(
-                          user: user,
-                          onImportSelected: openImportScreen,
-                          activityRevision: _activityRevision,
-                        ),
-                      )
-                    : _StackedStudentDashboard(
-                        user: user,
-                        onImportSelected: openImportScreen,
-                        activityRevision: _activityRevision,
-                      ),
-              ),
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1280),
+                      child: isWide
+                          ? SizedBox(
+                              height: dashboardHeight,
+                              child: _WideStudentDashboard(
+                                user: user,
+                                onImportSelected: openImportScreen,
+                                activityRevision: _activityRevision,
+                              ),
+                            )
+                          : _StackedStudentDashboard(
+                              user: user,
+                              onImportSelected: openImportScreen,
+                              activityRevision: _activityRevision,
+                            ),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
+
+  void _selectMenuItem(StudentMenuItem item) {
+    if (item == StudentMenuItem.dashboard ||
+        item == StudentMenuItem.classroom) {
+      setState(() => _selectedMenu = item);
+    }
+  }
+
+  String _displayRole(String role) => role.isEmpty
+      ? role
+      : '${role[0].toUpperCase()}${role.substring(1).toLowerCase()}';
 }
 
 class _WideStudentDashboard extends StatelessWidget {

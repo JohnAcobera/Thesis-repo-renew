@@ -31,6 +31,10 @@ For hosting under a subpath, set the corresponding base href, for example:
 flutter build web --dart-define-from-file=.env --no-wasm-dry-run --base-href=/your-subpath/
 ```
 
+Re-run `supabase/custom_auth.sql` in the Supabase SQL Editor to include the
+account creation date in login and restored-session responses. The profile
+shows this as the account's join date.
+
 ## Generative quizzes
 
 Run `supabase/quiz_attempts.sql` in the Supabase SQL Editor to create the quiz
@@ -45,6 +49,14 @@ supabase functions deploy generate-quiz
 Run `supabase/learning_streak.sql` in the Supabase SQL Editor to enable profile
 login-date highlights and consecutive-day streak counts. The migration records
 future logins and backfills dates from existing custom sessions.
+
+Run `supabase/classrooms.sql` in the Supabase SQL Editor to enable instructor
+classroom creation and listing. Classroom access is validated using the app's
+custom session token, and each classroom receives a unique shareable code.
+If this migration was already applied, run it again to enable the classroom
+icon selection and save each classroom's chosen icon. It also prepares a
+classroom membership table and student RPCs so students can join by code from
+their My Classroom screen and instructor class counts reflect memberships.
 
 The quiz-generation function reads `GEMINI_API_KEY_1` through
 `GEMINI_API_KEY_6` from Edge Function secrets and rotates keys on transient

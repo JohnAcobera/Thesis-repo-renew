@@ -147,7 +147,7 @@ class _StudentNavMenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 132,
+    width: 156,
     child: Row(
       children: [
         Icon(icon, color: const Color(0xFFF4773C)),

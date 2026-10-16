@@ -4,7 +4,8 @@ create extension if not exists pgcrypto;
 
 alter table public.users
   add column if not exists email text,
-  add column if not exists password_hash text;
+  add column if not exists password_hash text,
+  add column if not exists created_at timestamptz not null default now();
 
 create unique index if not exists users_email_unique_idx
   on public.users (lower(email))
@@ -85,7 +86,8 @@ begin
       'id', found_user.id,
       'full_name', found_user.full_name,
       'email', found_user.email,
-      'role', found_user.role
+      'role', found_user.role,
+      'created_at', found_user.created_at
     )
   );
 end;
@@ -100,7 +102,11 @@ as $$
 declare result jsonb;
 begin
   select jsonb_build_object(
-    'id', u.id, 'full_name', u.full_name, 'email', u.email, 'role', u.role
+    'id', u.id,
+    'full_name', u.full_name,
+    'email', u.email,
+    'role', u.role,
+    'created_at', u.created_at
   ) into result
   from public.user_sessions s
   join public.users u on u.id = s.user_id

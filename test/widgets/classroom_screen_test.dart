@@ -1,0 +1,173 @@
+import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:thesis_repo_renew/models/classroom_model.dart';
+import 'package:thesis_repo_renew/models/user_model.dart';
+import 'package:thesis_repo_renew/screens/classroom/classroom_screen.dart';
+import 'package:thesis_repo_renew/services/classroom_service.dart';
+
+void main() {
+  testWidgets('instructor can create a classroom and view its saved code', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+
+    final repository = _FakeClassroomRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ClassroomScreen(
+          user: const UserModel(
+            id: 1,
+            fullName: 'Instructor Name',
+            email: 'instructor@example.com',
+            role: 'instructor',
+          ),
+          classroomService: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Create classroom'));
+    await tester.pumpAndSettle();
+    expect(find.text('e.g., Grade 11 - STEM A'), findsOneWidget);
+    expect(find.text('e.g., General Biology 1'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'e.g., Grade 11 - STEM A'),
+      'Grade 11 - STEM A',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'e.g., General Biology 1'),
+      'General Biology 1',
+    );
+    await tester.tap(find.byTooltip('Use Science icon'));
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Create classroom').last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.createdName, 'Grade 11 - STEM A');
+    expect(repository.createdSubject, 'General Biology 1');
+    expect(repository.createdIconKey, 'science');
+    expect(find.text('Classroom created!'), findsOneWidget);
+    expect(find.text('ABCD2345'), findsOneWidget);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(find.text('Grade 11 - STEM A'), findsOneWidget);
+    expect(find.text('Code: ABCD2345'), findsOneWidget);
+    expect(find.byIcon(Icons.science_outlined), findsOneWidget);
+    await tester.tap(find.text('Grade 11 - STEM A'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your classrooms'), findsOneWidget);
+    expect(find.text('General Biology 1'), findsOneWidget);
+    expect(find.text('0 students'), findsOneWidget);
+    expect(find.text('Join code: ABCD2345'), findsOneWidget);
+    await tester.tap(find.text('Your classrooms'));
+    await tester.pumpAndSettle();
+    expect(find.text('Grade 11 - STEM A'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('classroom code can be copied from its card', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+
+    String? copiedText;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copiedText = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ClassroomScreen(
+            user: const UserModel(
+              id: 1,
+              fullName: 'Instructor Name',
+              email: 'instructor@example.com',
+              role: 'instructor',
+            ),
+            classroomService: _FakeClassroomRepository()
+              ..classrooms.add(
+                ClassroomModel(
+                  id: 'test-id',
+                  name: 'Grade 11 - STEM A',
+                  subject: 'General Biology 1',
+                  code: 'ABCD2345',
+                  createdAt: DateTime.utc(2026),
+                  iconKey: 'science',
+                ),
+              ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Copy classroom code'));
+    await tester.pumpAndSettle();
+
+    expect(copiedText, 'ABCD2345');
+    expect(find.text('Classroom code copied'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _FakeClassroomRepository implements ClassroomRepository {
+  final List<ClassroomModel> classrooms = [];
+  String? createdName;
+  String? createdSubject;
+  String? createdIconKey;
+
+  @override
+  Future<ClassroomModel> createClassroom({
+    required String name,
+    required String subject,
+    required String iconKey,
+  }) async {
+    createdName = name;
+    createdSubject = subject;
+    createdIconKey = iconKey;
+    final classroom = ClassroomModel(
+      id: 'test-id',
+      name: name,
+      subject: subject,
+      code: 'ABCD2345',
+      createdAt: DateTime.utc(2026),
+      iconKey: iconKey,
+    );
+    classrooms.add(classroom);
+    return classroom;
+  }
+
+  @override
+  Future<List<ClassroomModel>> listClassrooms() async => classrooms.toList();
+
+  @override
+  Future<List<ClassroomModel>> listStudentClassrooms() async =>
+      classrooms.toList();
+
+  @override
+  Future<ClassroomModel> joinClassroom({required String code}) async =>
+      classrooms.firstWhere(
+        (classroom) => classroom.code == code.toUpperCase(),
+      );
+}
