@@ -177,6 +177,75 @@ void main() {
     expect(latestQuizAccuracyPercentage([]), isNull);
   });
 
+  test(
+    'quiz consistency measures active days in the rolling 28-day window',
+    () {
+      final today = DateTime(2026, 10, 16);
+      QuizActivity quiz(List<int> daysAgo) => QuizActivity(
+        id: 'activity',
+        title: 'activity',
+        sourceFile: 'activity.pdf',
+        createdAt: today,
+        questions: const [],
+        attempts: [
+          for (final days in daysAgo)
+            QuizScore(
+              score: 1,
+              totalQuestions: 10,
+              createdAt: today.subtract(Duration(days: days)),
+            ),
+        ],
+      );
+
+      expect(
+        quizLearningConsistencyPercentage(
+          quizzes: [
+            quiz([0, 2, 28, -1]),
+          ],
+          accountCreatedAt: DateTime(2026, 1, 1),
+          now: today,
+        ),
+        closeTo(2 / 28 * 100, 0.001),
+      );
+    },
+  );
+
+  test('quiz consistency uses days since creation for a newer account', () {
+    final today = DateTime(2026, 10, 16);
+    final quiz = QuizActivity(
+      id: 'activity',
+      title: 'activity',
+      sourceFile: 'activity.pdf',
+      createdAt: today,
+      questions: const [],
+      attempts: [
+        QuizScore(score: 1, totalQuestions: 10, createdAt: today),
+        QuizScore(
+          score: 1,
+          totalQuestions: 10,
+          createdAt: today.subtract(const Duration(days: 2)),
+        ),
+      ],
+    );
+
+    expect(
+      quizLearningConsistencyPercentage(
+        quizzes: [quiz],
+        accountCreatedAt: today.subtract(const Duration(days: 5)),
+        now: today,
+      ),
+      closeTo(2 / 6 * 100, 0.001),
+    );
+    expect(
+      quizLearningConsistencyPercentage(
+        quizzes: [quiz],
+        accountCreatedAt: null,
+        now: today,
+      ),
+      isNull,
+    );
+  });
+
   test('quiz improvement averages chronological changes for each quiz', () {
     final now = DateTime.utc(2026, 10, 16);
     QuizScore score(int points, int daysAgo) => QuizScore(

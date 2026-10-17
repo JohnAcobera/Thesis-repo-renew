@@ -197,6 +197,38 @@ double? latestQuizAccuracyPercentage(Iterable<QuizActivity> quizzes) {
   return totalScore / totalQuestions * 100;
 }
 
+double? quizLearningConsistencyPercentage({
+  required Iterable<QuizActivity> quizzes,
+  required DateTime? accountCreatedAt,
+  DateTime? now,
+}) {
+  if (accountCreatedAt == null) return null;
+
+  DateTime calendarDate(DateTime date) =>
+      DateTime.utc(date.year, date.month, date.day);
+
+  final today = calendarDate((now ?? DateTime.now()).toLocal());
+  final creationDate = calendarDate(accountCreatedAt.toLocal());
+  if (creationDate.isAfter(today)) return null;
+
+  final windowStart = today.subtract(const Duration(days: 27));
+  final firstEligibleDate = creationDate.isAfter(windowStart)
+      ? creationDate
+      : windowStart;
+  final activeQuizDays = <DateTime>{};
+  for (final quiz in quizzes) {
+    for (final attempt in quiz.attempts) {
+      final date = calendarDate(attempt.createdAt.toLocal());
+      if (!date.isBefore(firstEligibleDate) && !date.isAfter(today)) {
+        activeQuizDays.add(date);
+      }
+    }
+  }
+
+  final eligibleDays = today.difference(firstEligibleDate).inDays + 1;
+  return activeQuizDays.length / eligibleDays * 100;
+}
+
 double? averageQuizImprovementPercentage(Iterable<QuizActivity> quizzes) {
   final quizAverages = quizzes
       .map((quiz) => quiz.improvementPercentage)

@@ -9,6 +9,7 @@ import '../../services/classroom_service.dart';
 import '../../services/quiz_service.dart';
 import '../classroom/classroom_screen.dart';
 import '../import_screen.dart';
+import '../leaderboard_screen.dart';
 import '../profile_screen.dart';
 import '../quiz_screen.dart';
 import '../../widgets/student_side_menu.dart';
@@ -65,6 +66,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
         'record_user_activity_day',
         params: {'p_session_token': token},
       );
+      if (mounted) {
+        setState(() => _activityRevision++);
+      }
     } on AssertionError catch (error) {
       if (!error.message.toString().contains(
         'initialize the supabase instance',
@@ -129,6 +133,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     return StudentScaffold(
       title: _selectedMenu == StudentMenuItem.classroom
           ? 'My Classroom'
+          : _selectedMenu == StudentMenuItem.leaderboard
+          ? 'Weekly Leaderboard'
           : 'Student Dashboard',
       username: user.fullName,
       email: user.email,
@@ -140,6 +146,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
               user: user,
               classroomService: widget.classroomService,
             )
+          : _selectedMenu == StudentMenuItem.leaderboard
+          ? const LeaderboardScreen()
           : LayoutBuilder(
               builder: (context, viewport) {
                 final isWide = viewport.maxWidth >= 800;
@@ -182,7 +190,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
 
   void _selectMenuItem(StudentMenuItem item) {
     if (item == StudentMenuItem.dashboard ||
-        item == StudentMenuItem.classroom) {
+        item == StudentMenuItem.classroom ||
+        item == StudentMenuItem.leaderboard) {
       setState(() => _selectedMenu = item);
     }
   }
@@ -226,6 +235,7 @@ class _WideStudentDashboard extends StatelessWidget {
                 titleAtTop: true,
                 content: _StudentMetricsChart(
                   activityRevision: activityRevision,
+                  accountCreatedAt: user.createdAt,
                 ),
               ),
             ),
@@ -291,7 +301,10 @@ class _StackedStudentDashboard extends StatelessWidget {
         titleSize: 28,
         centerContent: true,
         titleAtTop: true,
-        content: _StudentMetricsChart(activityRevision: activityRevision),
+        content: _StudentMetricsChart(
+          activityRevision: activityRevision,
+          accountCreatedAt: user.createdAt,
+        ),
       ),
       const SizedBox(height: 16),
       _DashboardPanel(
@@ -968,9 +981,13 @@ class _DashboardPanel extends StatelessWidget {
 }
 
 class _StudentMetricsChart extends StatefulWidget {
-  const _StudentMetricsChart({required this.activityRevision});
+  const _StudentMetricsChart({
+    required this.activityRevision,
+    required this.accountCreatedAt,
+  });
 
   final int activityRevision;
+  final DateTime? accountCreatedAt;
 
   @override
   State<_StudentMetricsChart> createState() => _StudentMetricsChartState();
@@ -1028,6 +1045,10 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
           final improvementPercentage = averageQuizImprovementPercentage(
             quizzes,
           );
+          final consistencyPercentage = quizLearningConsistencyPercentage(
+            quizzes: quizzes,
+            accountCreatedAt: widget.accountCreatedAt,
+          );
 
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -1041,6 +1062,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
                     accuracyPercentage: accuracyPercentage,
                     retentionPercentage: retentionPercentage,
                     improvementPercentage: improvementPercentage,
+                    consistencyPercentage: consistencyPercentage,
                     gridColor: const Color(0xFFE9E1D8),
                     accentColor: const Color(0xFFF4773C),
                     labelColor: const Color(0xFF725F53),
@@ -1075,9 +1097,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
                 )
               else
                 Text(
-                  accuracyPercentage == null
-                      ? 'Your metrics will appear as you complete learning activities.'
-                      : 'Accuracy (latest attempts): ${accuracyPercentage.round()}% · Retention: ${retentionPercentage == null ? '—' : '${retentionPercentage.round()}%'} · Improvement: ${improvementPercentage == null ? '—' : '${improvementPercentage >= 0 ? '+' : ''}${improvementPercentage.round()} pp'}',
+                  'Accuracy (latest attempts): ${accuracyPercentage == null ? '—' : '${accuracyPercentage.round()}%'} · Retention: ${retentionPercentage == null ? '—' : '${retentionPercentage.round()}%'} · Improvement: ${improvementPercentage == null ? '—' : '${improvementPercentage >= 0 ? '+' : ''}${improvementPercentage.round()} pp'} · Consistency: ${consistencyPercentage == null ? '—' : '${consistencyPercentage.round()}%'}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 11,
@@ -1098,6 +1118,7 @@ class _RadarChartPainter extends CustomPainter {
     required this.accuracyPercentage,
     required this.retentionPercentage,
     required this.improvementPercentage,
+    required this.consistencyPercentage,
     required this.gridColor,
     required this.accentColor,
     required this.labelColor,
@@ -1107,6 +1128,7 @@ class _RadarChartPainter extends CustomPainter {
   final double? accuracyPercentage;
   final double? retentionPercentage;
   final double? improvementPercentage;
+  final double? consistencyPercentage;
   final Color gridColor;
   final Color accentColor;
   final Color labelColor;
@@ -1157,68 +1179,59 @@ class _RadarChartPainter extends CustomPainter {
       );
     }
 
-    final centerPaint = Paint()
-      ..color = accentColor.withValues(alpha: 0.12)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 31, centerPaint);
-
-    if (accuracyPercentage != null) {
-      final accuracyPoint = Offset(
-        center.dx + math.cos(angles.first) * radius * accuracyPercentage! / 100,
-        center.dy + math.sin(angles.first) * radius * accuracyPercentage! / 100,
+    final metricValues = [
+      accuracyPercentage,
+      retentionPercentage,
+      improvementPercentage == null
+          ? null
+          : (improvementPercentage! + 100).clamp(0.0, 200.0) / 2,
+      consistencyPercentage,
+      null,
+    ];
+    final metricPoints = List<Offset>.generate(metrics.length, (index) {
+      final value = index < metricValues.length
+          ? metricValues[index] ?? 0.0
+          : 0.0;
+      final normalizedValue = value.clamp(0.0, 100.0) / 100;
+      return Offset(
+        center.dx + math.cos(angles[index]) * radius * normalizedValue,
+        center.dy + math.sin(angles[index]) * radius * normalizedValue,
       );
-      final accuracyPaint = Paint()
-        ..color = accentColor
-        ..strokeWidth = 2;
-      canvas.drawLine(center, accuracyPoint, accuracyPaint);
-      canvas.drawCircle(
-        accuracyPoint,
-        4,
+    });
+
+    if (metricValues.any((value) => value != null)) {
+      final dataPath = Path()
+        ..moveTo(metricPoints.first.dx, metricPoints.first.dy);
+      for (final point in metricPoints.skip(1)) {
+        dataPath.lineTo(point.dx, point.dy);
+      }
+      dataPath.close();
+      canvas.drawPath(
+        dataPath,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.18)
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawPath(
+        dataPath,
         Paint()
           ..color = accentColor
-          ..style = PaintingStyle.fill,
-      );
-    }
-    if (retentionPercentage != null) {
-      final retentionPoint = Offset(
-        center.dx + math.cos(angles[1]) * radius * retentionPercentage! / 100,
-        center.dy + math.sin(angles[1]) * radius * retentionPercentage! / 100,
-      );
-      canvas.drawLine(
-        center,
-        retentionPoint,
-        Paint()
-          ..color = accentColor.withValues(alpha: 0.7)
+          ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
       );
-      canvas.drawCircle(
-        retentionPoint,
-        4,
-        Paint()
-          ..color = accentColor.withValues(alpha: 0.7)
-          ..style = PaintingStyle.fill,
-      );
-    }
-    if (improvementPercentage != null) {
-      final improvementRadius = radius * (improvementPercentage! + 100) / 200;
-      final improvementPoint = Offset(
-        center.dx + math.cos(angles[2]) * improvementRadius,
-        center.dy + math.sin(angles[2]) * improvementRadius,
-      );
-      canvas.drawLine(
-        center,
-        improvementPoint,
-        Paint()
-          ..color = accentColor.withValues(alpha: 0.45)
-          ..strokeWidth = 2,
-      );
-      canvas.drawCircle(
-        improvementPoint,
-        4,
-        Paint()
-          ..color = accentColor.withValues(alpha: 0.45)
-          ..style = PaintingStyle.fill,
-      );
+
+      for (var index = 0; index < metricPoints.length; index++) {
+        if (index >= metricValues.length || metricValues[index] == null) {
+          continue;
+        }
+        canvas.drawCircle(
+          metricPoints[index],
+          4,
+          Paint()
+            ..color = accentColor
+            ..style = PaintingStyle.fill,
+        );
+      }
     }
 
     final centerLabel = TextPainter(
@@ -1281,6 +1294,7 @@ class _RadarChartPainter extends CustomPainter {
       oldDelegate.accuracyPercentage != accuracyPercentage ||
       oldDelegate.retentionPercentage != retentionPercentage ||
       oldDelegate.improvementPercentage != improvementPercentage ||
+      oldDelegate.consistencyPercentage != consistencyPercentage ||
       oldDelegate.gridColor != gridColor ||
       oldDelegate.accentColor != accentColor ||
       oldDelegate.labelColor != labelColor;
