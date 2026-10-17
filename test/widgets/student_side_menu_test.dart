@@ -83,7 +83,7 @@ void main() {
     );
     expect(find.text('Student rankings'), findsOneWidget);
     expect(find.text('Alex Student'), findsOneWidget);
-    expect(find.text('1,250 LP'), findsOneWidget);
+    expect(find.text('1,999 LP'), findsOneWidget);
     BorderSide rowBorder(String studentName) {
       final row = tester.widget<Container>(
         find
@@ -112,6 +112,8 @@ void main() {
     expect(find.text('#2'), findsOneWidget);
     expect(find.text('#3'), findsOneWidget);
     expect(find.text('#4'), findsOneWidget);
+    expect(find.text('#10'), findsOneWidget);
+    expect(find.text('#11'), findsNothing);
     expect(
       rowBorder('Drew Student'),
       const BorderSide(color: Color(0xFFE8D7C2), width: 1),
@@ -126,6 +128,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('LAST WEEK (-1)'), findsOneWidget);
     expect(leaderboardRepository.requestedWeeks, [0, -1]);
+    await tester.drag(find.byType(ListView).first, const Offset(0, -10000));
+    await tester.pumpAndSettle();
+    expect(find.text('#99'), findsOneWidget);
+    expect(find.text('#100'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -165,10 +171,12 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final repository = _FakeStudentClassroomRepository();
+    final leaderboardRepository = _FakeLeaderboardRepository();
     await tester.pumpWidget(
       MaterialApp(
         home: StudentHomeScreen(
           classroomService: repository,
+          leaderboardRepository: leaderboardRepository,
           user: UserModel(
             id: 1,
             fullName: 'Student Name',
@@ -205,6 +213,26 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Your classrooms'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Profile'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Leaderboard'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProfileScreen), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Weekly Leaderboard'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Student rankings'), findsOneWidget);
+    expect(leaderboardRepository.requestedWeeks, [0]);
     expect(tester.takeException(), isNull);
   });
 
@@ -385,7 +413,7 @@ void main() {
           home: ProfileScreen(
             username: 'Student Name',
             email: 'student@example.com',
-            authService: _LearnerPointsAuthService(0),
+            authService: _LearnerPointsAuthService(0, ranking: 2),
             streakDays: {},
           ),
         ),
@@ -398,6 +426,7 @@ void main() {
       expect(achievements, findsOneWidget);
       expect(find.text('LP'), findsOneWidget);
       expect(find.text('0'), findsOneWidget);
+      expect(find.text('Weekly ranking #2'), findsOneWidget);
       expect(find.byIcon(Icons.diamond_outlined), findsOneWidget);
       expect(
         find.byTooltip(
@@ -411,6 +440,10 @@ void main() {
       );
       expect(find.text('No achievements yet'), findsOneWidget);
       expect(find.text('Your achievements will appear here.'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.text('Weekly ranking #2')).style?.color,
+        const Color(0xFF9EA7B3),
+      );
     },
   );
 
@@ -422,7 +455,7 @@ void main() {
         home: ProfileScreen(
           username: 'Student Name',
           email: 'student@example.com',
-          authService: _LearnerPointsAuthService(1234567),
+          authService: _LearnerPointsAuthService(1234567, ranking: 2),
           streakDays: {},
         ),
       ),
@@ -621,12 +654,16 @@ void main() {
 }
 
 class _LearnerPointsAuthService implements ProfileDataService {
-  _LearnerPointsAuthService(this.points);
+  _LearnerPointsAuthService(this.points, {required this.ranking});
 
   final int points;
+  final int? ranking;
 
   @override
   Future<int> learnerPoints() async => points;
+
+  @override
+  Future<int?> weeklyRanking() async => ranking;
 
   @override
   Future<Set<DateTime>> loginDates() async => {};
@@ -640,32 +677,21 @@ class _FakeLeaderboardRepository implements LeaderboardRepository {
     required int weekOffset,
   }) async {
     requestedWeeks.add(weekOffset);
-    return const [
-      WeeklyLeaderboardEntry(
-        rank: 1,
-        userId: 2,
-        fullName: 'Alex Student',
-        points: 1250,
-      ),
-      WeeklyLeaderboardEntry(
-        rank: 2,
-        userId: 3,
-        fullName: 'Blair Student',
-        points: 1100,
-      ),
-      WeeklyLeaderboardEntry(
-        rank: 3,
-        userId: 4,
-        fullName: 'Casey Student',
-        points: 1000,
-      ),
-      WeeklyLeaderboardEntry(
-        rank: 4,
-        userId: 5,
-        fullName: 'Drew Student',
-        points: 900,
-      ),
-    ];
+    return List.generate(100, (index) {
+      final rank = index + 1;
+      return WeeklyLeaderboardEntry(
+        rank: rank,
+        userId: rank + 1,
+        fullName: switch (rank) {
+          1 => 'Alex Student',
+          2 => 'Blair Student',
+          3 => 'Casey Student',
+          4 => 'Drew Student',
+          _ => 'Student $rank',
+        },
+        points: (2000 - rank).clamp(0, 2000).toInt(),
+      );
+    });
   }
 }
 

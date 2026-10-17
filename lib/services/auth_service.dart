@@ -22,6 +22,7 @@ class AuthResult {
 abstract interface class ProfileDataService {
   Future<Set<DateTime>> loginDates();
   Future<int> learnerPoints();
+  Future<int?> weeklyRanking();
 }
 
 class AuthService implements ProfileDataService {
@@ -138,6 +139,27 @@ class AuthService implements ProfileDataService {
     } on PostgrestException {
       throw const AuthException(
         'Unable to load your learner points. Please try again.',
+      );
+    }
+  }
+
+  @override
+  Future<int?> weeklyRanking() async {
+    final token = await _storage.read(key: _sessionKey);
+    if (token == null || token.isEmpty) {
+      throw const AuthException(
+        'Please sign in again to view your weekly ranking.',
+      );
+    }
+
+    try {
+      return await _client.rpc<int?>(
+        'get_my_weekly_learner_rank',
+        params: {'p_session_token': token},
+      );
+    } on PostgrestException {
+      throw const AuthException(
+        'Unable to load your weekly ranking. Please try again.',
       );
     }
   }

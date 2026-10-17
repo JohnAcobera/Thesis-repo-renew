@@ -7,6 +7,8 @@ const _heading = Color(0xFF3B2419);
 const _subtle = Color(0xFF765C4F);
 const _border = Color(0xFFE8D7C2);
 const _surface = Color(0xFFFFFCF8);
+const _maxLeaderboardRank = 99;
+const _leaderboardRowHeight = 66.0;
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({this.repository, super.key});
@@ -204,15 +206,21 @@ class _StandingsCard extends StatelessWidget {
                 message: 'No students found.',
               );
             }
+            final standings = snapshot.data!
+                .take(_maxLeaderboardRank)
+                .toList(growable: false);
             return Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 680),
-                child: Column(
-                  children: [
-                    for (final entry in snapshot.data!)
-                      _LeaderboardRow(entry: entry),
-                  ],
+                child: SizedBox(
+                  height: _leaderboardRowHeight * 10,
+                  child: ListView.builder(
+                    itemCount: standings.length,
+                    itemExtent: _leaderboardRowHeight,
+                    itemBuilder: (context, index) =>
+                        _LeaderboardRow(entry: standings[index]),
+                  ),
                 ),
               ),
             );
@@ -266,6 +274,7 @@ class _LeaderboardRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const rowPadding = EdgeInsets.symmetric(horizontal: 16, vertical: 14);
     final podiumStyle = switch (entry.rank) {
       1 => (
         color: const Color(0xFFFFC107),
@@ -286,8 +295,8 @@ class _LeaderboardRow extends StatelessWidget {
     };
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: rowPadding,
       decoration: BoxDecoration(
         color: podiumStyle.fill,
         borderRadius: BorderRadius.circular(16),

@@ -32,11 +32,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       widget.authService ?? AuthService();
   late Future<Set<DateTime>> _loginDatesFuture;
   late Future<int> _learnerPointsFuture;
+  late Future<int?> _weeklyRankingFuture;
 
   @override
   void initState() {
     super.initState();
     _learnerPointsFuture = _loadLearnerPoints();
+    _weeklyRankingFuture = _loadWeeklyRanking();
     if (widget.streakDays == null) {
       _loginDatesFuture = _loadLoginDates();
     }
@@ -46,6 +48,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _authService.loginDates();
 
   Future<int> _loadLearnerPoints() async => await _authService.learnerPoints();
+
+  Future<int?> _loadWeeklyRanking() async => await _authService.weeklyRanking();
 
   Widget _buildStreakCalendar() {
     final suppliedDates = widget.streakDays;
@@ -99,7 +103,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     selectedMenu: StudentMenuItem.profile,
     onMenuSelected: (item) {
       if (item == StudentMenuItem.dashboard ||
-          item == StudentMenuItem.classroom) {
+          item == StudentMenuItem.classroom ||
+          item == StudentMenuItem.leaderboard) {
         final callback = widget.onMenuSelected;
         Navigator.of(context).popUntil((route) => route.isFirst);
         callback?.call(item);
@@ -180,6 +185,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               onRetry: () => setState(
                                 () =>
                                     _learnerPointsFuture = _loadLearnerPoints(),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _WeeklyRankingLabel(
+                              rankingFuture: _weeklyRankingFuture,
+                              onRetry: () => setState(
+                                () =>
+                                    _weeklyRankingFuture = _loadWeeklyRanking(),
                               ),
                             ),
                           ],
@@ -732,6 +745,73 @@ class _LearnerPointsBadge extends StatelessWidget {
     }
     return '${isNegative ? '-' : ''}$formattedDigits';
   }
+}
+
+class _WeeklyRankingLabel extends StatelessWidget {
+  const _WeeklyRankingLabel({
+    required this.rankingFuture,
+    required this.onRetry,
+  });
+
+  final Future<int?> rankingFuture;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<int?>(
+    future: rankingFuture,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) {
+        return TextButton(
+          onPressed: onRetry,
+          child: const Text('Weekly ranking unavailable. Retry'),
+        );
+      }
+      if (!snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.done) {
+          return const SizedBox.shrink();
+        }
+        return const SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Color(0xFFF4773C),
+          ),
+        );
+      }
+
+      final rank = snapshot.data;
+      if (rank == null) return const SizedBox.shrink();
+
+      final rankColor = switch (rank) {
+        1 => const Color(0xFFFFC107),
+        2 => const Color(0xFF9EA7B3),
+        3 => const Color(0xFFB76524),
+        _ => Theme.of(context).colorScheme.onSurface,
+      };
+
+      return AnimatedSwitcher(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 350),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.2),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        ),
+        child: Text(
+          'Weekly ranking #$rank',
+          key: ValueKey<int>(rank),
+          style: TextStyle(color: rankColor, fontWeight: FontWeight.w600),
+        ),
+      );
+    },
+  );
 }
 
 class _ProfileDetail extends StatelessWidget {
