@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -160,8 +161,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1280),
-                      child: isWide
-                          ? SizedBox(
+                      child: Column(
+                        children: [
+                          if (isWide)
+                            SizedBox(
                               height: dashboardHeight,
                               child: _WideStudentDashboard(
                                 user: user,
@@ -172,7 +175,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                                 onMenuSelected: _selectMenuItem,
                               ),
                             )
-                          : _StackedStudentDashboard(
+                          else
+                            _StackedStudentDashboard(
                               user: user,
                               onImportSelected: openImportScreen,
                               activityRevision: _activityRevision,
@@ -180,6 +184,21 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                                   setState(() => _activityRevision++),
                               onMenuSelected: _selectMenuItem,
                             ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            height: isWide ? 440 : 880,
+                            child: _StudentClassroomActivitiesSection(
+                              key: ValueKey<int>(_activityRevision),
+                              user: user,
+                              classroomService: widget.classroomService,
+                              onQuizCompleted: () =>
+                                  setState(() => _activityRevision++),
+                              onMenuSelected: _selectMenuItem,
+                              sideBySide: isWide,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -199,6 +218,735 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   String _displayRole(String role) => role.isEmpty
       ? role
       : '${role[0].toUpperCase()}${role.substring(1).toLowerCase()}';
+}
+
+class _StudentClassroomActivitiesSection extends StatefulWidget {
+  const _StudentClassroomActivitiesSection({
+    required this.user,
+    required this.classroomService,
+    required this.onQuizCompleted,
+    required this.onMenuSelected,
+    required this.sideBySide,
+    super.key,
+  });
+
+  final UserModel user;
+  final ClassroomRepository? classroomService;
+  final VoidCallback onQuizCompleted;
+  final ValueChanged<StudentMenuItem> onMenuSelected;
+  final bool sideBySide;
+
+  @override
+  State<_StudentClassroomActivitiesSection> createState() =>
+      _StudentClassroomActivitiesSectionState();
+}
+
+class _StudentClassroomActivitiesSectionState
+    extends State<_StudentClassroomActivitiesSection> {
+  late Future<List<ClassroomActivity>> _activities;
+  late final Timer _availabilityTimer;
+  DateTime _visibleMonth = DateTime(DateTime.now().year, DateTime.now().month);
+
+  @override
+  void initState() {
+    super.initState();
+    _activities = _loadActivities();
+    _availabilityTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _availabilityTimer.cancel();
+    super.dispose();
+  }
+
+  Future<List<ClassroomActivity>> _loadActivities() async {
+    final classroomService = widget.classroomService ?? ClassroomService();
+    final classrooms = await classroomService.listStudentClassrooms();
+    final activitiesByClassroom = await Future.wait(
+      classrooms.map(
+        (classroom) => classroomService.classroomActivities(classroom.id),
+      ),
+    );
+    final activities = activitiesByClassroom
+        .expand((classroomActivities) => classroomActivities)
+        .toList();
+    activities.sort(
+      (first, second) => first.deadlineAt.compareTo(second.deadlineAt),
+    );
+    return activities;
+  }
+
+  void _retry() {
+    setState(() => _activities = _loadActivities());
+  }
+
+  Future<void> _takeActivity(ClassroomActivity activity) async {
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => QuizScreen(
+          username: widget.user.fullName,
+          email: widget.user.email,
+          role: widget.user.role,
+          createdAt: widget.user.createdAt,
+          onMenuSelected: widget.onMenuSelected,
+          title: activity.title,
+          sourceFile: activity.sourceFile,
+          questions: activity.questions,
+          quizId: activity.quizId,
+          classroomActivityId: activity.id,
+          previousAttempts: activity.attempts,
+        ),
+      ),
+    );
+    if (completed == true && mounted) widget.onQuizCompleted();
+  }
+
+  Future<void> _showActivitiesForDate(
+    DateTime date,
+    List<ClassroomActivity> activities,
+  ) async {
+    final dueActivities = activities
+        .where((activity) {
+          final deadline = activity.deadlineAt.toLocal();
+          return deadline.year == date.year &&
+              deadline.month == date.month &&
+              deadline.day == date.day &&
+              activity.attemptCount < activity.maxAttempts;
+        })
+        .toList(growable: false);
+    if (dueActivities.isEmpty) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final localizations = MaterialLocalizations.of(dialogContext);
+        return AlertDialog(
+          backgroundColor: const Color(0xFFFFFCF8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+          contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Deadlines',
+                style: TextStyle(
+                  color: Color(0xFF2F3940),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                localizations.formatFullDate(date),
+                style: const TextStyle(
+                  color: Color(0xFF6C7A89),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.6,
+            ),
+            child: SizedBox(
+              width: 460,
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: dueActivities.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final activity = dueActivities[index];
+                  final canTakeActivity = activity.isAvailable;
+                  final deadline = activity.deadlineAt.toLocal();
+                  final deadlineTime = localizations.formatTimeOfDay(
+                    TimeOfDay.fromDateTime(deadline),
+                  );
+                  final startsAt = activity.startsAt.toLocal();
+                  final startsAtTime = localizations.formatTimeOfDay(
+                    TimeOfDay.fromDateTime(startsAt),
+                  );
+
+                  return Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FBFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFDCE5E8)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          activity.title,
+                          style: const TextStyle(
+                            color: Color(0xFF3B2419),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          'Classroom: ${activity.classroomName}',
+                          style: const TextStyle(
+                            color: Color(0xFF6C7A89),
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${activity.sourceFile} · ${activity.questions.length} questions',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF8A7467),
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          canTakeActivity
+                              ? 'Due at $deadlineTime'
+                              : 'Available from $startsAtTime · Due at $deadlineTime',
+                          style: const TextStyle(
+                            color: Color(0xFF725F53),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<ClassroomActivity>>(
+    future: _activities,
+    builder: (context, snapshot) {
+      final activities = snapshot.data ?? const <ClassroomActivity>[];
+      final today = DateTime.now();
+      final outstandingActivities = activities
+          .where(
+            (activity) =>
+                activity.attemptCount < activity.maxAttempts &&
+                !activity.deadlineAt.toLocal().isBefore(today),
+          )
+          .toList(growable: false);
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final calendar = _ClassroomDeadlineCalendar(
+            activities: outstandingActivities,
+            visibleMonth: _visibleMonth,
+            onMonthChanged: (month) => setState(() => _visibleMonth = month),
+            onDateSelected: (date) =>
+                _showActivitiesForDate(date, outstandingActivities),
+          );
+          final pending = _PendingClassroomActivities(
+            isLoading: snapshot.connectionState == ConnectionState.waiting,
+            error: snapshot.error,
+            activities: outstandingActivities,
+            onRetry: _retry,
+            onTakeActivity: _takeActivity,
+          );
+
+          if (widget.sideBySide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 5, child: calendar),
+                const SizedBox(width: 20),
+                Expanded(flex: 6, child: pending),
+              ],
+            );
+          }
+          return Column(
+            children: [
+              SizedBox(height: constraints.maxHeight * 0.44, child: calendar),
+              const SizedBox(height: 16),
+              Expanded(child: pending),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+class _ClassroomDeadlineCalendar extends StatelessWidget {
+  const _ClassroomDeadlineCalendar({
+    required this.activities,
+    required this.visibleMonth,
+    required this.onMonthChanged,
+    required this.onDateSelected,
+  });
+
+  final List<ClassroomActivity> activities;
+  final DateTime visibleMonth;
+  final ValueChanged<DateTime> onMonthChanged;
+  final ValueChanged<DateTime> onDateSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final localizations = MaterialLocalizations.of(context);
+    final monthLabel = localizations.formatMonthYear(visibleMonth);
+    final deadlineCounts = <int, int>{};
+    for (final activity in activities) {
+      final deadline = activity.deadlineAt.toLocal();
+      if (deadline.year == visibleMonth.year &&
+          deadline.month == visibleMonth.month) {
+        deadlineCounts.update(
+          deadline.day,
+          (count) => count + 1,
+          ifAbsent: () => 1,
+        );
+      }
+    }
+    final firstWeekday =
+        DateTime(visibleMonth.year, visibleMonth.month).weekday - 1;
+    final daysInMonth = DateTime(
+      visibleMonth.year,
+      visibleMonth.month + 1,
+      0,
+    ).day;
+    final today = DateTime.now();
+
+    return _SchedulePanel(
+      icon: Icons.calendar_month_outlined,
+      title: 'Classroom deadlines',
+      description: 'Highlighted dates mark activity deadlines.',
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Previous month',
+                onPressed: () => onMonthChanged(
+                  DateTime(visibleMonth.year, visibleMonth.month - 1),
+                ),
+                icon: const Icon(Icons.chevron_left_rounded),
+                color: const Color(0xFFF4773C),
+              ),
+              Expanded(
+                child: Text(
+                  monthLabel,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF3B2419),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Next month',
+                onPressed: () => onMonthChanged(
+                  DateTime(visibleMonth.year, visibleMonth.month + 1),
+                ),
+                icon: const Icon(Icons.chevron_right_rounded),
+                color: const Color(0xFFF4773C),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              for (final weekday in ['M', 'T', 'W', 'T', 'F', 'S', 'S'])
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      weekday,
+                      style: const TextStyle(
+                        color: Color(0xFF8A7467),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: GridView.builder(
+              padding: EdgeInsets.zero,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                childAspectRatio: 1.25,
+              ),
+              itemCount: 42,
+              itemBuilder: (context, index) {
+                final day = index - firstWeekday + 1;
+                if (day < 1 || day > daysInMonth) {
+                  return const SizedBox.shrink();
+                }
+                final isToday =
+                    today.year == visibleMonth.year &&
+                    today.month == visibleMonth.month &&
+                    today.day == day;
+                final deadlineCount = deadlineCounts[day] ?? 0;
+                return Semantics(
+                  label:
+                      '$day${deadlineCount > 0 ? ', $deadlineCount deadlines' : ''}',
+                  button: deadlineCount > 0,
+                  onTap: deadlineCount > 0
+                      ? () => onDateSelected(
+                          DateTime(visibleMonth.year, visibleMonth.month, day),
+                        )
+                      : null,
+                  child: InkWell(
+                    onTap: deadlineCount > 0
+                        ? () => onDateSelected(
+                            DateTime(
+                              visibleMonth.year,
+                              visibleMonth.month,
+                              day,
+                            ),
+                          )
+                        : null,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      margin: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: deadlineCount > 0
+                            ? const Color(0xFFFFE6D8)
+                            : Colors.transparent,
+                        border: isToday
+                            ? Border.all(color: const Color(0xFFF4773C))
+                            : null,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$day',
+                            style: TextStyle(
+                              color: deadlineCount > 0
+                                  ? const Color(0xFFB64E20)
+                                  : const Color(0xFF4B352A),
+                              fontSize: 12,
+                              fontWeight: deadlineCount > 0 || isToday
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                          if (deadlineCount > 0)
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF4773C),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFE6D8),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Activity deadline',
+                  style: TextStyle(color: Color(0xFF725F53), fontSize: 12),
+                ),
+              ),
+              Text(
+                '${activities.length} upcoming',
+                style: const TextStyle(
+                  color: Color(0xFF725F53),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingClassroomActivities extends StatelessWidget {
+  const _PendingClassroomActivities({
+    required this.isLoading,
+    required this.error,
+    required this.activities,
+    required this.onRetry,
+    required this.onTakeActivity,
+  });
+
+  final bool isLoading;
+  final Object? error;
+  final List<ClassroomActivity> activities;
+  final VoidCallback onRetry;
+  final ValueChanged<ClassroomActivity> onTakeActivity;
+
+  @override
+  Widget build(BuildContext context) => _SchedulePanel(
+    icon: Icons.assignment_late_outlined,
+    title: 'Pending activities',
+    description: 'Incomplete classroom activities, sorted by deadline.',
+    child: isLoading
+        ? const Center(
+            child: CircularProgressIndicator(color: Color(0xFFF4773C)),
+          )
+        : error != null
+        ? Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Could not load classroom activities: $error',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF725F53)),
+              ),
+              TextButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try again'),
+              ),
+            ],
+          )
+        : activities.isEmpty
+        ? const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.inbox_outlined, color: Color(0xFFC49A7E), size: 32),
+                SizedBox(height: 8),
+                Text(
+                  "You're all caught up!",
+                  style: TextStyle(
+                    color: Color(0xFF3B2419),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'New classroom activities will appear here.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF725F53), fontSize: 12),
+                ),
+              ],
+            ),
+          )
+        : ListView.separated(
+            padding: EdgeInsets.zero,
+            itemCount: activities.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (context, index) => _PendingClassroomActivityTile(
+              activity: activities[index],
+              onTakeActivity: onTakeActivity,
+            ),
+          ),
+  );
+}
+
+class _PendingClassroomActivityTile extends StatelessWidget {
+  const _PendingClassroomActivityTile({
+    required this.activity,
+    required this.onTakeActivity,
+  });
+
+  final ClassroomActivity activity;
+  final ValueChanged<ClassroomActivity> onTakeActivity;
+
+  @override
+  Widget build(BuildContext context) {
+    final canTakeActivity = activity.isAvailable;
+    final scheduledAt = canTakeActivity
+        ? activity.deadlineAt.toLocal()
+        : activity.startsAt.toLocal();
+    final deadlineDate = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(scheduledAt);
+    final deadlineTime = MaterialLocalizations.of(
+      context,
+    ).formatTimeOfDay(TimeOfDay.fromDateTime(scheduledAt));
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBF6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE8D7C2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.quiz_outlined, color: Color(0xFFF4773C)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  activity.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF3B2419),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Classroom: ${activity.classroomName}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFF725F53), fontSize: 12),
+          ),
+          Text(
+            '${activity.sourceFile} · ${activity.questions.length} questions · '
+            '${activity.maxAttempts - activity.attemptCount} attempts left',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFF8A7467), fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(
+                Icons.schedule_rounded,
+                size: 16,
+                color: Color(0xFFF4773C),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  '${canTakeActivity ? 'Due' : 'Available'} '
+                  '$deadlineDate at $deadlineTime',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF725F53),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: canTakeActivity
+                  ? () => onTakeActivity(activity)
+                  : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFF4773C),
+                foregroundColor: Colors.white,
+                visualDensity: VisualDensity.compact,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: Text(canTakeActivity ? 'Take activity' : 'Available soon'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SchedulePanel extends StatelessWidget {
+  const _SchedulePanel({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.child,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: const Color(0xFFE8D7C2)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x12000000),
+          blurRadius: 18,
+          offset: Offset(0, 6),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: const Color(0xFFF4773C), size: 24),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFF3B2419),
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          description,
+          style: const TextStyle(color: Color(0xFF725F53), fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        Expanded(child: child),
+      ],
+    ),
+  );
 }
 
 class _WideStudentDashboard extends StatelessWidget {

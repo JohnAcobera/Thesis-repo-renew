@@ -247,68 +247,31 @@ class _StudentSideMenu extends StatelessWidget {
   final VoidCallback onLogoutSelected;
 
   @override
-  Widget build(BuildContext context) => ColoredBox(
-    color: const Color(0xFFFFF8EE),
+  Widget build(BuildContext context) => Container(
+    decoration: const BoxDecoration(
+      color: Color(0xFFFFFCF8),
+      border: Border(right: BorderSide(color: Color(0xFFE8D7C2))),
+    ),
     child: SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 16, 24),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  radius: 25,
-                  backgroundColor: Color(0xFFFFE5D5),
-                  child: Icon(
-                    Icons.account_circle,
-                    size: 34,
-                    color: Color(0xFFF4773C),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        username,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF3B2419),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        email,
-                        maxLines: 1,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF765C4F),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        role,
-                        style: const TextStyle(
-                          color: Color(0xFF765C4F),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _StudentMenuProfile(username: username, email: email, role: role),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Divider(height: 1, color: Color(0xFFE8D7C2)),
+            padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: Text(
+              'WORKSPACE',
+              style: TextStyle(
+                color: Color(0xFF9A725A),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+              ),
+            ),
           ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               children: [
                 for (final item in StudentMenuItem.values)
                   _MenuItemTile(
@@ -320,11 +283,23 @@ class _StudentSideMenu extends StatelessWidget {
             ),
           ),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
             child: Divider(height: 1, color: Color(0xFFE8D7C2)),
           ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 4, 20, 4),
+            child: Text(
+              'ACCOUNT',
+              style: TextStyle(
+                color: Color(0xFF9A725A),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
             child: Column(
               children: [
                 _MenuFooterAction(
@@ -341,6 +316,106 @@ class _StudentSideMenu extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    ),
+  );
+}
+
+class _StudentMenuProfile extends StatelessWidget {
+  const _StudentMenuProfile({
+    required this.username,
+    required this.email,
+    required this.role,
+  });
+
+  final String username;
+  final String email;
+  final String role;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF4E9),
+      border: Border.all(color: const Color(0xFFF0DFCF)),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: const CircleAvatar(
+            radius: 20,
+            backgroundColor: Color(0xFFFFE5D5),
+            child: Icon(Icons.person, color: Color(0xFFF4773C), size: 22),
+          ),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                username,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF3B2419),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                email,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Color(0xFF765C4F), fontSize: 11),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                role,
+                style: const TextStyle(
+                  color: Color(0xFF9A512F),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 6),
+              _StudentRoleBadge(role: role),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _StudentRoleBadge extends StatelessWidget {
+  const _StudentRoleBadge({required this.role});
+
+  final String role;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFE5D5),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      role.toUpperCase(),
+      style: const TextStyle(
+        color: Color(0xFF9A512F),
+        fontSize: 9,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.7,
       ),
     ),
   );
@@ -364,33 +439,41 @@ class _MenuItemTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Material(
-        color: Colors.transparent,
-        child: Stack(
-          children: [
-            if (selected)
-              Positioned.fill(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFE5D5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ListTile(
-              leading: Icon(item.icon, color: const Color(0xFFF4773C)),
-              title: Text(
-                item.label,
-                style: TextStyle(color: color, fontWeight: FontWeight.w500),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              onTap: onTap,
+        color: selected ? const Color(0xFFFFE9DA) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          leading: Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: selected ? const Color(0xFFF4773C) : const Color(0xFFFFF1DF),
+              borderRadius: BorderRadius.circular(9),
             ),
-          ],
+            child: Icon(
+              item.icon,
+              size: 18,
+              color: selected ? Colors.white : const Color(0xFFF4773C),
+            ),
+          ),
+          title: Text(
+            item.label,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+          trailing: selected
+              ? const Icon(Icons.chevron_right, size: 18, color: Color(0xFFF4773C))
+              : null,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(
+              color: selected ? const Color(0xFFF5D0B8) : Colors.transparent,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          onTap: onTap,
         ),
       ),
     );
@@ -409,14 +492,35 @@ class _MenuFooterAction extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    borderRadius: BorderRadius.circular(12),
-    child: ListTile(
-      leading: Icon(icon, color: const Color(0xFFF4773C)),
-      title: Text(label, style: const TextStyle(color: Color(0xFF3B2419))),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      onTap: onTap,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              children: [
+                Icon(icon, size: 19, color: const Color(0xFF8A6B58)),
+                const SizedBox(width: 14),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF5B4336),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     ),
   );
 }

@@ -12,6 +12,7 @@ const _scaffold = Color(0xFFFFF8EE);
 const _inputFill = Color(0xFFFFF1DF);
 const _border = Color(0xFFE8D7C2);
 const _heading = Color(0xFF3B2419);
+const _body = Color(0xFF725F53);
 
 class LandingScreen extends StatefulWidget {
   const LandingScreen({this.sessionRestorer, super.key});
@@ -99,14 +100,14 @@ class _LandingScreenState extends State<LandingScreen> {
                         ),
                       ),
                     ],
-                    _TopNav(onLogin: _openLogin),
+                    LandingTopNav(onLogin: _openLogin),
                     _HeroSection(
                       onSignUp: _openRegister,
                       onTeacher: _openTeacherRegister,
                     ),
                     const _FeatureCarousel(),
                     const _WhyQuizForgeSection(),
-                    const SizedBox(height: 56),
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -118,8 +119,8 @@ class _LandingScreenState extends State<LandingScreen> {
   }
 }
 
-class _TopNav extends StatelessWidget {
-  const _TopNav({required this.onLogin});
+class LandingTopNav extends StatelessWidget {
+  const LandingTopNav({required this.onLogin, super.key});
 
   final VoidCallback onLogin;
 
@@ -129,6 +130,7 @@ class _TopNav extends StatelessWidget {
       padding: const EdgeInsets.only(top: 18, bottom: 18),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final compact = constraints.maxWidth < 400;
           final actions = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -137,9 +139,10 @@ class _TopNav extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   backgroundColor: _primary,
                   foregroundColor: Colors.white,
-                  minimumSize: const Size(100, 46),
+                  minimumSize: Size(compact ? 88 : 100, compact ? 42 : 46),
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 24),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(compact ? 16 : 18),
                   ),
                 ),
                 child: const Text('Log in'),
@@ -147,18 +150,12 @@ class _TopNav extends StatelessWidget {
             ],
           );
 
-          if (constraints.maxWidth < 560) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Align(alignment: Alignment.centerLeft, child: _Brand()),
-                const SizedBox(height: 12),
-                Align(alignment: Alignment.centerRight, child: actions),
-              ],
-            );
-          }
-
-          return Row(children: [const _Brand(), const Spacer(), actions]);
+          return Row(
+            children: [
+              Expanded(child: _Brand(compact: compact)),
+              actions,
+            ],
+          );
         },
       ),
     );
@@ -166,7 +163,9 @@ class _TopNav extends StatelessWidget {
 }
 
 class _Brand extends StatelessWidget {
-  const _Brand();
+  const _Brand({this.compact = false});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -174,21 +173,29 @@ class _Brand extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 48,
-          height: 48,
+          width: compact ? 40 : 48,
+          height: compact ? 40 : 48,
           decoration: BoxDecoration(
             color: _primary,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(compact ? 14 : 16),
           ),
-          child: const Icon(Icons.auto_stories_rounded, color: Colors.white),
+          child: Icon(
+            Icons.auto_stories_rounded,
+            color: Colors.white,
+            size: compact ? 21 : 24,
+          ),
         ),
-        const SizedBox(width: 10),
-        const Text(
-          'QuizForge',
-          style: TextStyle(
-            color: _heading,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
+        SizedBox(width: compact ? 8 : 10),
+        Flexible(
+          child: Text(
+            'QuizForge',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _heading,
+              fontSize: compact ? 18 : 20,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ],
@@ -204,74 +211,179 @@ class _HeroSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 72, 24, 70),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: _inputFill,
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: const Text(
-              'SMARTER STUDYING STARTS HERE',
-              style: TextStyle(
-                color: _primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
-              ),
-            ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, bottom: 52),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3E5),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFFF0DDC5)),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 720;
+            final copy = _HeroCopy(
+              compact: compact,
+              onSignUp: onSignUp,
+              onTeacher: onTeacher,
+            );
+            if (compact) {
+              return Column(
+                children: [
+                  const _StudyIllustration(compact: true),
+                  const SizedBox(height: 28),
+                  copy,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(flex: 6, child: copy),
+                const SizedBox(width: 40),
+                const Expanded(flex: 5, child: _StudyIllustration()),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroCopy extends StatelessWidget {
+  const _HeroCopy({
+    required this.compact,
+    required this.onSignUp,
+    required this.onTeacher,
+  });
+
+  final bool compact;
+  final VoidCallback onSignUp;
+  final VoidCallback onTeacher;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: compact
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(30),
           ),
-          const SizedBox(height: 20),
-          const Text(
-            'How do you want to study?',
-            textAlign: TextAlign.center,
+          child: const Text(
+            'A BETTER WAY TO STUDY',
             style: TextStyle(
-              color: _heading,
-              fontSize: 42,
-              height: 1.1,
+              color: _primary,
+              fontSize: 11,
               fontWeight: FontWeight.w800,
+              letterSpacing: 1,
             ),
           ),
-          const SizedBox(height: 18),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
-            child: const Text(
-              'Discover, create, and master your study material — all in one place. '
-              'Generate quizzes with AI and hit your goals with QuizForge.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 17, height: 1.5),
-            ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'How do you want to study?',
+          textAlign: compact ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            color: _heading,
+            fontSize: compact ? 34 : 42,
+            height: 1.12,
+            fontWeight: FontWeight.w800,
           ),
-          const SizedBox(height: 30),
-          SizedBox(
-            height: 56,
-            child: FilledButton(
+        ),
+        const SizedBox(height: 16),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Text(
+            'Explore your learning materials, practice at your own pace, '
+            'and build confidence with every study session.',
+            textAlign: compact ? TextAlign.center : TextAlign.start,
+            style: const TextStyle(color: _body, fontSize: 16, height: 1.6),
+          ),
+        ),
+        const SizedBox(height: 26),
+        Wrap(
+          alignment: compact ? WrapAlignment.center : WrapAlignment.start,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 16,
+          runSpacing: 8,
+          children: [
+            FilledButton(
               onPressed: onSignUp,
               style: FilledButton.styleFrom(
                 backgroundColor: _primary,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 28),
+                minimumSize: const Size(132, 50),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               child: const Text(
-                'Sign up',
+                'Get started',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 24,
-            children: [_HeroLink(label: "I'm a teacher", onPressed: onTeacher)],
-          ),
-        ],
+            _HeroLink(label: "I'm a teacher", onPressed: onTeacher),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _StudyIllustration extends StatelessWidget {
+  const _StudyIllustration({this.compact = false});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: compact ? 188 : 240,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: compact ? 84 : 100,
+              height: compact ? 84 : 100,
+              decoration: BoxDecoration(
+                color: _primary,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x26A84B20),
+                    blurRadius: 20,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.auto_stories_rounded,
+                color: Colors.white,
+                size: compact ? 46 : 54,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'QuizForge',
+              style: TextStyle(
+                color: _heading,
+                fontSize: compact ? 21 : 24,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -289,8 +401,8 @@ class _HeroLink extends StatelessWidget {
       onPressed: onPressed,
       label: Text(label),
       style: TextButton.styleFrom(
-        foregroundColor: _primary,
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        foregroundColor: _heading,
+        textStyle: const TextStyle(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -303,80 +415,87 @@ class _FeatureCarousel extends StatelessWidget {
   Widget build(BuildContext context) {
     const features = [
       (
-        title: 'AI Quiz Generation',
+        title: 'Practice Questions',
         description:
-            'Turn your notes into smart practice questions in seconds.',
+            'Create helpful practice questions from your notes in seconds.',
         icon: Icons.auto_awesome,
       ),
       (
         title: 'Flashcards',
-        description: 'Build recall with focused cards made for your goals.',
+        description: 'Review key ideas with simple, focused study cards.',
         icon: Icons.style_outlined,
       ),
       (
-        title: 'Live Classroom Quiz',
-        description: 'Learn together and compete in real time with your class.',
+        title: 'Classroom Activities',
+        description: 'Learn and practice together with your classmates.',
         icon: Icons.groups_outlined,
       ),
     ];
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 600) {
-          return Column(
-            children: [
-              for (var index = 0; index < features.length; index++) ...[
-                SizedBox(
-                  width: double.infinity,
-                  height: 190,
-                  child: _FeatureCard(
-                    title: features[index].title,
-                    description: features[index].description,
-                    icon: features[index].icon,
-                  ),
-                ),
-                if (index < features.length - 1) const SizedBox(height: 16),
-              ],
-            ],
-          );
-        }
-
-        final cards = features
-            .map(
-              (feature) => SizedBox(
-                width: 340,
-                child: _FeatureCard(
-                  title: feature.title,
-                  description: feature.description,
-                  icon: feature.icon,
-                ),
-              ),
-            )
-            .toList();
-        if (constraints.maxWidth >= 1060) {
-          return SizedBox(
-            height: 250,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+        final columns = constraints.maxWidth >= 900
+            ? 3
+            : constraints.maxWidth >= 560
+            ? 2
+            : 1;
+        final cardWidth = (constraints.maxWidth - (columns - 1) * 16) / columns;
+        return Column(
+          children: [
+            const _LandingSectionHeading(
+              title: 'A simple way to keep learning',
+              subtitle:
+                  'Tools to help you practice, review, and learn together.',
+            ),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
               children: [
-                cards[0],
-                const SizedBox(width: 16),
-                cards[1],
-                const SizedBox(width: 16),
-                cards[2],
+                for (final feature in features)
+                  SizedBox(
+                    width: cardWidth,
+                    height: 188,
+                    child: _FeatureCard(
+                      title: feature.title,
+                      description: feature.description,
+                      icon: feature.icon,
+                    ),
+                  ),
               ],
             ),
-          );
-        }
-        return SizedBox(
-          height: 220,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: cards.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 16),
-            itemBuilder: (context, index) => cards[index],
-          ),
+          ],
         );
       },
+    );
+  }
+}
+
+class _LandingSectionHeading extends StatelessWidget {
+  const _LandingSectionHeading({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: _heading,
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: _body, fontSize: 15, height: 1.5),
+        ),
+      ],
     );
   }
 }
@@ -398,34 +517,41 @@ class _FeatureCard extends StatelessWidget {
       elevation: 0,
       color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         side: const BorderSide(color: _border),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 color: _inputFill,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(15),
               ),
-              child: Icon(icon, color: _primary),
+              child: Icon(icon, color: _primary, size: 23),
             ),
-            const Spacer(),
+            const SizedBox(height: 18),
             Text(
               title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: _heading,
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 6),
-            Text(description, style: const TextStyle(height: 1.35)),
+            Text(
+              description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: _body, height: 1.4),
+            ),
           ],
         ),
       ),
@@ -441,27 +567,27 @@ class _WhyQuizForgeSection extends StatelessWidget {
     const benefits = [
       (
         icon: Icons.picture_as_pdf,
-        title: 'Export to PDF',
+        title: 'Printable Study Guides',
         description:
-            'Turn any AI quiz or flashcard set into a clean, printable PDF for handouts and review.',
+            'Prepare clear copies of quizzes and flashcards for review.',
       ),
       (
         icon: Icons.offline_bolt_outlined,
-        title: 'Offline Quiz',
+        title: 'Study Anywhere',
         description:
-            'Download quizzes and study with zero internet. Progress syncs when you’re back online.',
+            'Keep learning with saved activities, even when you are away from a connection.',
       ),
       (
         icon: Icons.style_outlined,
         title: 'Flashcards',
         description:
-            'Auto-generate flashcards from notes. Flip, shuffle, and master key terms.',
+            'Make study cards from your notes and review important ideas.',
       ),
       (
         icon: Icons.leaderboard_outlined,
-        title: 'Leaderboard',
+        title: 'Track Your Progress',
         description:
-            'Bragging rights included. Climb the leaderboard, outscore your classmates, and prove you’re the quiz champion.',
+            'See how far you have come and celebrate each learning milestone.',
       ),
       (
         icon: Icons.emoji_events_outlined,
@@ -473,46 +599,46 @@ class _WhyQuizForgeSection extends StatelessWidget {
         icon: Icons.groups_outlined,
         title: 'Classrooms for Teachers',
         description:
-            'Create your classroom organization, invite students, and host a live quiz everyone takes together in real time.',
+            'Set up a classroom, invite students, and share activities together.',
       ),
     ];
     return Padding(
-      padding: const EdgeInsets.only(top: 72),
+      padding: const EdgeInsets.only(top: 56),
       child: Column(
         children: [
-          const Text(
-            'Why QuizForge?',
-            style: TextStyle(
-              color: _heading,
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
-            ),
+          const _LandingSectionHeading(
+            title: 'Why QuizForge?',
+            subtitle: 'Everything you need to make every study session count.',
           ),
-          const SizedBox(height: 12),
-          const Text(
-            'Everything you need to make every study session count.',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 34),
+          const SizedBox(height: 24),
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 800 ? 3 : 1;
+              final columns = constraints.maxWidth >= 980
+                  ? 3
+                  : constraints.maxWidth >= 620
+                  ? 2
+                  : 1;
+              final cardWidth =
+                  (constraints.maxWidth - (columns - 1) * 16) / columns;
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: benefits.length,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columns,
-                  crossAxisSpacing: 18,
-                  mainAxisSpacing: 18,
-                  mainAxisExtent: 270,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  mainAxisExtent: columns == 1 ? 176 : 188,
                 ),
                 itemBuilder: (context, index) {
                   final benefit = benefits[index];
-                  return _BenefitCard(
-                    icon: benefit.icon,
-                    title: benefit.title,
-                    description: benefit.description,
+                  return SizedBox(
+                    width: cardWidth,
+                    child: _BenefitCard(
+                      icon: benefit.icon,
+                      title: benefit.title,
+                      description: benefit.description,
+                    ),
                   );
                 },
               );
@@ -538,33 +664,41 @@ class _BenefitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _border),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: _primary, size: 28),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: _heading,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(description, style: const TextStyle(height: 1.4)),
-              ],
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: _inputFill,
+              borderRadius: BorderRadius.circular(14),
             ),
+            child: Icon(icon, color: _primary, size: 22),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _heading,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: _body, height: 1.4),
           ),
         ],
       ),
