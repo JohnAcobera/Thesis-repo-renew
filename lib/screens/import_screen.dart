@@ -40,6 +40,7 @@ class ImportScreen extends StatefulWidget {
 
 class _ImportScreenState extends State<ImportScreen> {
   PlatformFile? _selectedFile;
+  final TextEditingController _quizNameController = TextEditingController();
   QuizQuestionType _selectedType = QuizQuestionType.multipleChoice;
   int _selectedItemCount = 10;
   bool _isGenerating = false;
@@ -67,7 +68,12 @@ class _ImportScreenState extends State<ImportScreen> {
           _showMessage('Choose a file that is 3 MB or smaller.');
           return;
         }
-        if (mounted) setState(() => _selectedFile = file);
+        if (mounted) {
+          setState(() {
+            _selectedFile = file;
+            _quizNameController.clear();
+          });
+        }
       }
     } on Exception catch (e) {
       if (mounted) {
@@ -77,11 +83,19 @@ class _ImportScreenState extends State<ImportScreen> {
   }
 
   void _clearFile() {
-    setState(() => _selectedFile = null);
+    setState(() {
+      _selectedFile = null;
+      _quizNameController.clear();
+    });
   }
 
   Future<void> _generate() async {
     if (_selectedFile == null) return;
+    final quizName = _quizNameController.text.trim();
+    if (quizName.isEmpty) {
+      _showMessage('Enter a name for your quiz.', isError: true);
+      return;
+    }
 
     setState(() {
       _isGenerating = true;
@@ -144,13 +158,13 @@ class _ImportScreenState extends State<ImportScreen> {
 
       if (_isInstructor) {
         await _showInstructorQuizActions(
-          title: _quizTitle(file.name),
+          title: quizName,
           sourceFile: file.name,
           questions: questions,
         );
       } else {
         await _takeQuiz(
-          title: _quizTitle(file.name),
+          title: quizName,
           sourceFile: file.name,
           questions: questions,
         );
@@ -346,11 +360,10 @@ class _ImportScreenState extends State<ImportScreen> {
     }
   }
 
-  String _quizTitle(String fileName) {
-    final extensionIndex = fileName.lastIndexOf('.');
-    return extensionIndex > 0
-        ? fileName.substring(0, extensionIndex)
-        : fileName;
+  @override
+  void dispose() {
+    _quizNameController.dispose();
+    super.dispose();
   }
 
   void _showMessage(String message, {bool isError = false}) {
@@ -404,6 +417,7 @@ class _ImportScreenState extends State<ImportScreen> {
                   const SizedBox(height: 24),
                   _FilePickerPanel(
                     selectedFile: _selectedFile,
+                    quizNameController: _quizNameController,
                     onPick: _pickFile,
                     onClear: _clearFile,
                   ),
@@ -502,11 +516,13 @@ class _ImportScreenState extends State<ImportScreen> {
 class _FilePickerPanel extends StatelessWidget {
   const _FilePickerPanel({
     required this.selectedFile,
+    required this.quizNameController,
     required this.onPick,
     required this.onClear,
   });
 
   final PlatformFile? selectedFile;
+  final TextEditingController quizNameController;
   final VoidCallback onPick;
   final VoidCallback onClear;
 
@@ -515,8 +531,43 @@ class _FilePickerPanel extends StatelessWidget {
     return _SettingsPanel(
       icon: Icons.upload_file_outlined,
       title: 'Source File',
-      description: 'Upload a PDF, Word (DOCX), or text file',
-      child: selectedFile == null ? _buildDropZone() : _buildFileInfo(),
+      description: 'Upload a file and give your quiz a name',
+      child: selectedFile == null
+          ? _buildDropZone()
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildFileInfo(),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: quizNameController,
+                  maxLength: 200,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(
+                    labelText: 'Quiz name',
+                    hintText: 'Enter a name for your quiz',
+                    prefixIcon: const Icon(
+                      Icons.edit_outlined,
+                      color: _primary,
+                    ),
+                    filled: true,
+                    fillColor: _inputFill,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: _border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: _border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: _primary, width: 1.5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
