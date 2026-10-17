@@ -104,6 +104,7 @@ class _StudentScaffoldState extends State<StudentScaffold> {
     backgroundColor: const Color(0xFFFFF8EE),
     appBar: StudentNavBar(
       title: widget.title,
+      roleLabel: widget.role,
       username: widget.username,
       email: widget.email,
       onProfileSelected: () => _selectMenuItem(StudentMenuItem.profile),
@@ -169,51 +170,51 @@ class _StudentScaffoldState extends State<StudentScaffold> {
           child: Stack(
             clipBehavior: Clip.hardEdge,
             children: [
+              Positioned.fill(child: widget.body),
+              Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: !_isMenuOpen,
+                  child: AnimatedOpacity(
+                    duration: _animationDuration,
+                    curve: Curves.easeInOut,
+                    opacity: _isMenuOpen ? 1 : 0,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _closeMenu,
+                      child: const ColoredBox(color: Color(0x26000000)),
+                    ),
+                  ),
+                ),
+              ),
               Positioned(
                 left: 0,
                 top: 0,
                 bottom: 0,
                 width: drawerWidth,
-                child: AnimatedOpacity(
+                child: AnimatedSlide(
                   duration: _animationDuration,
-                  curve: Curves.easeInOut,
-                  opacity: _isMenuOpen ? 1 : 0,
-                  child: IgnorePointer(
-                    ignoring: !_isMenuOpen,
-                    child: ExcludeSemantics(
-                      excluding: !_isMenuOpen,
-                      child: _StudentSideMenu(
-                        username: widget.username,
-                        email: widget.email,
-                        role: widget.role,
-                        selectedMenu: _selectedMenu,
-                        onMenuSelected: _selectMenuItem,
-                        onSettingsSelected: widget.onSettingsSelected,
-                        onLogoutSelected: _logout,
+                  curve: Curves.easeInOutCubic,
+                  offset: _isMenuOpen ? Offset.zero : const Offset(-1, 0),
+                  child: AnimatedOpacity(
+                    duration: _animationDuration,
+                    curve: Curves.easeInOut,
+                    opacity: _isMenuOpen ? 1 : 0,
+                    child: IgnorePointer(
+                      ignoring: !_isMenuOpen,
+                      child: ExcludeSemantics(
+                        excluding: !_isMenuOpen,
+                        child: _StudentSideMenu(
+                          username: widget.username,
+                          email: widget.email,
+                          role: widget.role,
+                          selectedMenu: _selectedMenu,
+                          onMenuSelected: _selectMenuItem,
+                          onSettingsSelected: widget.onSettingsSelected,
+                          onLogoutSelected: _logout,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-              AnimatedPositioned(
-                duration: _animationDuration,
-                curve: Curves.easeInOut,
-                left: _isMenuOpen ? drawerWidth : 0,
-                top: 0,
-                bottom: 0,
-                width: constraints.maxWidth,
-                child: Stack(
-                  children: [
-                    Positioned.fill(child: widget.body),
-                    if (_isMenuOpen)
-                      Positioned.fill(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: _closeMenu,
-                          child: const SizedBox.expand(),
-                        ),
-                      ),
-                  ],
                 ),
               ),
             ],

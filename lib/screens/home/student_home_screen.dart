@@ -229,10 +229,11 @@ class _WideStudentDashboard extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             _DashboardPanel(
-              key: _DashboardPanel.learningOverviewPanelKey,
-              icon: Icons.auto_stories_outlined,
-              title: 'Learning overview',
-              description: 'Your learning progress will appear here.',
+              key: _DashboardPanel.quizCreationPanelKey,
+              icon: Icons.quiz_outlined,
+              title: 'Create your own quiz',
+              description:
+                  'Turn your study materials into a personalized practice quiz.',
               actionLabel: 'Generate a quiz',
               onAction: onImportSelected,
               centerContent: true,
@@ -292,10 +293,11 @@ class _StackedStudentDashboard extends StatelessWidget {
       ),
       const SizedBox(height: 16),
       _DashboardPanel(
-        key: _DashboardPanel.learningOverviewPanelKey,
-        icon: Icons.auto_stories_outlined,
-        title: 'Learning overview',
-        description: 'Your learning progress will appear here.',
+        key: _DashboardPanel.quizCreationPanelKey,
+        icon: Icons.quiz_outlined,
+        title: 'Create your own quiz',
+        description:
+            'Turn your study materials into a personalized practice quiz.',
         actionLabel: 'Generate a quiz',
         onAction: onImportSelected,
         centerContent: true,
@@ -855,7 +857,7 @@ class _DashboardPanel extends StatelessWidget {
   });
 
   static const greetingPanelKey = ValueKey<String>('dashboard_panel_1');
-  static const learningOverviewPanelKey = ValueKey<String>('dashboard_panel_2');
+  static const quizCreationPanelKey = ValueKey<String>('dashboard_panel_2');
   static const recentActivityPanelKey = ValueKey<String>('dashboard_panel_3');
 
   final IconData? icon;

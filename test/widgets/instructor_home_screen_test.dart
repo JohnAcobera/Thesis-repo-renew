@@ -76,8 +76,6 @@ void main() {
       await tester.pumpAndSettle();
 
       for (final menuItem in [
-        'Instructor Name',
-        'instructor@example.com',
         'Instructor',
         'Dashboard',
         'My Classroom',
@@ -89,6 +87,12 @@ void main() {
       ]) {
         expect(find.text(menuItem), findsOneWidget);
       }
+      final profileDetailsCount = size.width >= 600 ? 2 : 1;
+      expect(find.text('Instructor Name'), findsNWidgets(profileDetailsCount));
+      expect(
+        find.text('instructor@example.com'),
+        findsNWidgets(profileDetailsCount),
+      );
 
       expect(tester.takeException(), isNull);
 
@@ -115,7 +119,7 @@ void main() {
       expect(find.byTooltip('Open menu'), findsOneWidget);
       await tester.tap(find.byTooltip('Open menu'));
       await tester.pumpAndSettle();
-      expect(find.text('Instructor Name'), findsOneWidget);
+      expect(find.text('Instructor Name'), findsNWidgets(profileDetailsCount));
       await tester.tap(find.byTooltip('Close menu'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Your classrooms'));
