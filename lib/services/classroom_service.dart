@@ -2,8 +2,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/classroom_model.dart';
 import 'auth_service.dart';
+import 'quiz_service.dart';
 
 abstract interface class ClassroomRepository {
+  Future<InstructorDashboardStats> getInstructorDashboardStats();
+
+  Future<List<ClassroomActivity>> classroomActivities(String classroomId);
+
   Future<List<ClassroomModel>> listClassrooms();
 
   Future<List<ClassroomModel>> listStudentClassrooms();
@@ -24,6 +29,70 @@ class ClassroomService implements ClassroomRepository {
 
   final SupabaseClient _client;
   final AuthService _authService;
+
+  @override
+  Future<List<ClassroomActivity>> classroomActivities(
+    String classroomId,
+  ) async {
+    final token = await _requireSessionToken();
+    try {
+      final response = await _client.rpc<List<dynamic>>(
+        'list_classroom_activities',
+        params: {'p_session_token': token, 'p_classroom_id': classroomId},
+      );
+      return response
+          .map(
+            (activity) => ClassroomActivity.fromJson(
+              Map<String, dynamic>.from(activity as Map),
+            ),
+          )
+          .toList(growable: false);
+    } on PostgrestException catch (error) {
+      throw ClassroomServiceException(
+        _databaseMessage(
+          error,
+          failureMessage:
+              'Activities for this classroom could not be loaded. Please try again.',
+        ),
+      );
+    } on FormatException {
+      throw const ClassroomServiceException(
+        'Classroom activities could not be read.',
+      );
+    } on TypeError {
+      throw const ClassroomServiceException(
+        'Classroom activities could not be read.',
+      );
+    }
+  }
+
+  @override
+  Future<InstructorDashboardStats> getInstructorDashboardStats() async {
+    final token = await _requireSessionToken();
+    try {
+      final response = await _client.rpc<Map<String, dynamic>>(
+        'get_instructor_dashboard_stats',
+        params: {'p_session_token': token},
+      );
+      return InstructorDashboardStats.fromJson(response);
+    } on PostgrestException catch (error) {
+      throw ClassroomServiceException(
+        _databaseMessage(
+          error,
+          failureMessage:
+              'Your dashboard statistics could not be loaded. Please try again.',
+        ),
+      );
+    } on FormatException {
+      throw const ClassroomServiceException(
+        'The dashboard statistics could not be read. Please try again.',
+      );
+    } on TypeError {
+      throw const ClassroomServiceException(
+        'The dashboard statistics could not be read. Please try again.',
+      );
+    }
+  }
 
   @override
   Future<List<ClassroomModel>> listClassrooms() async {
@@ -175,6 +244,9 @@ class ClassroomService implements ClassroomRepository {
       return 'Your session has expired. Please log in again.';
     }
     if (error.message.contains('Only instructors')) {
+      if (error.message.contains('view dashboard statistics')) {
+        return 'Only instructor accounts can view dashboard statistics.';
+      }
       return 'Only instructor accounts can manage classrooms.';
     }
     if (error.message.contains('Classroom name and subject')) {

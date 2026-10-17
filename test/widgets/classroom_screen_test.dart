@@ -5,6 +5,7 @@ import 'package:thesis_repo_renew/models/classroom_model.dart';
 import 'package:thesis_repo_renew/models/user_model.dart';
 import 'package:thesis_repo_renew/screens/classroom/classroom_screen.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
+import 'package:thesis_repo_renew/services/quiz_service.dart';
 
 void main() {
   testWidgets('instructor can create a classroom and view its saved code', (
@@ -66,6 +67,8 @@ void main() {
     expect(find.text('General Biology 1'), findsOneWidget);
     expect(find.text('0 students'), findsOneWidget);
     expect(find.text('Join code: ABCD2345'), findsOneWidget);
+    expect(find.text('Post Activities'), findsOneWidget);
+    expect(find.text('Nothing posted here yet'), findsOneWidget);
     await tester.tap(find.text('Your classrooms'));
     await tester.pumpAndSettle();
     expect(find.text('Grade 11 - STEM A'), findsOneWidget);
@@ -129,13 +132,161 @@ void main() {
     expect(find.text('Classroom code copied'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('students can open an available classroom activity', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+
+    final now = DateTime.now();
+    final repository = _FakeClassroomRepository()
+      ..classrooms.add(
+        ClassroomModel(
+          id: 'test-id',
+          name: 'Grade 11 - STEM A',
+          subject: 'General Biology 1',
+          code: 'ABCD2345',
+          createdAt: DateTime.utc(2026),
+          studentCount: 1,
+        ),
+      )
+      ..activities.add(
+        ClassroomActivity(
+          id: 'activity-id',
+          classroomId: 'test-id',
+          classroomName: 'Grade 11 - STEM A',
+          quizId: 'quiz-id',
+          title: 'Cell Structure',
+          sourceFile: 'biology.pdf',
+          questions: const [
+            QuizQuestion(
+              question: 'Which organelle stores DNA?',
+              options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
+              answerIndex: 0,
+              explanation: 'The nucleus contains the cell DNA.',
+            ),
+          ],
+          startsAt: now.subtract(const Duration(minutes: 1)),
+          deadlineAt: now.add(const Duration(days: 1)),
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ClassroomScreen(
+          user: const UserModel(
+            id: 2,
+            fullName: 'Student Name',
+            email: 'student@example.com',
+            role: 'student',
+          ),
+          classroomService: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grade 11 - STEM A'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Post Activities'), findsOneWidget);
+    expect(find.text('Cell Structure'), findsOneWidget);
+    expect(find.text('Take activity'), findsOneWidget);
+    await tester.tap(find.text('Take activity'));
+    await tester.pumpAndSettle();
+    expect(find.text('Take your quiz'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('instructors can preview posted quiz questions', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+
+    final now = DateTime.now();
+    final repository = _FakeClassroomRepository()
+      ..classrooms.add(
+        ClassroomModel(
+          id: 'test-id',
+          name: 'Grade 11 - STEM A',
+          subject: 'General Biology 1',
+          code: 'ABCD2345',
+          createdAt: DateTime.utc(2026),
+        ),
+      )
+      ..activities.add(
+        ClassroomActivity(
+          id: 'activity-id',
+          classroomId: 'test-id',
+          classroomName: 'Grade 11 - STEM A',
+          quizId: 'quiz-id',
+          title: 'Cell Structure',
+          sourceFile: 'biology.pdf',
+          questions: const [
+            QuizQuestion(
+              question: 'Which organelle stores DNA?',
+              options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
+              answerIndex: 0,
+              explanation: 'The nucleus contains the cell DNA.',
+            ),
+          ],
+          startsAt: now.add(const Duration(minutes: 1)),
+          deadlineAt: now.add(const Duration(days: 1)),
+          maxAttempts: 3,
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ClassroomScreen(
+          user: const UserModel(
+            id: 1,
+            fullName: 'Instructor Name',
+            email: 'instructor@example.com',
+            role: 'instructor',
+          ),
+          classroomService: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grade 11 - STEM A'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cell Structure'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('3 attempts per student'), findsOneWidget);
+    expect(find.text('Which organelle stores DNA?'), findsOneWidget);
+    expect(find.text('Nucleus'), findsOneWidget);
+    expect(find.text('Correct answer'), findsOneWidget);
+    expect(
+      find.textContaining('The nucleus contains the cell DNA.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _FakeClassroomRepository implements ClassroomRepository {
   final List<ClassroomModel> classrooms = [];
+  final List<ClassroomActivity> activities = [];
   String? createdName;
   String? createdSubject;
   String? createdIconKey;
+
+  @override
+  Future<List<ClassroomActivity>> classroomActivities(
+    String classroomId,
+  ) async => activities
+      .where((activity) => activity.classroomId == classroomId)
+      .toList();
+
+  @override
+  Future<InstructorDashboardStats> getInstructorDashboardStats() async =>
+      const InstructorDashboardStats(studentCount: 0, activeClassCount: 0);
 
   @override
   Future<ClassroomModel> createClassroom({

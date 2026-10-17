@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 
 import 'profile_screen.dart';
 import 'quiz_screen.dart';
+import '../models/classroom_model.dart';
+import '../services/classroom_service.dart';
 import '../services/quiz_service.dart';
 import '../widgets/student_side_menu.dart';
 
@@ -20,6 +22,7 @@ class ImportScreen extends StatefulWidget {
     required this.email,
     this.role = 'student',
     this.createdAt,
+    this.classroomService,
     this.onMenuSelected,
     super.key,
   });
@@ -28,6 +31,7 @@ class ImportScreen extends StatefulWidget {
   final String email;
   final String role;
   final DateTime? createdAt;
+  final ClassroomRepository? classroomService;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
 
   @override
@@ -40,6 +44,8 @@ class _ImportScreenState extends State<ImportScreen> {
   int _selectedItemCount = 10;
   bool _isGenerating = false;
   String? _generationStatus;
+
+  bool get _isInstructor => widget.role.toLowerCase() == 'instructor';
 
   String _displayRole(String role) => role.isEmpty
       ? role
@@ -136,22 +142,18 @@ class _ImportScreenState extends State<ImportScreen> {
       if (!mounted) return;
       setState(() => _isGenerating = false);
 
-      final completed = await Navigator.of(context).push<bool>(
-        MaterialPageRoute<bool>(
-          builder: (_) => QuizScreen(
-            username: widget.username,
-            email: widget.email,
-            role: widget.role,
-            createdAt: widget.createdAt,
-            onMenuSelected: widget.onMenuSelected,
-            title: _quizTitle(file.name),
-            sourceFile: file.name,
-            questions: questions,
-          ),
-        ),
-      );
-      if (completed == true && mounted) {
-        Navigator.of(context).pop(true);
+      if (_isInstructor) {
+        await _showInstructorQuizActions(
+          title: _quizTitle(file.name),
+          sourceFile: file.name,
+          questions: questions,
+        );
+      } else {
+        await _takeQuiz(
+          title: _quizTitle(file.name),
+          sourceFile: file.name,
+          questions: questions,
+        );
       }
     } on QuizServiceException catch (error) {
       if (mounted) _showMessage(error.message, isError: true);
@@ -165,6 +167,181 @@ class _ImportScreenState extends State<ImportScreen> {
           _isGenerating = false;
           _generationStatus = null;
         });
+      }
+    }
+  }
+
+  Future<void> _takeQuiz({
+    required String title,
+    required String sourceFile,
+    required List<QuizQuestion> questions,
+  }) async {
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => QuizScreen(
+          username: widget.username,
+          email: widget.email,
+          role: widget.role,
+          createdAt: widget.createdAt,
+          onMenuSelected: widget.onMenuSelected,
+          title: title,
+          sourceFile: sourceFile,
+          questions: questions,
+        ),
+      ),
+    );
+    if (completed == true && mounted) Navigator.of(context).pop(true);
+  }
+
+  Future<void> _showInstructorQuizActions({
+    required String title,
+    required String sourceFile,
+    required List<QuizQuestion> questions,
+  }) async {
+    final action = await showDialog<_InstructorQuizAction>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFFFFF8EE),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _inputFill,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_outlined,
+                    color: _primary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Your quiz is ready',
+                  style: TextStyle(
+                    color: _heading,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Choose how you would like to use this activity.',
+                  style: TextStyle(color: _subtle, height: 1.45),
+                ),
+                const SizedBox(height: 20),
+                _InstructorQuizChoice(
+                  icon: Icons.play_circle_outline_rounded,
+                  title: 'Take quiz',
+                  description: 'Preview it and try the questions yourself.',
+                  onTap: () =>
+                      Navigator.pop(context, _InstructorQuizAction.take),
+                ),
+                const SizedBox(height: 10),
+                _InstructorQuizChoice(
+                  icon: Icons.bookmark_add_outlined,
+                  title: 'Save to library',
+                  description: 'Keep it for later without sharing it yet.',
+                  onTap: () =>
+                      Navigator.pop(context, _InstructorQuizAction.save),
+                ),
+                const SizedBox(height: 10),
+                _InstructorQuizChoice(
+                  icon: Icons.campaign_outlined,
+                  title: 'Post to classrooms',
+                  description: 'Choose classes and set when it is available.',
+                  emphasized: true,
+                  onTap: () =>
+                      Navigator.pop(context, _InstructorQuizAction.post),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Not now'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+
+    if (action == _InstructorQuizAction.take) {
+      await _takeQuiz(
+        title: title,
+        sourceFile: sourceFile,
+        questions: questions,
+      );
+      return;
+    }
+
+    try {
+      final quizService = QuizService();
+      if (action == _InstructorQuizAction.save) {
+        await quizService.saveDraft(
+          title: title,
+          sourceFile: sourceFile,
+          questions: questions,
+        );
+        if (!mounted) return;
+        _showMessage('Quiz saved successfully.');
+        Navigator.of(context).pop(true);
+        return;
+      }
+
+      final classroomRepository = widget.classroomService ?? ClassroomService();
+      final classrooms = await classroomRepository.listClassrooms();
+      if (!mounted) return;
+      if (classrooms.isEmpty) {
+        _showMessage(
+          'Create a classroom before posting an activity.',
+          isError: true,
+        );
+        return;
+      }
+      final schedule = await showDialog<_PostActivitySchedule>(
+        context: context,
+        builder: (_) => _PostActivityDialog(classrooms: classrooms),
+      );
+      if (schedule == null || !mounted) return;
+
+      final quizId = await quizService.saveDraft(
+        title: title,
+        sourceFile: sourceFile,
+        questions: questions,
+      );
+      await quizService.postToClassrooms(
+        quizId: quizId,
+        classroomIds: schedule.classroomIds,
+        startsAt: schedule.startsAt,
+        deadlineAt: schedule.deadlineAt,
+        maxAttempts: schedule.maxAttempts,
+      );
+      if (!mounted) return;
+      _showMessage('Activity posted to the selected classrooms.');
+      Navigator.of(context).pop(true);
+    } on QuizServiceException catch (error) {
+      if (mounted) _showMessage(error.message, isError: true);
+    } on ClassroomServiceException catch (error) {
+      if (mounted) _showMessage(error.message, isError: true);
+    } on Exception catch (error) {
+      if (mounted) {
+        _showMessage(
+          'The activity could not be completed: $error',
+          isError: true,
+        );
       }
     }
   }
@@ -830,6 +1007,449 @@ class _SettingsPanel extends StatelessWidget {
           const SizedBox(height: 20),
           child,
         ],
+      ),
+    );
+  }
+}
+
+enum _InstructorQuizAction { take, save, post }
+
+class _PostActivitySchedule {
+  const _PostActivitySchedule({
+    required this.classroomIds,
+    required this.startsAt,
+    required this.deadlineAt,
+    required this.maxAttempts,
+  });
+
+  final List<String> classroomIds;
+  final DateTime startsAt;
+  final DateTime deadlineAt;
+  final int maxAttempts;
+}
+
+class _PostActivityDialog extends StatefulWidget {
+  const _PostActivityDialog({required this.classrooms});
+
+  final List<ClassroomModel> classrooms;
+
+  @override
+  State<_PostActivityDialog> createState() => _PostActivityDialogState();
+}
+
+class _PostActivityDialogState extends State<_PostActivityDialog> {
+  late final Set<String> _selectedIds = {widget.classrooms.first.id};
+  late DateTime _startsAt = DateTime.now().add(const Duration(minutes: 5));
+  late DateTime _deadlineAt = _startsAt.add(const Duration(days: 7));
+  int _maxAttempts = 2;
+  String? _validationError;
+
+  Future<DateTime?> _pickDateTime(DateTime initial) async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+    );
+    if (date == null || !mounted) return null;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  String _formatDateTime(DateTime value) =>
+      '${MaterialLocalizations.of(context).formatMediumDate(value)} at '
+      '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(value))}';
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: const Color(0xFFFFF8EE),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+    titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+    contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+    actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+    title: const Text(
+      'Post to classrooms',
+      style: TextStyle(color: _heading, fontWeight: FontWeight.w700),
+    ),
+    content: SizedBox(
+      width: 440,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Select where to share this activity, then set its availability.',
+              style: TextStyle(color: _subtle, height: 1.45),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Classrooms',
+                    style: TextStyle(
+                      color: _heading,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${_selectedIds.length} selected',
+                  style: const TextStyle(color: _subtle, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            for (final classroom in widget.classrooms) ...[
+              _PostClassroomTile(
+                classroom: classroom,
+                selected: _selectedIds.contains(classroom.id),
+                onChanged: (selected) => setState(() {
+                  if (selected == true) {
+                    _selectedIds.add(classroom.id);
+                  } else {
+                    _selectedIds.remove(classroom.id);
+                  }
+                }),
+              ),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 12),
+            const Text(
+              'Availability',
+              style: TextStyle(color: _heading, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            _SchedulePickerTile(
+              icon: Icons.play_circle_outline_rounded,
+              label: 'Starts',
+              value: _formatDateTime(_startsAt),
+              onTap: () async {
+                final value = await _pickDateTime(_startsAt);
+                if (value != null) setState(() => _startsAt = value);
+              },
+            ),
+            const SizedBox(height: 8),
+            _SchedulePickerTile(
+              icon: Icons.event_available_outlined,
+              label: 'Deadline',
+              value: _formatDateTime(_deadlineAt),
+              onTap: () async {
+                final value = await _pickDateTime(_deadlineAt);
+                if (value != null) setState(() => _deadlineAt = value);
+              },
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Attempts allowed',
+              style: TextStyle(color: _heading, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Total attempts per student, including the first try.',
+              style: TextStyle(color: _subtle, fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<int>(
+              initialValue: _maxAttempts,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _border),
+                ),
+              ),
+              items: List.generate(20, (index) => index + 1)
+                  .map(
+                    (count) => DropdownMenuItem(
+                      value: count,
+                      child: Text(
+                        '$count ${count == 1 ? 'attempt' : 'attempts'}',
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (value) {
+                if (value != null) setState(() => _maxAttempts = value);
+              },
+            ),
+            if (_validationError != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFE8E2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      color: Color(0xFFA33A2B),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _validationError!,
+                        style: const TextStyle(
+                          color: Color(0xFFA33A2B),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton.icon(
+        onPressed: _submitSchedule,
+        icon: const Icon(Icons.send_rounded, size: 18),
+        style: FilledButton.styleFrom(backgroundColor: _primary),
+        label: const Text('Post activity'),
+      ),
+    ],
+  );
+
+  void _submitSchedule() {
+    if (_selectedIds.isEmpty) {
+      setState(() => _validationError = 'Select at least one classroom.');
+      return;
+    }
+    if (!_startsAt.isAfter(DateTime.now())) {
+      setState(
+        () => _validationError = 'The start time must be in the future.',
+      );
+      return;
+    }
+    if (!_deadlineAt.isAfter(_startsAt)) {
+      setState(
+        () => _validationError = 'The deadline must be after the start.',
+      );
+      return;
+    }
+    Navigator.pop(
+      context,
+      _PostActivitySchedule(
+        classroomIds: _selectedIds.toList(growable: false),
+        startsAt: _startsAt,
+        deadlineAt: _deadlineAt,
+        maxAttempts: _maxAttempts,
+      ),
+    );
+  }
+}
+
+class _PostClassroomTile extends StatelessWidget {
+  const _PostClassroomTile({
+    required this.classroom,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final ClassroomModel classroom;
+  final bool selected;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: const Duration(milliseconds: 160),
+    decoration: BoxDecoration(
+      color: selected ? const Color(0xFFFFF1E7) : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: selected ? const Color(0xFFF4B38F) : _border),
+    ),
+    child: CheckboxListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      value: selected,
+      title: Text(
+        classroom.name,
+        style: const TextStyle(
+          color: _heading,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        classroom.subject,
+        style: const TextStyle(color: _subtle, fontSize: 12),
+      ),
+      secondary: Icon(classroom.icon, color: _primary),
+      activeColor: _primary,
+      controlAffinity: ListTileControlAffinity.trailing,
+      onChanged: onChanged,
+    ),
+  );
+}
+
+class _SchedulePickerTile extends StatelessWidget {
+  const _SchedulePickerTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(12),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _inputFill,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: _primary, size: 19),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: _subtle,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: _heading,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.edit_calendar_outlined, color: _primary, size: 19),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _InstructorQuizChoice extends StatelessWidget {
+  const _InstructorQuizChoice({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.onTap,
+    this.emphasized = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = emphasized ? const Color(0xFFF2B48F) : _border;
+    return Material(
+      color: emphasized ? const Color(0xFFFFF1E7) : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: _inputFill,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: _primary, size: 21),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: _heading,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        color: _subtle,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: _primary,
+                size: 15,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

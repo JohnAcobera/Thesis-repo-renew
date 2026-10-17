@@ -18,6 +18,7 @@ class QuizScreen extends StatefulWidget {
     required this.sourceFile,
     required this.questions,
     this.quizId,
+    this.classroomActivityId,
     this.previousAttempts = const [],
     this.role = 'student',
     this.createdAt,
@@ -31,6 +32,7 @@ class QuizScreen extends StatefulWidget {
   final String sourceFile;
   final List<QuizQuestion> questions;
   final String? quizId;
+  final String? classroomActivityId;
   final List<QuizScore> previousAttempts;
   final String role;
   final DateTime? createdAt;
@@ -41,7 +43,6 @@ class QuizScreen extends StatefulWidget {
 }
 
 class _QuizScreenState extends State<QuizScreen> {
-  final _service = QuizService();
   late final List<QuizQuestion> _questions = widget.quizId == null
       ? List<QuizQuestion>.of(widget.questions)
       : shuffledQuizQuestions(widget.questions);
@@ -68,14 +69,21 @@ class _QuizScreenState extends State<QuizScreen> {
     });
 
     try {
-      _savedQuizId = await _service.saveAttempt(
-        title: widget.title,
-        sourceFile: widget.sourceFile,
-        score: _score,
-        totalQuestions: _questions.length,
-        questions: _questions,
-        quizId: _savedQuizId ?? widget.quizId,
-      );
+      final service = QuizService();
+      _savedQuizId = widget.classroomActivityId == null
+          ? await service.saveAttempt(
+              title: widget.title,
+              sourceFile: widget.sourceFile,
+              score: _score,
+              totalQuestions: _questions.length,
+              questions: _questions,
+              quizId: _savedQuizId ?? widget.quizId,
+            )
+          : await service.saveClassroomActivityAttempt(
+              activityId: widget.classroomActivityId!,
+              score: _score,
+              totalQuestions: _questions.length,
+            );
       if (!mounted) return;
       setState(() {
         _isSaved = true;
@@ -123,10 +131,10 @@ class _QuizScreenState extends State<QuizScreen> {
       username: widget.username,
       email: widget.email,
       role: _displayRole(widget.role),
-      onBack: () => Navigator.of(context).maybePop(false),
+      onBack: () => Navigator.of(context).maybePop(_isSaved),
       onMenuSelected: (item) {
         if (item == StudentMenuItem.dashboard) {
-          Navigator.of(context).maybePop(false);
+          Navigator.of(context).maybePop(_isSaved);
         } else if (item == StudentMenuItem.profile) {
           Navigator.of(context).push(
             MaterialPageRoute<void>(

@@ -42,11 +42,14 @@ Run `supabase/quiz_attempts.sql` (or re-run it on an existing project) in the
 Supabase SQL Editor to enable saved quizzes and the custom-session RPCs. Re-run
 it to update the save function to accept both multiple-choice and True or False
 questions.
-Generated quizzes are saved only after the student completes them. Completed
-quizzes can be retaken from the dashboard, which shows each quiz's attempt
-count and score history; the recent activity list has no fixed item limit.
-Existing quiz-attempt scores are retained but are not associated with saved
-quizzes. Deploy all three Edge Functions with the Supabase CLI:
+Student-generated quizzes are saved after a student completes them. Instructors
+can save generated quizzes or post them to selected classrooms with a start
+time and deadline. Students can take posted activities from their classroom
+while they are available, and can retake them until the instructor-set attempt
+limit is reached. The student dashboard shows recent quiz scores and classroom
+attribution; saved student quizzes can be retaken from the dashboard. The
+recent activity list has no fixed item limit. Deploy all three Edge Functions
+with the Supabase CLI:
 
 ```sh
 supabase functions deploy extract-source-text
@@ -62,9 +65,20 @@ Run `supabase/classrooms.sql` in the Supabase SQL Editor to enable instructor
 classroom creation and listing. Classroom access is validated using the app's
 custom session token, and each classroom receives a unique shareable code.
 If this migration was already applied, run it again to enable the classroom
-icon selection and save each classroom's chosen icon. It also prepares a
-classroom membership table and student RPCs so students can join by code from
-their My Classroom screen and instructor class counts reflect memberships.
+icon selection and dashboard stats RPC. It also prepares a classroom
+membership table and student RPCs so students can join by code from their My
+Classroom screen and instructor class counts reflect memberships. The
+dashboard stats RPC counts unique students across all classrooms owned by the
+instructor.
+
+Run or re-run `supabase/classroom_activities.sql` after `classrooms.sql` and
+`quiz_attempts.sql` to enable saved instructor quiz drafts, scheduled
+classroom activities, activity listings, and student submissions. Classroom
+activities allow instructors to set a total attempt limit (default 2); student
+attempts are attributed to the classroom and activity, and the limit is
+enforced by the database. Student recent activity includes classroom quiz
+attempts and their classroom names. Existing attempts are associated with an
+activity only when their classroom and schedule match exactly one activity.
 
 The quiz-generation function reads `GEMINI_API_KEY_1` through
 `GEMINI_API_KEY_6` from Edge Function secrets and rotates keys on transient

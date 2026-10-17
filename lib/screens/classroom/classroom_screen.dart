@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/classroom_model.dart';
 import '../../models/user_model.dart';
 import '../../services/classroom_service.dart';
+import '../../services/quiz_service.dart';
+import '../quiz_screen.dart';
 
 const _primary = Color(0xFFFF7434);
 const _heading = Color(0xFF3B2419);
@@ -173,6 +177,8 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
     if (classroom != null) {
       return ClassroomDetailScreen(
         classroom: classroom,
+        user: widget.user,
+        classroomService: widget.classroomService ?? ClassroomService(),
         onBack: () => setState(() => _selectedClassroom = null),
       );
     }
@@ -722,11 +728,15 @@ class _ClassroomCard extends StatelessWidget {
 class ClassroomDetailScreen extends StatelessWidget {
   const ClassroomDetailScreen({
     required this.classroom,
+    required this.user,
+    required this.classroomService,
     required this.onBack,
     super.key,
   });
 
   final ClassroomModel classroom;
+  final UserModel user;
+  final ClassroomRepository classroomService;
   final VoidCallback onBack;
 
   Future<void> _copyCode(BuildContext context) async {
@@ -817,8 +827,7 @@ class ClassroomDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${classroom.studentCount} '
-                            '${classroom.studentCount == 1 ? 'student' : 'students'}',
+                            '${classroom.studentCount} ${classroom.studentCount == 1 ? 'student' : 'students'}',
                             style: const TextStyle(
                               color: _heading,
                               fontSize: 15,
@@ -883,9 +892,591 @@ class ClassroomDetailScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 24),
+            _PostActivitiesSection(
+              classroom: classroom,
+              user: user,
+              classroomService: classroomService,
+            ),
           ],
         ),
       ),
     ),
+  );
+}
+
+class _PostActivitiesSection extends StatefulWidget {
+  const _PostActivitiesSection({
+    required this.classroom,
+    required this.user,
+    required this.classroomService,
+  });
+
+  final ClassroomModel classroom;
+  final UserModel user;
+  final ClassroomRepository classroomService;
+
+  @override
+  State<_PostActivitiesSection> createState() => _PostActivitiesSectionState();
+}
+
+class _PostActivitiesSectionState extends State<_PostActivitiesSection> {
+  late Future<List<ClassroomActivity>> _activities;
+  late final Timer _availabilityTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _activities = widget.classroomService.classroomActivities(
+      widget.classroom.id,
+    );
+    _availabilityTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _availabilityTimer.cancel();
+    super.dispose();
+  }
+
+  void _retry() {
+    setState(() {
+      _activities = widget.classroomService.classroomActivities(
+        widget.classroom.id,
+      );
+    });
+  }
+
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    return '${MaterialLocalizations.of(context).formatMediumDate(local)} at '
+        '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: _border),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Post Activities',
+                style: TextStyle(
+                  color: _heading,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Refresh activities',
+              onPressed: _retry,
+              icon: const Icon(Icons.refresh_rounded, color: _primary),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Activities shared with this classroom appear here.',
+          style: TextStyle(color: _subtle, fontSize: 13),
+        ),
+        const SizedBox(height: 16),
+        FutureBuilder<List<ClassroomActivity>>(
+          future: _activities,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: CircularProgressIndicator(color: _primary),
+                ),
+              );
+            }
+            if (snapshot.hasError) {
+              return Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Could not load classroom activities: ${snapshot.error}',
+                      style: const TextStyle(color: _subtle),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _retry,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              );
+            }
+            final activities = snapshot.data ?? const <ClassroomActivity>[];
+            if (activities.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 22,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBF6),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _border),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(
+                      Icons.inbox_outlined,
+                      color: Color(0xFFC49A7E),
+                      size: 30,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Nothing posted here yet',
+                      style: TextStyle(
+                        color: _heading,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'New classroom activities will show up in this space.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _subtle, fontSize: 12),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return Column(
+              children: [
+                for (final activity in activities)
+                  _ClassroomActivityTile(
+                    activity: activity,
+                    user: widget.user,
+                    formatDateTime: _formatDateTime,
+                    onActivityCompleted: _retry,
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    ),
+  );
+}
+
+class _ClassroomActivityTile extends StatelessWidget {
+  const _ClassroomActivityTile({
+    required this.activity,
+    required this.user,
+    required this.formatDateTime,
+    required this.onActivityCompleted,
+  });
+
+  final ClassroomActivity activity;
+  final UserModel user;
+  final String Function(DateTime) formatDateTime;
+  final VoidCallback onActivityCompleted;
+
+  Future<void> _openActivity(BuildContext context) async {
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => QuizScreen(
+          username: user.fullName,
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt,
+          title: activity.title,
+          sourceFile: activity.sourceFile,
+          questions: activity.questions,
+          quizId: activity.quizId,
+          classroomActivityId: activity.id,
+          previousAttempts: activity.attempts,
+        ),
+      ),
+    );
+    if (completed == true) onActivityCompleted();
+  }
+
+  Future<void> _showPreview(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640, maxHeight: 720),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFCF8),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: _border),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 20, 14, 14),
+                child: Row(
+                  children: [
+                    const Icon(Icons.quiz_outlined, color: _primary, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            activity.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _heading,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            '${activity.questions.length} questions · '
+                            '${activity.maxAttempts} attempts per student',
+                            style: const TextStyle(
+                              color: _subtle,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close preview',
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: _border),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: activity.questions.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final question = activity.questions[index];
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: _border),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'QUESTION ${index + 1}',
+                            style: const TextStyle(
+                              color: _primary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.7,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            question.question,
+                            style: const TextStyle(
+                              color: _heading,
+                              fontWeight: FontWeight.w700,
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          for (
+                            var optionIndex = 0;
+                            optionIndex < question.options.length;
+                            optionIndex++
+                          ) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    optionIndex == question.answerIndex
+                                        ? Icons.check_circle_rounded
+                                        : Icons.radio_button_unchecked_rounded,
+                                    size: 17,
+                                    color: optionIndex == question.answerIndex
+                                        ? const Color(0xFF578258)
+                                        : _subtle,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      question.options[optionIndex],
+                                      style: TextStyle(
+                                        color: _heading,
+                                        fontWeight:
+                                            optionIndex == question.answerIndex
+                                            ? FontWeight.w700
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                  if (optionIndex == question.answerIndex)
+                                    const Text(
+                                      'Correct answer',
+                                      style: TextStyle(
+                                        color: Color(0xFF578258),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 6),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(11),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF5E8),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  const TextSpan(
+                                    text: 'Explanation  ',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  TextSpan(text: question.explanation),
+                                ],
+                              ),
+                              style: const TextStyle(
+                                color: _subtle,
+                                fontSize: 12,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final isStudent = user.role.toLowerCase() == 'student';
+    final statusColor = switch (activity.status) {
+      'Open' || 'In progress' || 'Completed' => const Color(0xFF578258),
+      'Upcoming' => _primary,
+      _ => const Color(0xFF8C6E5E),
+    };
+    final statusFill = switch (activity.status) {
+      'Open' || 'In progress' || 'Completed' => const Color(0xFFEAF3E8),
+      'Upcoming' => const Color(0xFFFFE9DC),
+      _ => const Color(0xFFF4EDE7),
+    };
+    final information = Row(
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFE9DC),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Icon(
+            Icons.assignment_outlined,
+            color: _primary,
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      activity.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _heading,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusFill,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      activity.status,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 7),
+              Wrap(
+                spacing: 14,
+                runSpacing: 4,
+                children: [
+                  _ActivityScheduleLabel(
+                    icon: Icons.play_arrow_rounded,
+                    text: 'Opens ${formatDateTime(activity.startsAt)}',
+                  ),
+                  _ActivityScheduleLabel(
+                    icon: Icons.event_outlined,
+                    text: 'Due ${formatDateTime(activity.deadlineAt)}',
+                  ),
+                  if (isStudent)
+                    _ActivityScheduleLabel(
+                      icon: Icons.replay_rounded,
+                      text:
+                          '${activity.attemptCount} of '
+                          '${activity.maxAttempts} attempts used',
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    final action = isStudent
+        ? activity.status == 'Completed'
+              ? const Text(
+                  'No attempts left',
+                  style: TextStyle(
+                    color: _subtle,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              : FilledButton(
+                  onPressed: activity.isAvailable
+                      ? () => _openActivity(context)
+                      : null,
+                  style: FilledButton.styleFrom(backgroundColor: _primary),
+                  child: Text(
+                    activity.attemptCount > 0
+                        ? 'Retake activity'
+                        : 'Take activity',
+                  ),
+                )
+        : const Text(
+            'View quiz',
+            style: TextStyle(
+              color: _primary,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          );
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isStudent ? null : () => _showPreview(context),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _border),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x083B2419),
+                blurRadius: 12,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 560) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    information,
+                    const SizedBox(height: 12),
+                    Align(alignment: Alignment.centerRight, child: action),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: information),
+                  const SizedBox(width: 12),
+                  action,
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivityScheduleLabel extends StatelessWidget {
+  const _ActivityScheduleLabel({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, color: const Color(0xFF9A806F), size: 14),
+      const SizedBox(width: 4),
+      Flexible(
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: _subtle, fontSize: 11),
+        ),
+      ),
+    ],
   );
 }

@@ -188,6 +188,51 @@ begin
 end;
 $$;
 
+create or replace function public.get_instructor_dashboard_stats(
+  p_session_token text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  verified_user_id bigint;
+begin
+  select u.id into verified_user_id
+  from public.user_sessions s
+  join public.users u on u.id = s.user_id
+  where s.session_token = p_session_token
+    and s.expires_at > now()
+    and u.role = 'instructor';
+
+  if verified_user_id is null then
+    if exists (
+      select 1
+      from public.user_sessions s
+      join public.users u on u.id = s.user_id
+      where s.session_token = p_session_token and s.expires_at > now()
+    ) then
+      raise exception 'Only instructors can view dashboard statistics';
+    end if;
+    raise exception 'Invalid or expired session';
+  end if;
+
+  return jsonb_build_object(
+    'student_count', (
+      select count(distinct cs.student_id)
+      from public.classrooms c
+      join public.classroom_students cs on cs.classroom_id = c.id
+      where c.instructor_id = verified_user_id
+    ),
+    'active_class_count', (
+      select count(*)
+      from public.classrooms c
+      where c.instructor_id = verified_user_id
+    )
+  );
+end;
+$$;
+
 create or replace function public.join_classroom(
   p_session_token text,
   p_code text
@@ -314,6 +359,7 @@ revoke all on function public.create_instructor_classroom(
   text
 ) from public;
 revoke all on function public.list_instructor_classrooms(text) from public;
+revoke all on function public.get_instructor_dashboard_stats(text) from public;
 revoke all on function public.join_classroom(text, text) from public;
 revoke all on function public.list_student_classrooms(text) from public;
 grant execute on function public.create_instructor_classroom(
@@ -323,6 +369,8 @@ grant execute on function public.create_instructor_classroom(
   text
 ) to anon, authenticated;
 grant execute on function public.list_instructor_classrooms(text)
+  to anon, authenticated;
+grant execute on function public.get_instructor_dashboard_stats(text)
   to anon, authenticated;
 grant execute on function public.join_classroom(text, text)
   to anon, authenticated;

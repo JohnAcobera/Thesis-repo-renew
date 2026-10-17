@@ -248,7 +248,9 @@ begin
 end;
 $$;
 
-create or replace function public.list_saved_quizzes(
+drop function if exists public.list_saved_quizzes(text);
+
+create function public.list_saved_quizzes(
   p_session_token text
 ) returns table (
   id uuid,
@@ -256,7 +258,10 @@ create or replace function public.list_saved_quizzes(
   source_file text,
   questions jsonb,
   created_at timestamptz,
-  attempts jsonb
+  attempts jsonb,
+  classroom_activity_id uuid,
+  classroom_name text,
+  max_attempts integer
 )
 language plpgsql
 stable
@@ -285,7 +290,10 @@ begin
         ) order by a.created_at desc
       ) filter (where a.id is not null),
       '[]'::jsonb
-    )
+    ),
+    null::uuid,
+    null::text,
+    null::integer
   from public.student_generated_quizzes q
   left join public.quiz_attempts a
     on a.quiz_id = q.id and a.user_id = verified_user_id

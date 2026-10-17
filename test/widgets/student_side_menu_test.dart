@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/classroom_model.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
+import 'package:thesis_repo_renew/services/quiz_service.dart';
 import 'package:thesis_repo_renew/screens/import_screen.dart';
 import 'package:thesis_repo_renew/screens/home/student_home_screen.dart';
 import 'package:thesis_repo_renew/models/user_model.dart';
@@ -503,6 +504,15 @@ class _FakeStudentClassroomRepository implements ClassroomRepository {
     iconKey: 'science',
     studentCount: 1,
   );
+
+  @override
+  Future<List<ClassroomActivity>> classroomActivities(
+    String classroomId,
+  ) async => [];
+
+  @override
+  Future<InstructorDashboardStats> getInstructorDashboardStats() async =>
+      const InstructorDashboardStats(studentCount: 0, activeClassCount: 0);
 
   @override
   Future<ClassroomModel> createClassroom({

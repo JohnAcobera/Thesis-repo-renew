@@ -397,6 +397,19 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                                     fontSize: 12,
                                   ),
                                 ),
+                                if (activity.classroomName != null) ...[
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Classroom: ${activity.classroomName}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Color(0xFF8A6B58),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -414,17 +427,26 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: () => _retakeQuiz(activity),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    visualDensity: VisualDensity.compact,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                if (_canRetake(activity))
+                  FilledButton(
+                    onPressed: () => _retakeQuiz(activity),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      visualDensity: VisualDensity.compact,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
+                    child: const Text('Retake'),
+                  )
+                else if (activity.classroomActivityId != null &&
+                    activity.maxAttempts != null &&
+                    activity.attempts.length >= activity.maxAttempts!)
+                  const Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: Color(0xFF578258),
+                    semanticLabel: 'Attempt limit reached',
                   ),
-                  child: const Text('Retake'),
-                ),
               ],
             ),
           );
@@ -511,7 +533,10 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Saved quiz · ${activity.totalQuestions} questions',
+                            activity.classroomName == null
+                                ? 'Saved quiz · ${activity.totalQuestions} questions'
+                                : '${activity.classroomName} · '
+                                      '${activity.totalQuestions} questions',
                             style: const TextStyle(
                               color: Color(0xFF725F53),
                               fontSize: 13,
@@ -583,7 +608,9 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        '${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
+                        activity.maxAttempts == null
+                            ? '${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}'
+                            : '${activity.attempts.length} of ${activity.maxAttempts} attempts',
                         style: const TextStyle(
                           color: Color(0xFF9A512F),
                           fontSize: 12,
@@ -652,6 +679,16 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                                       fontSize: 12,
                                     ),
                                   ),
+                                  if (attempt.classroomName != null) ...[
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      'Classroom: ${attempt.classroomName}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF8A6B58),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -678,25 +715,37 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                       child: const Text('Close'),
                     ),
                     const SizedBox(width: 8),
-                    FilledButton.icon(
-                      onPressed: () {
-                        Navigator.of(dialogContext).pop();
-                        _retakeQuiz(activity);
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF7434),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 13,
+                    if (_canRetake(activity))
+                      FilledButton.icon(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          _retakeQuiz(activity);
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF7434),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 13,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                        icon: const Icon(Icons.replay_rounded, size: 19),
+                        label: const Text('Retake'),
+                      )
+                    else if (activity.classroomActivityId != null)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 8),
+                        child: Text(
+                          'Retake from the classroom while it is open.',
+                          style: TextStyle(
+                            color: Color(0xFF725F53),
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                      icon: const Icon(Icons.replay_rounded, size: 19),
-                      label: const Text('Retake'),
-                    ),
                   ],
                 ),
               ],
@@ -722,11 +771,15 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
           questions: activity.questions,
           quizId: activity.id,
           previousAttempts: activity.attempts,
+          classroomActivityId: activity.classroomActivityId,
         ),
       ),
     );
     if (completed == true && mounted) widget.onQuizCompleted();
   }
+
+  bool _canRetake(QuizActivity activity) =>
+      activity.classroomActivityId == null;
 }
 
 class _DashboardPanel extends StatelessWidget {

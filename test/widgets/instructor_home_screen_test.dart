@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/classroom_model.dart';
 import 'package:thesis_repo_renew/models/user_model.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
+import 'package:thesis_repo_renew/services/quiz_service.dart';
 import 'package:thesis_repo_renew/screens/home/instructor_home_screen.dart';
 
 void main() {
@@ -57,7 +58,20 @@ void main() {
         expect(find.text(mockValue), findsNothing);
       }
 
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('—'), findsNWidgets(2));
       expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Create activity'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Upload your notes and generate a practice quiz'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dashboard'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Open menu'));
       await tester.pumpAndSettle();
 
@@ -126,6 +140,15 @@ void main() {
 }
 
 class _FakeClassroomRepository implements ClassroomRepository {
+  @override
+  Future<List<ClassroomActivity>> classroomActivities(
+    String classroomId,
+  ) async => [];
+
+  @override
+  Future<InstructorDashboardStats> getInstructorDashboardStats() async =>
+      const InstructorDashboardStats(studentCount: 3, activeClassCount: 2);
+
   @override
   Future<ClassroomModel> joinClassroom({required String code}) async =>
       throw UnimplementedError();

@@ -2,9 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../models/classroom_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/classroom_service.dart';
+import '../import_screen.dart';
 import '../classroom/classroom_screen.dart';
 import '../profile_screen.dart';
 import '../../widgets/instructor_side_menu.dart';
@@ -55,6 +57,26 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
       (_) => false,
+    );
+  }
+
+  Future<void> _openCreateActivity() async {
+    final user = widget.user;
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => ImportScreen(
+          username: user.fullName,
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt,
+          classroomService: widget.classroomService,
+          onMenuSelected: (item) => _selectMenuItem(
+            item == StudentMenuItem.classroom
+                ? InstructorMenuItem.classroom
+                : InstructorMenuItem.dashboard,
+          ),
+        ),
+      ),
     );
   }
 
@@ -160,7 +182,11 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
                               user: user,
                               classroomService: widget.classroomService,
                             )
-                          : const _InstructorDashboard(),
+                          : _InstructorDashboard(
+                              classroomService:
+                                  widget.classroomService ?? ClassroomService(),
+                              onCreateActivity: _openCreateActivity,
+                            ),
                     ),
                     if (_isMenuOpen)
                       Positioned.fill(
@@ -181,122 +207,462 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
   }
 }
 
-class _InstructorDashboard extends StatelessWidget {
-  const _InstructorDashboard();
+class _InstructorDashboard extends StatefulWidget {
+  const _InstructorDashboard({
+    required this.classroomService,
+    required this.onCreateActivity,
+  });
 
-  static const _gap = 20.0;
+  final ClassroomRepository classroomService;
+  final VoidCallback onCreateActivity;
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    padding: const EdgeInsets.all(24),
-    child: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1280),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _MetricCard(
-                    label: 'Total students',
-                    icon: Icons.groups_outlined,
-                  ),
+  State<_InstructorDashboard> createState() => _InstructorDashboardState();
+}
+
+class _InstructorDashboardState extends State<_InstructorDashboard> {
+  late Future<InstructorDashboardStats> _stats;
+
+  static const _accent = Color(0xFFF4773C);
+  static const _ink = Color(0xFF3B2419);
+  static const _muted = Color(0xFF765C4F);
+  static const _gap = 16.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _stats = widget.classroomService.getInstructorDashboardStats();
+  }
+
+  void _retryLoadingStats() {
+    setState(() {
+      _stats = widget.classroomService.getInstructorDashboardStats();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final horizontalPadding = constraints.maxWidth < 600 ? 16.0 : 32.0;
+      final contentWidth = constraints.maxWidth - horizontalPadding * 2;
+      final metricColumns = contentWidth >= 1000
+          ? 4
+          : contentWidth >= 520
+          ? 2
+          : 1;
+      final metricWidth =
+          (contentWidth - _gap * (metricColumns - 1)) / metricColumns;
+      final wideSections = contentWidth >= 900;
+
+      return FutureBuilder<InstructorDashboardStats>(
+        future: _stats,
+        builder: (context, snapshot) {
+          final stats = snapshot.data;
+          const heading = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'INSTRUCTOR OVERVIEW',
+                style: TextStyle(
+                  color: _accent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.4,
                 ),
-                const SizedBox(width: _gap),
-                Expanded(
-                  child: _MetricCard(
-                    label: 'Active classes',
-                    icon: Icons.menu_book_outlined,
-                  ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Your teaching overview',
+                style: TextStyle(
+                  color: _ink,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
                 ),
-              ],
+              ),
+              SizedBox(height: 6),
+              Text(
+                'A clear view of your classes, assessments, and student progress.',
+                style: TextStyle(color: _muted, fontSize: 14, height: 1.5),
+              ),
+            ],
+          );
+          final createButton = FilledButton.icon(
+            onPressed: widget.onCreateActivity,
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text('Create activity'),
+            style: FilledButton.styleFrom(
+              backgroundColor: _accent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 1,
+              shadowColor: const Color(0x33A94E22),
             ),
-            const SizedBox(height: _gap),
-            Row(
-              children: [
-                Expanded(
-                  child: _MetricCard(
-                    label: 'Quizzes created',
-                    icon: Icons.assignment_outlined,
-                  ),
-                ),
-                const SizedBox(width: _gap),
-                Expanded(
-                  child: _MetricCard(
-                    label: 'Average score',
-                    icon: Icons.bar_chart_outlined,
-                  ),
-                ),
-              ],
+          );
+
+          return SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: 32,
             ),
-            const SizedBox(height: _gap),
-            const _DashboardSection(title: 'Class performance', height: 260),
-            const SizedBox(height: _gap),
-            const _DashboardSection(title: 'Recent quizzes', height: 300),
-            const SizedBox(height: _gap),
-            const _DashboardSection(
-              title: 'Students needing attention',
-              height: 220,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1280),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (contentWidth < 480) ...[
+                      heading,
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: createButton,
+                      ),
+                    ] else
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Expanded(child: heading),
+                          const SizedBox(width: 16),
+                          createButton,
+                        ],
+                      ),
+                    if (snapshot.hasError) ...[
+                      const SizedBox(height: 16),
+                      _DashboardLoadError(
+                        error: snapshot.error!,
+                        onRetry: _retryLoadingStats,
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    Wrap(
+                      spacing: _gap,
+                      runSpacing: _gap,
+                      children: [
+                        SizedBox(
+                          width: metricWidth,
+                          child: _MetricCard(
+                            label: 'Total students',
+                            caption: 'Across all your classes',
+                            icon: Icons.groups_outlined,
+                            tint: Color(0xFFFFE5D5),
+                            iconColor: _accent,
+                            value: stats?.studentCount.toString(),
+                          ),
+                        ),
+                        SizedBox(
+                          width: metricWidth,
+                          child: _MetricCard(
+                            label: 'Active classes',
+                            caption: 'Classes you are teaching',
+                            icon: Icons.menu_book_outlined,
+                            tint: Color(0xFFFFE5D5),
+                            iconColor: _accent,
+                            value: stats?.activeClassCount.toString(),
+                          ),
+                        ),
+                        SizedBox(
+                          width: metricWidth,
+                          child: const _MetricCard(
+                            label: 'Quizzes created',
+                            caption: 'Assessments in your library',
+                            icon: Icons.assignment_outlined,
+                            tint: Color(0xFFFFE5D5),
+                            iconColor: _accent,
+                          ),
+                        ),
+                        SizedBox(
+                          width: metricWidth,
+                          child: const _MetricCard(
+                            label: 'Average score',
+                            caption: 'Across completed quizzes',
+                            icon: Icons.trending_up_rounded,
+                            tint: Color(0xFFFFE5D5),
+                            iconColor: _accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    if (wideSections)
+                      const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 6,
+                            child: _DashboardSection(
+                              title: 'Class performance',
+                              icon: Icons.insights_outlined,
+                              message: 'No class insights yet',
+                              description:
+                                  'Add a classroom and invite students to start '
+                                  'tracking progress.',
+                            ),
+                          ),
+                          SizedBox(width: _gap),
+                          Expanded(
+                            flex: 5,
+                            child: _DashboardSection(
+                              title: 'Recent quizzes',
+                              icon: Icons.quiz_outlined,
+                              message: 'No quizzes yet',
+                              description:
+                                  'Quizzes you create will appear here for a '
+                                  'quick overview.',
+                            ),
+                          ),
+                        ],
+                      )
+                    else ...[
+                      const _DashboardSection(
+                        title: 'Class performance',
+                        icon: Icons.insights_outlined,
+                        message: 'No class insights yet',
+                        description:
+                            'Add a classroom and invite students to start '
+                            'tracking progress.',
+                      ),
+                      const SizedBox(height: _gap),
+                      const _DashboardSection(
+                        title: 'Recent quizzes',
+                        icon: Icons.quiz_outlined,
+                        message: 'No quizzes yet',
+                        description:
+                            'Quizzes you create will appear here for a quick '
+                            'overview.',
+                      ),
+                    ],
+                    const SizedBox(height: _gap),
+                    const _DashboardSection(
+                      title: 'Students needing attention',
+                      icon: Icons.support_agent_outlined,
+                      message: 'Student insights will appear here',
+                      description:
+                          'See who may need extra support as class activity grows.',
+                      compact: true,
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
-      ),
-    ),
+          );
+        },
+      );
+    },
   );
 }
 
 class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.label, required this.icon});
+  const _MetricCard({
+    required this.label,
+    required this.caption,
+    required this.icon,
+    required this.tint,
+    required this.iconColor,
+    this.value,
+  });
 
   final String label;
+  final String caption;
   final IconData icon;
+  final Color tint;
+  final Color iconColor;
+  final String? value;
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 150,
-    padding: const EdgeInsets.all(16),
+    height: 156,
+    padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFE8D7C2)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0A3B2419),
+          blurRadius: 18,
+          offset: Offset(0, 6),
+        ),
+      ],
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: const Color(0xFFF4773C), size: 20),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 14, color: Color(0xFF765C4F)),
+        Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: tint,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 21),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF765C4F),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
-        const Expanded(child: SizedBox()),
+        const SizedBox(height: 18),
+        Text(
+          value ?? '—',
+          style: const TextStyle(
+            color: Color(0xFF3B2419),
+            fontSize: 30,
+            fontWeight: FontWeight.w700,
+            height: 1,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          caption,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Color(0xFF765C4F), fontSize: 11),
+        ),
+      ],
+    ),
+  );
+}
+
+class _DashboardLoadError extends StatelessWidget {
+  const _DashboardLoadError({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFE5D5),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xFFF2C4A7)),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.error_outline, color: Color(0xFFB84E25), size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Could not load classroom statistics: $error',
+            style: const TextStyle(color: Color(0xFF6C3C28), fontSize: 12),
+          ),
+        ),
+        TextButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          label: const Text('Retry'),
+        ),
       ],
     ),
   );
 }
 
 class _DashboardSection extends StatelessWidget {
-  const _DashboardSection({required this.title, required this.height});
+  const _DashboardSection({
+    required this.title,
+    required this.icon,
+    required this.message,
+    required this.description,
+    this.compact = false,
+  });
 
   final String title;
-  final double height;
+  final IconData icon;
+  final String message;
+  final String description;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    height: height,
+    height: compact ? 260 : 272,
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFE8D7C2)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0A3B2419),
+          blurRadius: 18,
+          offset: Offset(0, 6),
+        ),
+      ],
     ),
-    child: Text(
-      title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        color: Color(0xFF3B2419),
-      ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFF3B2419),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const Divider(height: 24, color: Color(0xFFE8D7C2)),
+        Expanded(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1DF),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: const Color(0xFFF4773C), size: 22),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF3B2419),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF765C4F),
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }

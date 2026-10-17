@@ -82,6 +82,7 @@ void main() {
             'score': 6,
             'total_questions': 10,
             'created_at': '2026-10-16T06:00:00Z',
+            'classroom_name': 'Biology 11-A',
           },
           {
             'score': 8,
@@ -96,6 +97,7 @@ void main() {
       expect(activity.attempts, hasLength(2));
       expect(activity.highestPercentage, 80);
       expect(activity.attempts.first.score, 6);
+      expect(activity.attempts.first.classroomName, 'Biology 11-A');
     });
 
     test('rejects saved quizzes without questions or completed attempts', () {
@@ -112,6 +114,77 @@ void main() {
       );
     });
   });
+
+  test('ClassroomActivity parses its schedule and availability', () {
+    final now = DateTime.now().toUtc();
+    final activity = ClassroomActivity.fromJson({
+      'id': 'activity-id',
+      'classroom_id': 'classroom-id',
+      'classroom_name': 'Biology',
+      'quiz_id': 'quiz-id',
+      'title': 'Cell Structure',
+      'source_file': 'biology.pdf',
+      'questions': [
+        {
+          'question': 'Which organelle stores DNA?',
+          'options': ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
+          'answerIndex': 0,
+          'explanation': 'The nucleus contains the cell DNA.',
+        },
+      ],
+      'starts_at': now.subtract(const Duration(days: 1)).toIso8601String(),
+      'deadline_at': now.add(const Duration(days: 1)).toIso8601String(),
+      'max_attempts': 2,
+      'attempt_count': 0,
+      'attempts': [],
+    });
+
+    expect(activity.classroomName, 'Biology');
+    expect(activity.questions, hasLength(1));
+    expect(activity.isAvailable, isTrue);
+    expect(activity.status, 'Open');
+    expect(activity.maxAttempts, 2);
+    expect(activity.attemptCount, 0);
+  });
+
+  test(
+    'ClassroomActivity reports completion when the attempt limit is used',
+    () {
+      final now = DateTime.now().toUtc();
+      final activity = ClassroomActivity.fromJson({
+        'id': 'activity-id',
+        'classroom_id': 'classroom-id',
+        'classroom_name': 'Biology',
+        'quiz_id': 'quiz-id',
+        'title': 'Cell Structure',
+        'source_file': 'biology.pdf',
+        'questions': [
+          {
+            'question': 'Which organelle stores DNA?',
+            'options': ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
+            'answerIndex': 0,
+            'explanation': 'The nucleus contains the cell DNA.',
+          },
+        ],
+        'starts_at': now.subtract(const Duration(days: 1)).toIso8601String(),
+        'deadline_at': now.add(const Duration(days: 1)).toIso8601String(),
+        'max_attempts': 2,
+        'attempt_count': 2,
+        'attempts': [
+          {
+            'score': 1,
+            'total_questions': 1,
+            'created_at': now.toIso8601String(),
+            'classroom_name': 'Biology',
+          },
+        ],
+      });
+
+      expect(activity.status, 'Completed');
+      expect(activity.isAvailable, isFalse);
+      expect(activity.attempts.single.classroomName, 'Biology');
+    },
+  );
 
   test('shuffles questions while keeping question data intact', () {
     final questions = [

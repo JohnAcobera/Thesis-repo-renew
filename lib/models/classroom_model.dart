@@ -80,6 +80,22 @@ class ClassroomModel {
   );
 }
 
+class InstructorDashboardStats {
+  const InstructorDashboardStats({
+    required this.studentCount,
+    required this.activeClassCount,
+  });
+
+  final int studentCount;
+  final int activeClassCount;
+
+  factory InstructorDashboardStats.fromJson(Map<String, dynamic> json) =>
+      InstructorDashboardStats(
+        studentCount: (json['student_count'] as num).toInt(),
+        activeClassCount: (json['active_class_count'] as num).toInt(),
+      );
+}
+
 class ClassroomIconOption {
   const ClassroomIconOption({
     required this.key,
