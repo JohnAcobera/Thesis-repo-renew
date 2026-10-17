@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/classroom_model.dart';
+import 'package:thesis_repo_renew/services/auth_service.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
+import 'package:thesis_repo_renew/services/leaderboard_service.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
 import 'package:thesis_repo_renew/screens/import_screen.dart';
 import 'package:thesis_repo_renew/screens/home/student_home_screen.dart';
@@ -51,10 +53,12 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    final leaderboardRepository = _FakeLeaderboardRepository();
 
     await tester.pumpWidget(
       MaterialApp(
         home: StudentHomeScreen(
+          leaderboardRepository: leaderboardRepository,
           user: UserModel(
             id: 1,
             fullName: 'Student Name',
@@ -78,7 +82,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Student rankings'), findsOneWidget);
-    expect(find.text('Rankings are on the way'), findsOneWidget);
+    expect(find.text('Alex Student'), findsOneWidget);
+    expect(find.text('1,250 LP'), findsOneWidget);
     expect(find.text('Weekly activity'), findsNothing);
     await tester.tap(find.byTooltip('Select leaderboard week'));
     await tester.pumpAndSettle();
@@ -88,6 +93,7 @@ void main() {
     await tester.tap(find.text('Last week (-1)'));
     await tester.pumpAndSettle();
     expect(find.text('LAST WEEK (-1)'), findsOneWidget);
+    expect(leaderboardRepository.requestedWeeks, [0, -1]);
     expect(tester.takeException(), isNull);
   });
 
@@ -343,18 +349,30 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: ProfileScreen(
             username: 'Student Name',
             email: 'student@example.com',
+            authService: _LearnerPointsAuthService(0),
+            streakDays: {},
           ),
         ),
       );
+      await tester.pump();
 
       final calendar = find.text('Learning streak');
       final achievements = find.text('Your Achievements');
       expect(calendar, findsOneWidget);
       expect(achievements, findsOneWidget);
+      expect(find.text('LP'), findsOneWidget);
+      expect(find.text('0'), findsOneWidget);
+      expect(find.byIcon(Icons.diamond_outlined), findsOneWidget);
+      expect(
+        find.byTooltip(
+          'Learner Points - earn LP through daily login and activities.',
+        ),
+        findsOneWidget,
+      );
       expect(
         tester.getTopLeft(achievements).dy,
         greaterThan(tester.getTopLeft(calendar).dy),
@@ -363,6 +381,24 @@ void main() {
       expect(find.text('Your achievements will appear here.'), findsOneWidget);
     },
   );
+
+  testWidgets('profile displays the loaded learner point balance with commas', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProfileScreen(
+          username: 'Student Name',
+          email: 'student@example.com',
+          authService: _LearnerPointsAuthService(1234567),
+          streakDays: {},
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('1,234,567'), findsOneWidget);
+  });
 
   testWidgets('profile streak counts consecutive login days', (tester) async {
     final today = DateTime.now();
@@ -462,6 +498,7 @@ void main() {
     for (final removedItem in ['Quiz', 'Summarizer', 'Flashcard', 'Reviewer']) {
       expect(find.text(removedItem), findsNothing);
     }
+
     final menuDivider = tester.widget<Divider>(find.byType(Divider).first);
     expect(
       tester.getSize(find.byWidget(menuDivider)).width,
@@ -549,6 +586,37 @@ void main() {
 
     expect(tester.getTopLeft(find.byKey(panelKey)).dx, initialPanelLeft);
   });
+}
+
+class _LearnerPointsAuthService implements ProfileDataService {
+  _LearnerPointsAuthService(this.points);
+
+  final int points;
+
+  @override
+  Future<int> learnerPoints() async => points;
+
+  @override
+  Future<Set<DateTime>> loginDates() async => {};
+}
+
+class _FakeLeaderboardRepository implements LeaderboardRepository {
+  final requestedWeeks = <int>[];
+
+  @override
+  Future<List<WeeklyLeaderboardEntry>> weeklyLeaderboard({
+    required int weekOffset,
+  }) async {
+    requestedWeeks.add(weekOffset);
+    return const [
+      WeeklyLeaderboardEntry(
+        rank: 1,
+        userId: 2,
+        fullName: 'Alex Student',
+        points: 1250,
+      ),
+    ];
+  }
 }
 
 class _FakeStudentClassroomRepository implements ClassroomRepository {

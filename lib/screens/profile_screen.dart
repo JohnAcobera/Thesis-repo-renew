@@ -21,25 +21,31 @@ class ProfileScreen extends StatefulWidget {
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
   final Set<DateTime>? streakDays;
-  final AuthService? authService;
+  final ProfileDataService? authService;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  late final ProfileDataService _authService =
+      widget.authService ?? AuthService();
   late Future<Set<DateTime>> _loginDatesFuture;
+  late Future<int> _learnerPointsFuture;
 
   @override
   void initState() {
     super.initState();
+    _learnerPointsFuture = _loadLearnerPoints();
     if (widget.streakDays == null) {
       _loginDatesFuture = _loadLoginDates();
     }
   }
 
   Future<Set<DateTime>> _loadLoginDates() async =>
-      (await (widget.authService ?? AuthService()).loginDates());
+      await _authService.loginDates();
+
+  Future<int> _loadLearnerPoints() async => await _authService.learnerPoints();
 
   Widget _buildStreakCalendar() {
     final suppliedDates = widget.streakDays;
@@ -166,6 +172,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: const TextStyle(
                                 color: Color(0xFF765C4F),
                                 fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _LearnerPointsBadge(
+                              pointsFuture: _learnerPointsFuture,
+                              onRetry: () => setState(
+                                () =>
+                                    _learnerPointsFuture = _loadLearnerPoints(),
                               ),
                             ),
                           ],
@@ -627,6 +641,97 @@ class _AchievementsSection extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _LearnerPointsBadge extends StatelessWidget {
+  const _LearnerPointsBadge({
+    required this.pointsFuture,
+    required this.onRetry,
+  });
+
+  final Future<int> pointsFuture;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF8EE),
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: const Color(0xFFE8D7C2)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.diamond_outlined, size: 20, color: Color(0xFFF4773C)),
+        SizedBox(width: 6),
+        Text(
+          'LP',
+          style: TextStyle(
+            color: Color(0xFF3B2419),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(width: 6),
+        FutureBuilder<int>(
+          future: pointsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return IconButton(
+                tooltip: 'Learner points unavailable. Retry',
+                onPressed: onRetry,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
+                icon: const Icon(
+                  Icons.error_outline,
+                  size: 18,
+                  color: Color(0xFFB3261E),
+                ),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFF4773C),
+                ),
+              );
+            }
+            return Text(
+              _formatPoints(snapshot.data!),
+              style: const TextStyle(
+                color: Color(0xFF3B2419),
+                fontWeight: FontWeight.w600,
+              ),
+            );
+          },
+        ),
+        SizedBox(width: 4),
+        Tooltip(
+          message:
+              'Learner Points - earn LP through daily login and activities.',
+          child: Icon(Icons.info_outline, size: 18, color: Color(0xFF765C4F)),
+        ),
+      ],
+    ),
+  );
+
+  String _formatPoints(int points) {
+    final value = points.toString();
+    final isNegative = value.startsWith('-');
+    final digits = isNegative ? value.substring(1) : value;
+    final formattedDigits = StringBuffer();
+    for (var index = 0; index < digits.length; index++) {
+      if (index > 0 && (digits.length - index) % 3 == 0) {
+        formattedDigits.write(',');
+      }
+      formattedDigits.write(digits[index]);
+    }
+    return '${isNegative ? '-' : ''}$formattedDigits';
+  }
 }
 
 class _ProfileDetail extends StatelessWidget {

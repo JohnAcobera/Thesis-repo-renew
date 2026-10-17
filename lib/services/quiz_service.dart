@@ -343,6 +343,30 @@ class QuizService {
   final SupabaseClient _client;
   final AuthService _authService;
 
+  Future<int> learnerPointsForAttempt({
+    required String quizId,
+    String? classroomActivityId,
+  }) async {
+    final token = await _requireSessionToken();
+    try {
+      return await _client.rpc<int>(
+        'get_quiz_attempt_learner_points',
+        params: {
+          'p_session_token': token,
+          'p_quiz_id': quizId,
+          'p_classroom_activity_id': classroomActivityId,
+        },
+      );
+    } on PostgrestException catch (error) {
+      throw QuizServiceException(
+        _databaseMessage(
+          error,
+          failureMessage: 'Learner points could not be loaded.',
+        ),
+      );
+    }
+  }
+
   Future<String> saveDraft({
     required String title,
     required String sourceFile,

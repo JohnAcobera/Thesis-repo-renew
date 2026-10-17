@@ -19,7 +19,12 @@ class AuthResult {
   final String sessionToken;
 }
 
-class AuthService {
+abstract interface class ProfileDataService {
+  Future<Set<DateTime>> loginDates();
+  Future<int> learnerPoints();
+}
+
+class AuthService implements ProfileDataService {
   AuthService({SupabaseClient? client, FlutterSecureStorage? storage})
     : _client = client ?? Supabase.instance.client,
       _storage = storage ?? const FlutterSecureStorage();
@@ -95,6 +100,7 @@ class AuthService {
     }
   }
 
+  @override
   Future<Set<DateTime>> loginDates() async {
     final token = await _storage.read(key: _sessionKey);
     if (token == null || token.isEmpty) {
@@ -111,6 +117,27 @@ class AuthService {
     } on PostgrestException {
       throw const AuthException(
         'Unable to load your learning streak. Please try again.',
+      );
+    }
+  }
+
+  @override
+  Future<int> learnerPoints() async {
+    final token = await _storage.read(key: _sessionKey);
+    if (token == null || token.isEmpty) {
+      throw const AuthException(
+        'Please sign in again to view your learner points.',
+      );
+    }
+
+    try {
+      return await _client.rpc<int>(
+        'get_learner_points',
+        params: {'p_session_token': token},
+      );
+    } on PostgrestException {
+      throw const AuthException(
+        'Unable to load your learner points. Please try again.',
       );
     }
   }

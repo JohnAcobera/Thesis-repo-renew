@@ -1,13 +1,43 @@
 import 'package:flutter/material.dart';
 
+import '../services/leaderboard_service.dart';
+
 const _primary = Color(0xFFFF7434);
 const _heading = Color(0xFF3B2419);
 const _subtle = Color(0xFF765C4F);
 const _border = Color(0xFFE8D7C2);
 const _surface = Color(0xFFFFFCF8);
 
-class LeaderboardScreen extends StatelessWidget {
-  const LeaderboardScreen({super.key});
+class LeaderboardScreen extends StatefulWidget {
+  const LeaderboardScreen({this.repository, super.key});
+
+  final LeaderboardRepository? repository;
+
+  @override
+  State<LeaderboardScreen> createState() => _LeaderboardScreenState();
+}
+
+class _LeaderboardScreenState extends State<LeaderboardScreen> {
+  late final LeaderboardRepository _repository =
+      widget.repository ?? LeaderboardService();
+  int _selectedWeek = 0;
+  late Future<List<WeeklyLeaderboardEntry>> _standingsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _standingsFuture = _loadStandings();
+  }
+
+  Future<List<WeeklyLeaderboardEntry>> _loadStandings() =>
+      _repository.weeklyLeaderboard(weekOffset: _selectedWeek);
+
+  void _selectWeek(int week) {
+    setState(() {
+      _selectedWeek = week;
+      _standingsFuture = _loadStandings();
+    });
+  }
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
@@ -44,11 +74,18 @@ class LeaderboardScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                const _WeekSelector(),
+                _WeekSelector(
+                  selectedWeek: _selectedWeek,
+                  onWeekSelected: _selectWeek,
+                ),
               ],
             ),
             const SizedBox(height: 24),
-            const _StandingsCard(),
+            _StandingsCard(
+              standingsFuture: _standingsFuture,
+              onRetry: () =>
+                  setState(() => _standingsFuture = _loadStandings()),
+            ),
           ],
         ),
       ),
@@ -56,27 +93,26 @@ class LeaderboardScreen extends StatelessWidget {
   );
 }
 
-class _WeekSelector extends StatefulWidget {
-  const _WeekSelector();
+class _WeekSelector extends StatelessWidget {
+  const _WeekSelector({
+    required this.selectedWeek,
+    required this.onWeekSelected,
+  });
 
-  @override
-  State<_WeekSelector> createState() => _WeekSelectorState();
-}
-
-class _WeekSelectorState extends State<_WeekSelector> {
   static const _weekLabels = {
     0: 'This week',
     -1: 'Last week (-1)',
     -2: 'Two weeks ago (-2)',
   };
 
-  int _selectedWeek = 0;
+  final int selectedWeek;
+  final ValueChanged<int> onWeekSelected;
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<int>(
     tooltip: 'Select leaderboard week',
-    initialValue: _selectedWeek,
-    onSelected: (week) => setState(() => _selectedWeek = week),
+    initialValue: selectedWeek,
+    onSelected: onWeekSelected,
     color: _surface,
     surfaceTintColor: Colors.transparent,
     elevation: 8,
@@ -100,7 +136,7 @@ class _WeekSelectorState extends State<_WeekSelector> {
           const Icon(Icons.calendar_today_outlined, size: 15, color: _primary),
           const SizedBox(width: 8),
           Text(
-            _weekLabels[_selectedWeek]!.toUpperCase(),
+            _weekLabels[selectedWeek]!.toUpperCase(),
             style: const TextStyle(
               color: _heading,
               fontSize: 11,
@@ -117,7 +153,10 @@ class _WeekSelectorState extends State<_WeekSelector> {
 }
 
 class _StandingsCard extends StatelessWidget {
-  const _StandingsCard();
+  const _StandingsCard({required this.standingsFuture, required this.onRetry});
+
+  final Future<List<WeeklyLeaderboardEntry>> standingsFuture;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -138,31 +177,143 @@ class _StandingsCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF8EE),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: const Column(
-            children: [
-              Icon(Icons.emoji_events_outlined, size: 34, color: _primary),
-              SizedBox(height: 10),
-              Text(
-                'Rankings are on the way',
-                style: TextStyle(color: _heading, fontWeight: FontWeight.w700),
+        FutureBuilder<List<WeeklyLeaderboardEntry>>(
+          future: standingsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _StatusMessage(
+                icon: Icons.error_outline,
+                message: snapshot.error.toString(),
+                action: TextButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try again'),
+                ),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const _StatusMessage(
+                icon: null,
+                message: 'Loading weekly rankings...',
+                action: CircularProgressIndicator(color: _primary),
+              );
+            }
+            if (snapshot.data!.isEmpty) {
+              return const _StatusMessage(
+                icon: Icons.emoji_events_outlined,
+                message: 'No students found.',
+              );
+            }
+            return Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680),
+                child: Column(
+                  children: [
+                    for (final entry in snapshot.data!)
+                      _LeaderboardRow(entry: entry),
+                  ],
+                ),
               ),
-              SizedBox(height: 5),
-              Text(
-                'Student standings will appear here once weekly scores are available.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: _subtle, fontSize: 13),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     ),
   );
+}
+
+class _StatusMessage extends StatelessWidget {
+  const _StatusMessage({
+    required this.icon,
+    required this.message,
+    this.action,
+  });
+
+  final IconData? icon;
+  final String message;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF8EE),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: Column(
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 34, color: _primary),
+          const SizedBox(height: 10),
+        ],
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: _heading, fontWeight: FontWeight.w700),
+        ),
+        if (action != null) ...[const SizedBox(height: 12), action!],
+      ],
+    ),
+  );
+}
+
+class _LeaderboardRow extends StatelessWidget {
+  const _LeaderboardRow({required this.entry});
+
+  final WeeklyLeaderboardEntry entry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF8EE),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: _border),
+    ),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 42,
+          child: Text(
+            '#${entry.rank}',
+            style: const TextStyle(
+              color: _primary,
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            entry.fullName,
+            style: const TextStyle(
+              color: _heading,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const Icon(Icons.diamond_outlined, size: 18, color: _primary),
+        const SizedBox(width: 6),
+        Text(
+          '${_formatPoints(entry.points)} LP',
+          style: const TextStyle(color: _heading, fontWeight: FontWeight.w800),
+        ),
+      ],
+    ),
+  );
+}
+
+String _formatPoints(int points) {
+  final digits = points.toString();
+  final formatted = StringBuffer();
+  for (var index = 0; index < digits.length; index++) {
+    if (index > 0 && (digits.length - index) % 3 == 0) {
+      formatted.write(',');
+    }
+    formatted.write(digits[index]);
+  }
+  return formatted.toString();
 }

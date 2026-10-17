@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/classroom_service.dart';
+import '../../services/leaderboard_service.dart';
 import '../../services/quiz_service.dart';
 import '../classroom/classroom_screen.dart';
 import '../import_screen.dart';
@@ -18,11 +19,13 @@ class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({
     required this.user,
     this.classroomService,
+    this.leaderboardRepository,
     super.key,
   });
 
   final UserModel user;
   final ClassroomRepository? classroomService;
+  final LeaderboardRepository? leaderboardRepository;
 
   @override
   State<StudentHomeScreen> createState() => _StudentHomeScreenState();
@@ -147,7 +150,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
               classroomService: widget.classroomService,
             )
           : _selectedMenu == StudentMenuItem.leaderboard
-          ? const LeaderboardScreen()
+          ? LeaderboardScreen(repository: widget.leaderboardRepository)
           : LayoutBuilder(
               builder: (context, viewport) {
                 final isWide = viewport.maxWidth >= 800;

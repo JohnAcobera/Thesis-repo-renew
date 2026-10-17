@@ -53,6 +53,8 @@ class _QuizScreenState extends State<QuizScreen> {
   bool _isSaved = false;
   String? _savedQuizId;
   String? _saveError;
+  int? _pointsGained;
+  String? _pointsError;
 
   QuizQuestion get _question => _questions[_questionIndex];
 
@@ -66,6 +68,8 @@ class _QuizScreenState extends State<QuizScreen> {
     setState(() {
       _isSaving = true;
       _saveError = null;
+      _pointsGained = null;
+      _pointsError = null;
     });
 
     try {
@@ -84,6 +88,16 @@ class _QuizScreenState extends State<QuizScreen> {
               score: _score,
               totalQuestions: _questions.length,
             );
+
+      try {
+        _pointsGained = await service.learnerPointsForAttempt(
+          quizId: _savedQuizId!,
+          classroomActivityId: widget.classroomActivityId,
+        );
+      } on QuizServiceException catch (error) {
+        _pointsError = error.message;
+      }
+
       if (!mounted) return;
       setState(() {
         _isSaved = true;
@@ -461,6 +475,10 @@ class _QuizScreenState extends State<QuizScreen> {
                       : 'Saving your score...',
                   style: const TextStyle(color: _subtle),
                 ),
+              if (_isSaved) ...[
+                const SizedBox(height: 16),
+                _buildPointsAward(),
+              ],
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -477,6 +495,56 @@ class _QuizScreenState extends State<QuizScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildPointsAward() => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: _inputFill,
+      border: Border.all(color: _border),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.diamond_outlined, color: _primary),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Learner points from this quiz',
+                style: TextStyle(color: _heading, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _pointsError ??
+                    (_pointsGained == null
+                        ? 'Points update unavailable.'
+                        : '${_formatPoints(_pointsGained!)} LP'),
+                style: const TextStyle(color: _subtle),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  String _formatPoints(int points) {
+    final value = points.toString();
+    final isNegative = value.startsWith('-');
+    final digits = isNegative ? value.substring(1) : value;
+    final formattedDigits = StringBuffer();
+    for (var index = 0; index < digits.length; index++) {
+      if (index > 0 && (digits.length - index) % 3 == 0) {
+        formattedDigits.write(',');
+      }
+      formattedDigits.write(digits[index]);
+    }
+    final sign = isNegative ? '-' : '+';
+    return '$sign$formattedDigits';
   }
 
   Widget _buildPreviousAttempts() => Container(
