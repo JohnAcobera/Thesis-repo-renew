@@ -93,6 +93,7 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8EE),
       appBar: StudentNavBar(
+        roleLabel: _displayRole,
         title: _selectedMenu == InstructorMenuItem.classroom
             ? 'My Classroom'
             : 'Instructor Dashboard',
@@ -140,63 +141,63 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
           return Stack(
             clipBehavior: Clip.hardEdge,
             children: [
+              Positioned.fill(
+                child: _selectedMenu == InstructorMenuItem.classroom
+                    ? ClassroomScreen(
+                        user: user,
+                        classroomService: widget.classroomService,
+                      )
+                    : _InstructorDashboard(
+                        classroomService:
+                            widget.classroomService ?? ClassroomService(),
+                        onCreateActivity: _openCreateActivity,
+                      ),
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: !_isMenuOpen,
+                  child: AnimatedOpacity(
+                    duration: _animationDuration,
+                    curve: Curves.easeInOut,
+                    opacity: _isMenuOpen ? 1 : 0,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _closeMenu,
+                      child: const ColoredBox(color: Color(0x26000000)),
+                    ),
+                  ),
+                ),
+              ),
               Positioned(
                 left: 0,
                 top: 0,
                 bottom: 0,
                 width: drawerWidth,
-                child: AnimatedOpacity(
+                child: AnimatedSlide(
                   duration: _animationDuration,
-                  curve: Curves.easeInOut,
-                  opacity: _isMenuOpen ? 1 : 0,
-                  child: IgnorePointer(
-                    ignoring: !_isMenuOpen,
-                    child: ExcludeSemantics(
-                      excluding: !_isMenuOpen,
-                      child: InstructorSideMenu(
-                        username: user.fullName,
-                        email: user.email,
-                        role: _displayRole,
-                        selectedMenu: _selectedMenu,
-                        onMenuSelected: _selectMenuItem,
-                        onAboutSelected: _closeMenu,
-                        onSettingsSelected: _closeMenu,
-                        onLogoutSelected: _logout,
+                  curve: Curves.easeInOutCubic,
+                  offset: _isMenuOpen ? Offset.zero : const Offset(-1, 0),
+                  child: AnimatedOpacity(
+                    duration: _animationDuration,
+                    curve: Curves.easeInOut,
+                    opacity: _isMenuOpen ? 1 : 0,
+                    child: IgnorePointer(
+                      ignoring: !_isMenuOpen,
+                      child: ExcludeSemantics(
+                        excluding: !_isMenuOpen,
+                        child: InstructorSideMenu(
+                          username: user.fullName,
+                          email: user.email,
+                          role: _displayRole,
+                          selectedMenu: _selectedMenu,
+                          onMenuSelected: _selectMenuItem,
+                          onAboutSelected: _closeMenu,
+                          onSettingsSelected: _closeMenu,
+                          onLogoutSelected: _logout,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-              AnimatedPositioned(
-                duration: _animationDuration,
-                curve: Curves.easeInOut,
-                left: _isMenuOpen ? drawerWidth : 0,
-                top: 0,
-                bottom: 0,
-                width: constraints.maxWidth,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: _selectedMenu == InstructorMenuItem.classroom
-                          ? ClassroomScreen(
-                              user: user,
-                              classroomService: widget.classroomService,
-                            )
-                          : _InstructorDashboard(
-                              classroomService:
-                                  widget.classroomService ?? ClassroomService(),
-                              onCreateActivity: _openCreateActivity,
-                            ),
-                    ),
-                    if (_isMenuOpen)
-                      Positioned.fill(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: _closeMenu,
-                          child: const SizedBox.expand(),
-                        ),
-                      ),
-                  ],
                 ),
               ),
             ],

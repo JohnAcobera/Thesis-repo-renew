@@ -355,7 +355,7 @@ void main() {
     expect(find.text('0 days in a row'), findsOneWidget);
   });
 
-  testWidgets('menu pushes the body and selects a menu item', (tester) async {
+  testWidgets('menu overlays the body and selects a menu item', (tester) async {
     StudentMenuItem? selectedItem;
     const bodyKey = ValueKey<String>('student-body');
 
@@ -384,15 +384,28 @@ void main() {
     expect(find.bySemanticsLabel('Achievements'), findsNothing);
 
     final initialBodyLeft = tester.getTopLeft(find.byKey(bodyKey)).dx;
+    final closedDrawerLeft = tester.getTopLeft(find.text('My Classroom')).dx;
     await tester.tap(find.byTooltip('Open menu'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 140));
+
+    final drawerLeftDuringAnimation = tester
+        .getTopLeft(find.text('My Classroom'))
+        .dx;
+    expect(drawerLeftDuringAnimation, lessThan(0));
+    expect(drawerLeftDuringAnimation, greaterThan(closedDrawerLeft));
+
     await tester.pumpAndSettle();
 
-    expect(find.text('Student Name'), findsOneWidget);
-    final emailText = tester.widget<Text>(find.text('student@example.com'));
+    expect(find.text('Student Name'), findsNWidgets(2));
+    expect(find.text('student@example.com'), findsNWidgets(2));
+    final emailText = tester.widget<Text>(
+      find.text('student@example.com').first,
+    );
     expect(emailText.maxLines, 1);
     expect(
       tester
-          .renderObject<RenderParagraph>(find.text('student@example.com'))
+          .renderObject<RenderParagraph>(find.text('student@example.com').first)
           .didExceedMaxLines,
       isFalse,
     );
@@ -407,10 +420,7 @@ void main() {
       tester.getSize(find.byWidget(menuDivider)).width,
       lessThan(tester.view.physicalSize.width),
     );
-    expect(
-      tester.getTopLeft(find.byKey(bodyKey)).dx,
-      greaterThan(initialBodyLeft),
-    );
+    expect(tester.getTopLeft(find.byKey(bodyKey)).dx, initialBodyLeft);
 
     await tester.tap(find.text('My Classroom'));
     await tester.pumpAndSettle();
@@ -455,7 +465,7 @@ void main() {
     expect(find.byTooltip('Open menu'), findsOneWidget);
   });
 
-  testWidgets('menu aligns with centered wide-screen body content', (
+  testWidgets('menu overlays centered wide-screen body content', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1600, 900);
@@ -486,10 +496,11 @@ void main() {
       ),
     );
 
+    final initialPanelLeft = tester.getTopLeft(find.byKey(panelKey)).dx;
     await tester.tap(find.byTooltip('Open menu'));
     await tester.pumpAndSettle();
 
-    expect(tester.getTopLeft(find.byKey(panelKey)).dx, greaterThan(184));
+    expect(tester.getTopLeft(find.byKey(panelKey)).dx, initialPanelLeft);
   });
 }
 
