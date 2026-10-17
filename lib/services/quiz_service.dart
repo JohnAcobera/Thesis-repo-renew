@@ -105,12 +105,35 @@ class QuizActivity {
 
   int get totalQuestions => questions.length;
 
+  QuizScore? get latestAttempt {
+    if (attempts.isEmpty) return null;
+
+    return attempts.reduce(
+      (latest, attempt) =>
+          attempt.createdAt.isAfter(latest.createdAt) ? attempt : latest,
+    );
+  }
+
   double? get retentionPercentage {
     if (attempts.length < 2) return null;
 
-    final latestAttempts = List<QuizScore>.of(attempts)
+    final orderedAttempts = List<QuizScore>.of(attempts)
       ..sort((first, second) => second.createdAt.compareTo(first.createdAt));
-    return (latestAttempts[0].percentage + latestAttempts[1].percentage) / 2;
+    return (orderedAttempts[0].percentage + orderedAttempts[1].percentage) / 2;
+  }
+
+  double? get improvementPercentage {
+    if (attempts.length < 2) return null;
+
+    final chronologicalAttempts = List<QuizScore>.of(attempts)
+      ..sort((first, second) => first.createdAt.compareTo(second.createdAt));
+    var totalChange = 0.0;
+    for (var index = 1; index < chronologicalAttempts.length; index++) {
+      totalChange +=
+          chronologicalAttempts[index].percentage -
+          chronologicalAttempts[index - 1].percentage;
+    }
+    return totalChange / (chronologicalAttempts.length - 1);
   }
 
   int get highestPercentage => attempts.fold(0, (highest, attempt) {
@@ -151,6 +174,32 @@ class QuizActivity {
 double? averageQuizRetentionPercentage(Iterable<QuizActivity> quizzes) {
   final quizAverages = quizzes
       .map((quiz) => quiz.retentionPercentage)
+      .whereType<double>()
+      .toList(growable: false);
+  if (quizAverages.isEmpty) return null;
+
+  return quizAverages.reduce((sum, average) => sum + average) /
+      quizAverages.length;
+}
+
+double? latestQuizAccuracyPercentage(Iterable<QuizActivity> quizzes) {
+  var totalScore = 0;
+  var totalQuestions = 0;
+  for (final quiz in quizzes) {
+    final attempt = quiz.latestAttempt;
+    if (attempt == null) continue;
+
+    totalScore += attempt.score;
+    totalQuestions += attempt.totalQuestions;
+  }
+  if (totalQuestions == 0) return null;
+
+  return totalScore / totalQuestions * 100;
+}
+
+double? averageQuizImprovementPercentage(Iterable<QuizActivity> quizzes) {
+  final quizAverages = quizzes
+      .map((quiz) => quiz.improvementPercentage)
       .whereType<double>()
       .toList(growable: false);
   if (quizAverages.isEmpty) return null;
@@ -526,34 +575,6 @@ class QuizService {
       throw const QuizServiceException(
         'Recent quiz activity could not be read.',
       );
-    }
-  }
-
-  Future<List<QuizScore>> recentQuizScores() async {
-    final token = await _requireSessionToken();
-    try {
-      final response = await _client.rpc<List<dynamic>>(
-        'list_recent_quiz_attempts',
-        params: {'p_session_token': token},
-      );
-      return response
-          .map(
-            (attempt) =>
-                QuizScore.fromJson(Map<String, dynamic>.from(attempt as Map)),
-          )
-          .toList(growable: false);
-    } on PostgrestException catch (error) {
-      throw QuizServiceException(
-        _databaseMessage(
-          error,
-          failureMessage:
-              'Your quiz scores could not be loaded. Please try again.',
-        ),
-      );
-    } on FormatException {
-      throw const QuizServiceException('Quiz scores could not be read.');
-    } on TypeError {
-      throw const QuizServiceException('Quiz scores could not be read.');
     }
   }
 

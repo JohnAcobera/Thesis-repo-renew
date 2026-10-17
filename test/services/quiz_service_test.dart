@@ -152,6 +152,58 @@ void main() {
     expect(averageQuizRetentionPercentage([quizzes.last]), isNull);
   });
 
+  test('latest quiz accuracy uses only the newest attempt per quiz', () {
+    final now = DateTime.utc(2026, 10, 16);
+    QuizScore score(int points, int total, int daysAgo) => QuizScore(
+      score: points,
+      totalQuestions: total,
+      createdAt: now.subtract(Duration(days: daysAgo)),
+    );
+    QuizActivity quiz(String id, List<QuizScore> attempts) => QuizActivity(
+      id: id,
+      title: id,
+      sourceFile: '$id.pdf',
+      createdAt: now,
+      questions: const [],
+      attempts: attempts,
+    );
+
+    final quizzes = [
+      quiz('first', [score(0, 10, 1), score(8, 10, 0)]),
+      quiz('second', [score(1, 20, 2), score(1, 20, 1)]),
+    ];
+
+    expect(latestQuizAccuracyPercentage(quizzes), 30);
+    expect(latestQuizAccuracyPercentage([]), isNull);
+  });
+
+  test('quiz improvement averages chronological changes for each quiz', () {
+    final now = DateTime.utc(2026, 10, 16);
+    QuizScore score(int points, int daysAgo) => QuizScore(
+      score: points,
+      totalQuestions: 10,
+      createdAt: now.subtract(Duration(days: daysAgo)),
+    );
+    QuizActivity quiz(String id, List<QuizScore> attempts) => QuizActivity(
+      id: id,
+      title: id,
+      sourceFile: '$id.pdf',
+      createdAt: now,
+      questions: const [],
+      attempts: attempts,
+    );
+
+    final quizzes = [
+      quiz('first', [score(5, 0), score(8, 1), score(4, 2)]),
+      quiz('second', [score(4, 1), score(6, 2)]),
+      quiz('one-attempt', [score(10, 1)]),
+    ];
+
+    expect(quizzes.first.improvementPercentage, 5);
+    expect(averageQuizImprovementPercentage(quizzes), -7.5);
+    expect(averageQuizImprovementPercentage([quizzes.last]), isNull);
+  });
+
   test('ClassroomActivity parses its schedule and availability', () {
     final now = DateTime.now().toUtc();
     final activity = ClassroomActivity.fromJson({

@@ -977,7 +977,7 @@ class _StudentMetricsChart extends StatefulWidget {
 }
 
 class _StudentMetricsChartState extends State<_StudentMetricsChart> {
-  late Future<(List<QuizScore>, List<QuizActivity>)> _metricsData;
+  late Future<List<QuizActivity>> _metricsData;
 
   static const _metrics = [
     'Accuracy',
@@ -1001,30 +1001,12 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
     }
   }
 
-  Future<(List<QuizScore>, List<QuizActivity>)> _loadMetrics() async {
+  Future<List<QuizActivity>> _loadMetrics() {
     try {
-      final quizService = QuizService();
-      return await (
-        quizService.recentQuizScores(),
-        quizService.recentAttempts(),
-      ).wait;
+      return QuizService().recentAttempts();
     } on Object catch (error, stackTrace) {
-      Error.throwWithStackTrace(error, stackTrace);
+      return Future<List<QuizActivity>>.error(error, stackTrace);
     }
-  }
-
-  double? _accuracyPercentage(List<QuizScore> attempts) {
-    if (attempts.isEmpty) return null;
-
-    final totalScore = attempts.fold<int>(
-      0,
-      (total, attempt) => total + attempt.score,
-    );
-    final totalQuestions = attempts.fold<int>(
-      0,
-      (total, attempt) => total + attempt.totalQuestions,
-    );
-    return totalScore / totalQuestions * 100;
   }
 
   void _retry() {
@@ -1037,13 +1019,15 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
       final chartHeight =
           (constraints.maxWidth * 0.4).clamp(140.0, 175.0).toDouble() * 1.2;
 
-      return FutureBuilder<(List<QuizScore>, List<QuizActivity>)>(
+      return FutureBuilder<List<QuizActivity>>(
         future: _metricsData,
         builder: (context, snapshot) {
-          final attempts = snapshot.data?.$1 ?? const <QuizScore>[];
-          final quizzes = snapshot.data?.$2 ?? const <QuizActivity>[];
-          final accuracyPercentage = _accuracyPercentage(attempts);
+          final quizzes = snapshot.data ?? const <QuizActivity>[];
+          final accuracyPercentage = latestQuizAccuracyPercentage(quizzes);
           final retentionPercentage = averageQuizRetentionPercentage(quizzes);
+          final improvementPercentage = averageQuizImprovementPercentage(
+            quizzes,
+          );
 
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -1056,6 +1040,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
                     metrics: _metrics,
                     accuracyPercentage: accuracyPercentage,
                     retentionPercentage: retentionPercentage,
+                    improvementPercentage: improvementPercentage,
                     gridColor: const Color(0xFFE9E1D8),
                     accentColor: const Color(0xFFF4773C),
                     labelColor: const Color(0xFF725F53),
@@ -1092,7 +1077,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
                 Text(
                   accuracyPercentage == null
                       ? 'Your metrics will appear as you complete learning activities.'
-                      : 'Accuracy: ${accuracyPercentage.round()}% across ${attempts.length} ${attempts.length == 1 ? 'attempt' : 'attempts'}${retentionPercentage == null ? '' : ' · Retention: ${retentionPercentage.round()}%'}',
+                      : 'Accuracy (latest attempts): ${accuracyPercentage.round()}% · Retention: ${retentionPercentage == null ? '—' : '${retentionPercentage.round()}%'} · Improvement: ${improvementPercentage == null ? '—' : '${improvementPercentage >= 0 ? '+' : ''}${improvementPercentage.round()} pp'}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 11,
@@ -1112,6 +1097,7 @@ class _RadarChartPainter extends CustomPainter {
     required this.metrics,
     required this.accuracyPercentage,
     required this.retentionPercentage,
+    required this.improvementPercentage,
     required this.gridColor,
     required this.accentColor,
     required this.labelColor,
@@ -1120,6 +1106,7 @@ class _RadarChartPainter extends CustomPainter {
   final List<String> metrics;
   final double? accuracyPercentage;
   final double? retentionPercentage;
+  final double? improvementPercentage;
   final Color gridColor;
   final Color accentColor;
   final Color labelColor;
@@ -1212,6 +1199,27 @@ class _RadarChartPainter extends CustomPainter {
           ..style = PaintingStyle.fill,
       );
     }
+    if (improvementPercentage != null) {
+      final improvementRadius = radius * (improvementPercentage! + 100) / 200;
+      final improvementPoint = Offset(
+        center.dx + math.cos(angles[2]) * improvementRadius,
+        center.dy + math.sin(angles[2]) * improvementRadius,
+      );
+      canvas.drawLine(
+        center,
+        improvementPoint,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.45)
+          ..strokeWidth = 2,
+      );
+      canvas.drawCircle(
+        improvementPoint,
+        4,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.45)
+          ..style = PaintingStyle.fill,
+      );
+    }
 
     final centerLabel = TextPainter(
       text: TextSpan(
@@ -1272,6 +1280,7 @@ class _RadarChartPainter extends CustomPainter {
       oldDelegate.metrics != metrics ||
       oldDelegate.accuracyPercentage != accuracyPercentage ||
       oldDelegate.retentionPercentage != retentionPercentage ||
+      oldDelegate.improvementPercentage != improvementPercentage ||
       oldDelegate.gridColor != gridColor ||
       oldDelegate.accentColor != accentColor ||
       oldDelegate.labelColor != labelColor;
