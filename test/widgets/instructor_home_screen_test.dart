@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/classroom_model.dart';
@@ -13,7 +14,11 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    for (final size in [const Size(400, 800), const Size(1280, 900)]) {
+    for (final size in [
+      const Size(400, 800),
+      const Size(1280, 900),
+      const Size(1640, 900),
+    ]) {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       await tester.pumpWidget(
@@ -37,7 +42,6 @@ void main() {
         'Total students',
         'Active classes',
         'Quizzes created',
-        'Average score',
         'Class performance',
         'Recent quizzes',
         'Students needing attention',
@@ -45,22 +49,45 @@ void main() {
         expect(find.text(heading), findsOneWidget);
       }
 
-      for (final mockValue in [
-        '128',
-        '78%',
-        'Computer Networks',
-        'Network Security',
-        'Database Normalization',
-        'Programming Basics',
-        'Student A',
-        'Student B',
-      ]) {
+      for (final mockValue in ['128', '78%', 'Student A', 'Student B']) {
         expect(find.text(mockValue), findsNothing);
       }
 
       expect(find.text('3'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
-      expect(find.text('—'), findsNWidgets(2));
+      expect(find.text('4'), findsOneWidget);
+      expect(find.text('Average score'), findsNothing);
+      expect(find.text('Computer Networks'), findsOneWidget);
+      expect(find.text('82%'), findsOneWidget);
+      expect(find.text('Programming'), findsOneWidget);
+      expect(find.text('75%'), findsOneWidget);
+      expect(find.text('Database Systems'), findsOneWidget);
+      expect(find.text('68%'), findsOneWidget);
+      expect(find.text('32 students'), findsOneWidget);
+      expect(find.text('4 activities posted'), findsOneWidget);
+      expect(find.text('25 students'), findsOneWidget);
+      expect(find.text('2 activities posted'), findsOneWidget);
+      expect(find.text('—'), findsNothing);
+      if (size.width >= 600) {
+        final metricLabelTops = [
+          'Total students',
+          'Active classes',
+          'Quizzes created',
+        ].map((label) => tester.getTopLeft(find.text(label)).dy);
+        expect(metricLabelTops.toSet(), hasLength(1));
+      }
+      if (size.width >= 1600) {
+        final scrollbar = find.byType(Scrollbar);
+        expect(scrollbar, findsOneWidget);
+        await tester.sendEventToBinding(
+          PointerScrollEvent(
+            position: tester.getCenter(scrollbar),
+            scrollDelta: const Offset(0, 120),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('Create activity'));
       await tester.pumpAndSettle();
@@ -151,7 +178,34 @@ class _FakeClassroomRepository implements ClassroomRepository {
 
   @override
   Future<InstructorDashboardStats> getInstructorDashboardStats() async =>
-      const InstructorDashboardStats(studentCount: 3, activeClassCount: 2);
+      const InstructorDashboardStats(
+        studentCount: 3,
+        activeClassCount: 2,
+        quizzesCreatedCount: 4,
+        classroomPerformance: [
+          ClassroomPerformance(
+            name: 'Computer Networks',
+            subject: 'Networking',
+            studentCount: 32,
+            activityCount: 4,
+            averageScore: 82,
+          ),
+          ClassroomPerformance(
+            name: 'Programming',
+            subject: 'Computer Science',
+            studentCount: 25,
+            activityCount: 2,
+            averageScore: 75,
+          ),
+          ClassroomPerformance(
+            name: 'Database Systems',
+            subject: 'Information Technology',
+            studentCount: 28,
+            activityCount: 3,
+            averageScore: 68,
+          ),
+        ],
+      );
 
   @override
   Future<ClassroomModel> joinClassroom({required String code}) async =>
@@ -185,4 +239,13 @@ class _FakeClassroomRepository implements ClassroomRepository {
 
   @override
   Future<List<ClassroomModel>> listStudentClassrooms() async => [];
+
+  @override
+  Future<void> deleteClassroom(String classroomId) async {}
+
+  @override
+  Future<void> deleteClassroomActivity({
+    required String classroomId,
+    required String activityId,
+  }) async {}
 }

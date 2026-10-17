@@ -128,7 +128,8 @@ begin
     'code', created_classroom.code,
     'icon_key', created_classroom.icon_key,
     'created_at', created_classroom.created_at,
-    'student_count', 0
+    'student_count', 0,
+    'activity_count', 0
   );
 end;
 $$;
@@ -176,6 +177,11 @@ begin
             select count(*)
             from public.classroom_students cs
             where cs.classroom_id = c.id
+          ),
+          'activity_count', (
+            select count(*)
+            from public.classroom_activities a
+            where a.classroom_id = c.id
           )
         )
         order by c.created_at desc
@@ -228,8 +234,85 @@ begin
       select count(*)
       from public.classrooms c
       where c.instructor_id = verified_user_id
-    )
+    ),
+    'quizzes_created_count', (
+      select count(distinct a.quiz_id)
+      from public.classroom_activities a
+      join public.classrooms c on c.id = a.classroom_id
+      join public.student_generated_quizzes q on q.id = a.quiz_id
+      where c.instructor_id = verified_user_id
+        and q.user_id = verified_user_id
+    ),
+    'classroom_performance', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'name', c.name,
+          'subject', c.subject,
+          'student_count', (
+            select count(*)
+            from public.classroom_students cs
+            where cs.classroom_id = c.id
+          ),
+          'activity_count', (
+            select count(*)
+            from public.classroom_activities a
+            where a.classroom_id = c.id
+          ),
+          'average_score', (
+            select avg(
+              100.0 * qa.score / nullif(qa.total_questions, 0)
+            )
+            from public.classroom_activities a
+            join public.quiz_attempts qa
+              on qa.classroom_activity_id = a.id
+            where a.classroom_id = c.id
+          )
+        )
+        order by c.created_at desc
+      )
+      from public.classrooms c
+      where c.instructor_id = verified_user_id
+    ), '[]'::jsonb)
   );
+end;
+$$;
+
+create or replace function public.delete_instructor_classroom(
+  p_session_token text,
+  p_classroom_id uuid
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  verified_user_id bigint;
+begin
+  select u.id into verified_user_id
+  from public.user_sessions s
+  join public.users u on u.id = s.user_id
+  where s.session_token = p_session_token
+    and s.expires_at > now()
+    and u.role = 'instructor';
+
+  if verified_user_id is null then
+    if exists (
+      select 1
+      from public.user_sessions s
+      join public.users u on u.id = s.user_id
+      where s.session_token = p_session_token and s.expires_at > now()
+    ) then
+      raise exception 'Only instructors can manage classrooms';
+    end if;
+    raise exception 'Invalid or expired session';
+  end if;
+
+  delete from public.classrooms c
+  where c.id = p_classroom_id
+    and c.instructor_id = verified_user_id;
+  if not found then
+    raise exception 'Classroom not found';
+  end if;
 end;
 $$;
 
@@ -291,6 +374,11 @@ begin
       select count(*)
       from public.classroom_students cs
       where cs.classroom_id = joined_classroom.id
+    ),
+    'activity_count', (
+      select count(*)
+      from public.classroom_activities a
+      where a.classroom_id = joined_classroom.id
     )
   );
 end;
@@ -339,6 +427,11 @@ begin
             select count(*)
             from public.classroom_students all_students
             where all_students.classroom_id = c.id
+          ),
+          'activity_count', (
+            select count(*)
+            from public.classroom_activities a
+            where a.classroom_id = c.id
           )
         )
         order by cs.joined_at desc
@@ -360,6 +453,8 @@ revoke all on function public.create_instructor_classroom(
 ) from public;
 revoke all on function public.list_instructor_classrooms(text) from public;
 revoke all on function public.get_instructor_dashboard_stats(text) from public;
+revoke all on function public.delete_instructor_classroom(text, uuid)
+  from public;
 revoke all on function public.join_classroom(text, text) from public;
 revoke all on function public.list_student_classrooms(text) from public;
 grant execute on function public.create_instructor_classroom(
@@ -371,6 +466,8 @@ grant execute on function public.create_instructor_classroom(
 grant execute on function public.list_instructor_classrooms(text)
   to anon, authenticated;
 grant execute on function public.get_instructor_dashboard_stats(text)
+  to anon, authenticated;
+grant execute on function public.delete_instructor_classroom(text, uuid)
   to anon, authenticated;
 grant execute on function public.join_classroom(text, text)
   to anon, authenticated;

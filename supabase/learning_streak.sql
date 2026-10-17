@@ -94,3 +94,5 @@ $$;
 
 revoke all on function public.get_login_activity(text) from public;
 grant execute on function public.get_login_activity(text) to anon, authenticated;
+
+notify pgrst, 'reload schema';

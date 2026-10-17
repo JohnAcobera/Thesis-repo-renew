@@ -117,6 +117,8 @@ void main() {
                   code: 'ABCD2345',
                   createdAt: DateTime.utc(2026),
                   iconKey: 'science',
+                  studentCount: 12,
+                  activityCount: 3,
                 ),
               ),
           ),
@@ -125,11 +127,67 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('12 students'), findsOneWidget);
+    expect(find.text('3 activities'), findsOneWidget);
     await tester.tap(find.byTooltip('Copy classroom code'));
     await tester.pumpAndSettle();
 
     expect(copiedText, 'ABCD2345');
     expect(find.text('Classroom code copied'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('instructors can cancel or confirm classroom deletion', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+
+    final repository = _FakeClassroomRepository()
+      ..classrooms.add(
+        ClassroomModel(
+          id: 'test-id',
+          name: 'Grade 11 - STEM A',
+          subject: 'General Biology 1',
+          code: 'ABCD2345',
+          createdAt: DateTime.utc(2026),
+        ),
+      );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ClassroomScreen(
+            user: const UserModel(
+              id: 1,
+              fullName: 'Instructor Name',
+              email: 'instructor@example.com',
+              role: 'instructor',
+            ),
+            classroomService: repository,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grade 11 - STEM A'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Delete classroom'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete classroom?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(repository.classrooms, hasLength(1));
+    expect(find.text('Grade 11 - STEM A'), findsOneWidget);
+
+    await tester.tap(find.text('Delete classroom'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete classroom').last);
+    await tester.pumpAndSettle();
+    expect(repository.classrooms, isEmpty);
+    expect(find.text('Your classrooms'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -241,20 +299,23 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: ClassroomScreen(
-          user: const UserModel(
-            id: 1,
-            fullName: 'Instructor Name',
-            email: 'instructor@example.com',
-            role: 'instructor',
+        home: Scaffold(
+          body: ClassroomScreen(
+            user: const UserModel(
+              id: 1,
+              fullName: 'Instructor Name',
+              email: 'instructor@example.com',
+              role: 'instructor',
+            ),
+            classroomService: repository,
           ),
-          classroomService: repository,
         ),
       ),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Grade 11 - STEM A'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Cell Structure'));
     await tester.tap(find.text('Cell Structure'));
     await tester.pumpAndSettle();
 
@@ -268,6 +329,83 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('instructors can cancel or confirm deleting a posted quiz', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    final now = DateTime.now();
+    final repository = _FakeClassroomRepository()
+      ..classrooms.add(
+        ClassroomModel(
+          id: 'test-id',
+          name: 'Grade 11 - STEM A',
+          subject: 'General Biology 1',
+          code: 'ABCD2345',
+          createdAt: DateTime.utc(2026),
+        ),
+      )
+      ..activities.add(
+        ClassroomActivity(
+          id: 'activity-id',
+          classroomId: 'test-id',
+          classroomName: 'Grade 11 - STEM A',
+          quizId: 'quiz-id',
+          title: 'Cell Structure',
+          sourceFile: 'biology.pdf',
+          questions: const [
+            QuizQuestion(
+              question: 'Which organelle stores DNA?',
+              options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
+              answerIndex: 0,
+              explanation: 'The nucleus contains the cell DNA.',
+            ),
+          ],
+          startsAt: now,
+          deadlineAt: now.add(const Duration(days: 1)),
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ClassroomScreen(
+            user: const UserModel(
+              id: 1,
+              fullName: 'Instructor Name',
+              email: 'instructor@example.com',
+              role: 'instructor',
+            ),
+            classroomService: repository,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grade 11 - STEM A'));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byTooltip('Delete posted quiz'));
+    await tester.tap(find.byTooltip('Delete posted quiz'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete posted quiz?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(repository.activities, hasLength(1));
+
+    await tester.ensureVisible(find.byTooltip('Delete posted quiz'));
+    await tester.tap(find.byTooltip('Delete posted quiz'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete quiz'));
+    await tester.pumpAndSettle();
+    expect(repository.activities, isEmpty);
+    expect(repository.deletedActivities, ['activity-id']);
+    expect(find.text('Posted quiz deleted'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _FakeClassroomRepository implements ClassroomRepository {
@@ -276,6 +414,7 @@ class _FakeClassroomRepository implements ClassroomRepository {
   String? createdName;
   String? createdSubject;
   String? createdIconKey;
+  final List<String> deletedActivities = [];
 
   @override
   Future<List<ClassroomActivity>> classroomActivities(
@@ -315,6 +454,20 @@ class _FakeClassroomRepository implements ClassroomRepository {
   @override
   Future<List<ClassroomModel>> listStudentClassrooms() async =>
       classrooms.toList();
+
+  @override
+  Future<void> deleteClassroom(String classroomId) async {
+    classrooms.removeWhere((classroom) => classroom.id == classroomId);
+  }
+
+  @override
+  Future<void> deleteClassroomActivity({
+    required String classroomId,
+    required String activityId,
+  }) async {
+    deletedActivities.add(activityId);
+    activities.removeWhere((activity) => activity.id == activityId);
+  }
 
   @override
   Future<ClassroomModel> joinClassroom({required String code}) async =>

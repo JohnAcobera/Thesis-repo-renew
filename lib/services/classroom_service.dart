@@ -20,6 +20,13 @@ abstract interface class ClassroomRepository {
     required String subject,
     required String iconKey,
   });
+
+  Future<void> deleteClassroom(String classroomId);
+
+  Future<void> deleteClassroomActivity({
+    required String classroomId,
+    required String activityId,
+  });
 }
 
 class ClassroomService implements ClassroomRepository {
@@ -222,6 +229,51 @@ class ClassroomService implements ClassroomRepository {
     } on TypeError {
       throw const ClassroomServiceException(
         'The created classroom could not be read. Please try again.',
+      );
+    }
+  }
+
+  @override
+  Future<void> deleteClassroom(String classroomId) async {
+    final token = await _requireSessionToken();
+    try {
+      await _client.rpc<void>(
+        'delete_instructor_classroom',
+        params: {'p_session_token': token, 'p_classroom_id': classroomId},
+      );
+    } on PostgrestException catch (error) {
+      throw ClassroomServiceException(
+        _databaseMessage(
+          error,
+          failureMessage:
+              'The classroom could not be deleted. Please try again.',
+        ),
+      );
+    }
+  }
+
+  @override
+  Future<void> deleteClassroomActivity({
+    required String classroomId,
+    required String activityId,
+  }) async {
+    final token = await _requireSessionToken();
+    try {
+      await _client.rpc<void>(
+        'delete_classroom_activity',
+        params: {
+          'p_session_token': token,
+          'p_classroom_id': classroomId,
+          'p_activity_id': activityId,
+        },
+      );
+    } on PostgrestException catch (error) {
+      throw ClassroomServiceException(
+        _databaseMessage(
+          error,
+          failureMessage:
+              'The posted quiz could not be deleted. Please try again.',
+        ),
       );
     }
   }

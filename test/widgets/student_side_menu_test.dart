@@ -735,4 +735,13 @@ class _FakeStudentClassroomRepository implements ClassroomRepository {
   @override
   Future<List<ClassroomModel>> listStudentClassrooms() async =>
       joinedCode == null ? [] : [classroom];
+
+  @override
+  Future<void> deleteClassroom(String classroomId) async {}
+
+  @override
+  Future<void> deleteClassroomActivity({
+    required String classroomId,
+    required String activityId,
+  }) async {}
 }
