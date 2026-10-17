@@ -13,6 +13,47 @@ const _primary = Color(0xFFFF7434);
 const _heading = Color(0xFF3B2419);
 const _subtle = Color(0xFF765C4F);
 const _border = Color(0xFFE8D7C2);
+const _danger = Color(0xFFB42318);
+
+Future<bool?> _showDeleteConfirmation(
+  BuildContext context, {
+  required String title,
+  required String description,
+  required String confirmLabel,
+}) => showDialog<bool>(
+  context: context,
+  builder: (dialogContext) => AlertDialog(
+    backgroundColor: const Color(0xFFFFFCF8),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    icon: const Icon(Icons.warning_amber_rounded, color: _danger, size: 34),
+    title: Text(
+      title,
+      textAlign: TextAlign.center,
+      style: const TextStyle(color: _heading, fontWeight: FontWeight.w700),
+    ),
+    content: Text(
+      description,
+      textAlign: TextAlign.center,
+      style: const TextStyle(color: _subtle, height: 1.45),
+    ),
+    actionsAlignment: MainAxisAlignment.center,
+    actions: [
+      OutlinedButton(
+        onPressed: () => Navigator.of(dialogContext).pop(false),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _subtle,
+          side: const BorderSide(color: _border),
+        ),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.of(dialogContext).pop(true),
+        style: FilledButton.styleFrom(backgroundColor: _danger),
+        child: Text(confirmLabel),
+      ),
+    ],
+  ),
+);
 
 class ClassroomScreen extends StatefulWidget {
   const ClassroomScreen({required this.user, this.classroomService, super.key});
@@ -31,6 +72,7 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
   List<ClassroomModel> _classrooms = [];
   ClassroomModel? _selectedClassroom;
   bool _isLoading = true;
+  bool _isDeletingClassroom = false;
   String? _loadError;
 
   @override
@@ -112,6 +154,55 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
     }
   }
 
+  Future<void> _deleteClassroom(ClassroomModel classroom) async {
+    final confirmed = await _showDeleteConfirmation(
+      context,
+      title: 'Delete classroom?',
+      description:
+          '“${classroom.name}” and its student memberships and posted quizzes '
+          'will be permanently removed. This action cannot be undone.',
+      confirmLabel: 'Delete classroom',
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDeletingClassroom = true);
+    try {
+      await _classroomService.deleteClassroom(classroom.id);
+      if (!mounted) return;
+      setState(() {
+        _classrooms.removeWhere((item) => item.id == classroom.id);
+        _selectedClassroom = null;
+        _loadError = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Classroom deleted'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on ClassroomServiceException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.message),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } on Exception catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('The classroom could not be deleted: $error'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDeletingClassroom = false);
+    }
+  }
+
   Future<void> _showClassroomCode(ClassroomModel classroom) => showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
@@ -180,6 +271,8 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
         user: widget.user,
         classroomService: widget.classroomService ?? ClassroomService(),
         onBack: () => setState(() => _selectedClassroom = null),
+        onDelete: _deleteClassroom,
+        isDeleting: _isDeletingClassroom,
       );
     }
 
@@ -256,7 +349,7 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
                         crossAxisCount: columns,
                         crossAxisSpacing: 18,
                         mainAxisSpacing: 18,
-                        mainAxisExtent: 210,
+                        mainAxisExtent: 236,
                       ),
                       itemBuilder: (context, index) => _ClassroomCard(
                         classroom: _classrooms[index],
@@ -648,8 +741,16 @@ class _ClassroomCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
+          color: const Color(0xFFFFFEFC),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _border),
+          border: Border.all(color: const Color(0xFFF0DDCC)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x083B2419),
+              blurRadius: 14,
+              offset: Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -685,9 +786,33 @@ class _ClassroomCard extends StatelessWidget {
               classroom.subject,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: _subtle),
+              style: const TextStyle(color: _subtle, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _ClassroomSummaryChip(
+                    icon: Icons.people_alt_outlined,
+                    label:
+                        '${classroom.studentCount} '
+                        '${classroom.studentCount == 1 ? 'student' : 'students'}',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _ClassroomSummaryChip(
+                    icon: Icons.assignment_outlined,
+                    label:
+                        '${classroom.activityCount} '
+                        '${classroom.activityCount == 1 ? 'activity' : 'activities'}',
+                  ),
+                ),
+              ],
             ),
             const Spacer(),
+            const Divider(height: 1, color: _border),
+            const SizedBox(height: 8),
             Row(
               children: [
                 const Icon(Icons.key_outlined, color: _primary, size: 17),
@@ -725,12 +850,49 @@ class _ClassroomCard extends StatelessWidget {
   );
 }
 
+class _ClassroomSummaryChip extends StatelessWidget {
+  const _ClassroomSummaryChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF6EF),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: const Color(0xFFF3E5D9)),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, size: 16, color: _primary),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _heading,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class ClassroomDetailScreen extends StatelessWidget {
   const ClassroomDetailScreen({
     required this.classroom,
     required this.user,
     required this.classroomService,
     required this.onBack,
+    required this.onDelete,
+    required this.isDeleting,
     super.key,
   });
 
@@ -738,6 +900,8 @@ class ClassroomDetailScreen extends StatelessWidget {
   final UserModel user;
   final ClassroomRepository classroomService;
   final VoidCallback onBack;
+  final Future<void> Function(ClassroomModel) onDelete;
+  final bool isDeleting;
 
   Future<void> _copyCode(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: classroom.code));
@@ -759,11 +923,39 @@ class ClassroomDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextButton.icon(
-              onPressed: onBack,
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Your classrooms'),
-              style: TextButton.styleFrom(foregroundColor: _primary),
+            Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: onBack,
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('Your classrooms'),
+                      style: TextButton.styleFrom(foregroundColor: _primary),
+                    ),
+                  ),
+                ),
+                if (user.role.toLowerCase() == 'instructor')
+                  OutlinedButton.icon(
+                    onPressed: isDeleting ? null : () => onDelete(classroom),
+                    icon: isDeleting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: _danger,
+                            ),
+                          )
+                        : const Icon(Icons.delete_outline_rounded),
+                    label: Text(isDeleting ? 'Deleting…' : 'Delete classroom'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _danger,
+                      side: const BorderSide(color: Color(0xFFE7B8B4)),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 12),
             Container(
@@ -923,6 +1115,7 @@ class _PostActivitiesSection extends StatefulWidget {
 class _PostActivitiesSectionState extends State<_PostActivitiesSection> {
   late Future<List<ClassroomActivity>> _activities;
   late final Timer _availabilityTimer;
+  String? _deletingActivityId;
 
   @override
   void initState() {
@@ -947,6 +1140,54 @@ class _PostActivitiesSectionState extends State<_PostActivitiesSection> {
         widget.classroom.id,
       );
     });
+  }
+
+  Future<void> _deleteActivity(ClassroomActivity activity) async {
+    final confirmed = await _showDeleteConfirmation(
+      context,
+      title: 'Delete posted quiz?',
+      description:
+          '“${activity.title}” will no longer be available to students in '
+          'this classroom. This action cannot be undone.',
+      confirmLabel: 'Delete quiz',
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deletingActivityId = activity.id);
+    try {
+      await widget.classroomService.deleteClassroomActivity(
+        classroomId: activity.classroomId,
+        activityId: activity.id,
+      );
+      if (!mounted) return;
+      _retry();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Posted quiz deleted'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on ClassroomServiceException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.message),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } on Exception catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('The posted quiz could not be deleted: $error'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deletingActivityId = null);
+    }
   }
 
   String _formatDateTime(DateTime value) {
@@ -1066,6 +1307,8 @@ class _PostActivitiesSectionState extends State<_PostActivitiesSection> {
                     user: widget.user,
                     formatDateTime: _formatDateTime,
                     onActivityCompleted: _retry,
+                    isDeleting: _deletingActivityId == activity.id,
+                    onDelete: () => _deleteActivity(activity),
                   ),
               ],
             );
@@ -1082,12 +1325,16 @@ class _ClassroomActivityTile extends StatelessWidget {
     required this.user,
     required this.formatDateTime,
     required this.onActivityCompleted,
+    required this.isDeleting,
+    required this.onDelete,
   });
 
   final ClassroomActivity activity;
   final UserModel user;
   final String Function(DateTime) formatDateTime;
   final VoidCallback onActivityCompleted;
+  final bool isDeleting;
+  final VoidCallback onDelete;
 
   Future<void> _openActivity(BuildContext context) async {
     final completed = await Navigator.of(context).push<bool>(
@@ -1288,6 +1535,7 @@ class _ClassroomActivityTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isStudent = user.role.toLowerCase() == 'student';
+    final isInstructor = user.role.toLowerCase() == 'instructor';
     final statusColor = switch (activity.status) {
       'Open' || 'In progress' || 'Completed' => const Color(0xFF578258),
       'Upcoming' => _primary,
@@ -1401,13 +1649,37 @@ class _ClassroomActivityTile extends StatelessWidget {
                         : 'Take activity',
                   ),
                 )
-        : const Text(
-            'View quiz',
-            style: TextStyle(
-              color: _primary,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'View quiz',
+                style: TextStyle(
+                  color: _primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+              if (isInstructor) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Delete posted quiz',
+                  onPressed: isDeleting ? null : onDelete,
+                  visualDensity: VisualDensity.compact,
+                  color: _danger,
+                  icon: isDeleting
+                      ? const SizedBox(
+                          width: 17,
+                          height: 17,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _danger,
+                          ),
+                        )
+                      : const Icon(Icons.delete_outline_rounded, size: 20),
+                ),
+              ],
+            ],
           );
 
     return Material(

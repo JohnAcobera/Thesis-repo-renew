@@ -9,6 +9,7 @@ class ClassroomModel {
     required this.createdAt,
     this.iconKey = 'book',
     this.studentCount = 0,
+    this.activityCount = 0,
   });
 
   static const iconOptions = <ClassroomIconOption>[
@@ -61,6 +62,7 @@ class ClassroomModel {
   final DateTime createdAt;
   final String iconKey;
   final int studentCount;
+  final int activityCount;
 
   IconData get icon => iconOptions
       .firstWhere(
@@ -77,6 +79,7 @@ class ClassroomModel {
     createdAt: DateTime.parse(json['created_at'] as String),
     iconKey: json['icon_key'] as String? ?? 'book',
     studentCount: (json['student_count'] as num?)?.toInt() ?? 0,
+    activityCount: (json['activity_count'] as num?)?.toInt() ?? 0,
   );
 }
 
@@ -84,15 +87,52 @@ class InstructorDashboardStats {
   const InstructorDashboardStats({
     required this.studentCount,
     required this.activeClassCount,
+    this.quizzesCreatedCount = 0,
+    this.classroomPerformance = const [],
   });
 
   final int studentCount;
   final int activeClassCount;
+  final int quizzesCreatedCount;
+  final List<ClassroomPerformance> classroomPerformance;
 
   factory InstructorDashboardStats.fromJson(Map<String, dynamic> json) =>
       InstructorDashboardStats(
         studentCount: (json['student_count'] as num).toInt(),
         activeClassCount: (json['active_class_count'] as num).toInt(),
+        quizzesCreatedCount: (json['quizzes_created_count'] as num).toInt(),
+        classroomPerformance: (json['classroom_performance'] as List<dynamic>)
+            .map(
+              (classroom) => ClassroomPerformance.fromJson(
+                Map<String, dynamic>.from(classroom as Map),
+              ),
+            )
+            .toList(growable: false),
+      );
+}
+
+class ClassroomPerformance {
+  const ClassroomPerformance({
+    required this.name,
+    required this.subject,
+    required this.studentCount,
+    required this.activityCount,
+    required this.averageScore,
+  });
+
+  final String name;
+  final String subject;
+  final int studentCount;
+  final int activityCount;
+  final double? averageScore;
+
+  factory ClassroomPerformance.fromJson(Map<String, dynamic> json) =>
+      ClassroomPerformance(
+        name: json['name'] as String,
+        subject: json['subject'] as String,
+        studentCount: (json['student_count'] as num).toInt(),
+        activityCount: (json['activity_count'] as num).toInt(),
+        averageScore: (json['average_score'] as num?)?.toDouble(),
       );
 }
 

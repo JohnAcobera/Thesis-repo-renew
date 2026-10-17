@@ -59,7 +59,10 @@ supabase functions deploy generate-true-or-false
 
 Run `supabase/learning_streak.sql` in the Supabase SQL Editor to enable profile
 login-date highlights and consecutive-day streak counts. The migration records
-future logins and backfills dates from existing custom sessions.
+future logins and backfills dates from existing custom sessions. It also
+records student active-learning days through the
+`record_user_activity_day(p_session_token text)` RPC. Re-run this script if
+that RPC is missing; it reloads the PostgREST schema cache when complete.
 
 Run `supabase/classrooms.sql` in the Supabase SQL Editor to enable instructor
 classroom creation and listing. Classroom access is validated using the app's
@@ -68,17 +71,24 @@ If this migration was already applied, run it again to enable the classroom
 icon selection and dashboard stats RPC. It also prepares a classroom
 membership table and student RPCs so students can join by code from their My
 Classroom screen and instructor class counts reflect memberships. The
-dashboard stats RPC counts unique students across all classrooms owned by the
-instructor.
+dashboard stats RPC counts unique students across classrooms owned by the
+instructor. It also enables instructor classroom deletion. After applying the
+quiz and classroom-activity migrations below, the same RPC returns distinct
+posted-quiz counts and each classroom's student count, distinct posted-quiz
+count, and average quiz-attempt score. Instructor and student classroom lists
+also include each classroom's student and posted-activity counts for the class
+overview cards.
 
 Run or re-run `supabase/classroom_activities.sql` after `classrooms.sql` and
 `quiz_attempts.sql` to enable saved instructor quiz drafts, scheduled
 classroom activities, activity listings, and student submissions. Classroom
 activities allow instructors to set a total attempt limit (default 2); student
 attempts are attributed to the classroom and activity, and the limit is
-enforced by the database. Student recent activity includes classroom quiz
-attempts and their classroom names. Existing attempts are associated with an
-activity only when their classroom and schedule match exactly one activity.
+enforced by the database. Instructors can remove a quiz posting from a
+classroom without deleting its saved quiz, while student recent activity
+includes classroom quiz attempts and their classroom names. Existing attempts
+are associated with an activity only when their classroom and schedule match
+exactly one activity.
 
 The quiz-generation function reads `GEMINI_API_KEY_1` through
 `GEMINI_API_KEY_6` from Edge Function secrets and rotates keys on transient

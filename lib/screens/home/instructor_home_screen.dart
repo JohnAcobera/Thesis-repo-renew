@@ -246,14 +246,15 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
     builder: (context, constraints) {
       final horizontalPadding = constraints.maxWidth < 600 ? 16.0 : 32.0;
       final contentWidth = constraints.maxWidth - horizontalPadding * 2;
-      final metricColumns = contentWidth >= 1000
-          ? 4
-          : contentWidth >= 520
+      final dashboardWidth = math.min(contentWidth, 1280.0);
+      final metricColumns = dashboardWidth >= 780
+          ? 3
+          : dashboardWidth >= 520
           ? 2
           : 1;
       final metricWidth =
-          (contentWidth - _gap * (metricColumns - 1)) / metricColumns;
-      final wideSections = contentWidth >= 900;
+          (dashboardWidth - _gap * (metricColumns - 1)) / metricColumns;
+      final wideSections = dashboardWidth >= 900;
 
       return FutureBuilder<InstructorDashboardStats>(
         future: _stats,
@@ -367,64 +368,50 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
                         ),
                         SizedBox(
                           width: metricWidth,
-                          child: const _MetricCard(
+                          child: _MetricCard(
                             label: 'Quizzes created',
-                            caption: 'Assessments in your library',
+                            caption: 'Quizzes posted to your classrooms',
                             icon: Icons.assignment_outlined,
                             tint: Color(0xFFFFE5D5),
                             iconColor: _accent,
-                          ),
-                        ),
-                        SizedBox(
-                          width: metricWidth,
-                          child: const _MetricCard(
-                            label: 'Average score',
-                            caption: 'Across completed quizzes',
-                            icon: Icons.trending_up_rounded,
-                            tint: Color(0xFFFFE5D5),
-                            iconColor: _accent,
+                            value: stats?.quizzesCreatedCount.toString(),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
                     if (wideSections)
-                      const Row(
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             flex: 6,
-                            child: _DashboardSection(
-                              title: 'Class performance',
-                              icon: Icons.insights_outlined,
-                              message: 'No class insights yet',
-                              description:
-                                  'Add a classroom and invite students to start '
-                                  'tracking progress.',
+                            child: _ClassPerformanceSection(
+                              classrooms:
+                                  stats?.classroomPerformance ??
+                                  const <ClassroomPerformance>[],
                             ),
                           ),
                           SizedBox(width: _gap),
                           Expanded(
                             flex: 5,
-                            child: _DashboardSection(
+                            child: const _DashboardSection(
                               title: 'Recent quizzes',
                               icon: Icons.quiz_outlined,
                               message: 'No quizzes yet',
                               description:
                                   'Quizzes you create will appear here for a '
                                   'quick overview.',
+                              height: 440,
                             ),
                           ),
                         ],
                       )
                     else ...[
-                      const _DashboardSection(
-                        title: 'Class performance',
-                        icon: Icons.insights_outlined,
-                        message: 'No class insights yet',
-                        description:
-                            'Add a classroom and invite students to start '
-                            'tracking progress.',
+                      _ClassPerformanceSection(
+                        classrooms:
+                            stats?.classroomPerformance ??
+                            const <ClassroomPerformance>[],
                       ),
                       const SizedBox(height: _gap),
                       const _DashboardSection(
@@ -434,6 +421,7 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
                         description:
                             'Quizzes you create will appear here for a quick '
                             'overview.',
+                        height: 440,
                       ),
                     ],
                     const SizedBox(height: _gap),
@@ -575,6 +563,315 @@ class _DashboardLoadError extends StatelessWidget {
   );
 }
 
+class _ClassPerformanceSection extends StatefulWidget {
+  const _ClassPerformanceSection({required this.classrooms});
+
+  final List<ClassroomPerformance> classrooms;
+
+  @override
+  State<_ClassPerformanceSection> createState() =>
+      _ClassPerformanceSectionState();
+}
+
+class _ClassPerformanceSectionState extends State<_ClassPerformanceSection> {
+  final ScrollController _scrollController = ScrollController();
+
+  static const _accent = Color(0xFFFF7434);
+  static const _ink = Color(0xFF3B2419);
+  static const _muted = Color(0xFF765C4F);
+  static const _border = Color(0xFFE8D7C2);
+  static const _surface = Color(0xFFFFFBF7);
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 440,
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A3B2419),
+            blurRadius: 18,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFE9DC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.insights_rounded,
+                  color: _accent,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Class performance',
+                      style: TextStyle(
+                        color: _ink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Progress across your classrooms',
+                      style: TextStyle(color: _muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _border),
+                ),
+                child: Text(
+                  '${widget.classrooms.length} '
+                  '${widget.classrooms.length == 1 ? 'class' : 'classes'}',
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Divider(height: 1, color: _border),
+          ),
+          Expanded(
+            child: widget.classrooms.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.insights_outlined, color: _accent, size: 26),
+                        SizedBox(height: 8),
+                        Text(
+                          'No classrooms yet',
+                          style: TextStyle(
+                            color: _ink,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Create a classroom to see student and quiz progress.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: _muted, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  )
+                : Scrollbar(
+                    controller: _scrollController,
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      primary: false,
+                      child: Column(
+                        children: [
+                          for (
+                            var index = 0;
+                            index < widget.classrooms.length;
+                            index++
+                          ) ...[
+                            if (index > 0) const SizedBox(height: 12),
+                            _ClassPerformanceRow(
+                              classroom: widget.classrooms[index],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ClassPerformanceRow extends StatelessWidget {
+  const _ClassPerformanceRow({required this.classroom});
+
+  final ClassroomPerformance classroom;
+
+  static const _accent = Color(0xFFFF7434);
+  static const _ink = Color(0xFF3B2419);
+  static const _muted = Color(0xFF765C4F);
+  static const _border = Color(0xFFF0E1D4);
+
+  @override
+  Widget build(BuildContext context) {
+    final percentage = classroom.averageScore?.clamp(0.0, 100.0);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBF7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: _border),
+                ),
+                child: const Icon(
+                  Icons.menu_book_rounded,
+                  color: _accent,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      classroom.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      classroom.subject,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: _muted, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                percentage == null ? '—' : '${percentage.toStringAsFixed(0)}%',
+                style: const TextStyle(
+                  color: _ink,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              value: (percentage ?? 0) / 100,
+              minHeight: 7,
+              backgroundColor: const Color(0xFFF1E4D9),
+              valueColor: const AlwaysStoppedAnimation<Color>(_accent),
+            ),
+          ),
+          const SizedBox(height: 11),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ClassDetailChip(
+                icon: Icons.people_alt_outlined,
+                text:
+                    '${classroom.studentCount} '
+                    '${classroom.studentCount == 1 ? 'student' : 'students'}',
+              ),
+              _ClassDetailChip(
+                icon: Icons.assignment_outlined,
+                text:
+                    '${classroom.activityCount} '
+                    '${classroom.activityCount == 1 ? 'activity' : 'activities'} posted',
+              ),
+              if (percentage == null)
+                const _ClassDetailChip(
+                  icon: Icons.info_outline_rounded,
+                  text: 'No scores yet',
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClassDetailChip extends StatelessWidget {
+  const _ClassDetailChip({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: const Color(0xFFF0E1D4)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: const Color(0xFF8A6D5E)),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Color(0xFF765C4F),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _DashboardSection extends StatelessWidget {
   const _DashboardSection({
     required this.title,
@@ -582,6 +879,7 @@ class _DashboardSection extends StatelessWidget {
     required this.message,
     required this.description,
     this.compact = false,
+    this.height = 272,
   });
 
   final String title;
@@ -589,10 +887,11 @@ class _DashboardSection extends StatelessWidget {
   final String message;
   final String description;
   final bool compact;
+  final double height;
 
   @override
   Widget build(BuildContext context) => Container(
-    height: compact ? 260 : 272,
+    height: compact ? 260 : height,
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
       color: Colors.white,

@@ -311,6 +311,49 @@ begin
 end;
 $$;
 
+create or replace function public.delete_classroom_activity(
+  p_session_token text,
+  p_classroom_id uuid,
+  p_activity_id uuid
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  verified_user_id bigint;
+begin
+  select u.id into verified_user_id
+  from public.user_sessions s
+  join public.users u on u.id = s.user_id
+  where s.session_token = p_session_token
+    and s.expires_at > now()
+    and u.role = 'instructor';
+
+  if verified_user_id is null then
+    if exists (
+      select 1
+      from public.user_sessions s
+      join public.users u on u.id = s.user_id
+      where s.session_token = p_session_token and s.expires_at > now()
+    ) then
+      raise exception 'Only instructors can manage classroom activities';
+    end if;
+    raise exception 'Invalid or expired session';
+  end if;
+
+  delete from public.classroom_activities a
+  using public.classrooms c
+  where a.id = p_activity_id
+    and a.classroom_id = p_classroom_id
+    and c.id = a.classroom_id
+    and c.instructor_id = verified_user_id;
+  if not found then
+    raise exception 'Classroom activity not found';
+  end if;
+end;
+$$;
+
 create or replace function public.submit_classroom_activity_attempt(
   p_session_token text,
   p_activity_id uuid,
@@ -475,6 +518,8 @@ revoke all on function public.post_classroom_activity(
 ) from public;
 revoke all on function public.list_classroom_activities(text, uuid)
   from public;
+revoke all on function public.delete_classroom_activity(text, uuid, uuid)
+  from public;
 revoke all on function public.submit_classroom_activity_attempt(
   text, uuid, integer, integer
 ) from public;
@@ -485,6 +530,8 @@ grant execute on function public.post_classroom_activity(
   text, uuid, uuid[], timestamptz, timestamptz, integer
 ) to anon, authenticated;
 grant execute on function public.list_classroom_activities(text, uuid)
+  to anon, authenticated;
+grant execute on function public.delete_classroom_activity(text, uuid, uuid)
   to anon, authenticated;
 grant execute on function public.submit_classroom_activity_attempt(
   text, uuid, integer, integer
