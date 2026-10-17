@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/user_model.dart';
+import '../../services/auth_service.dart';
 import '../../services/classroom_service.dart';
 import '../../services/quiz_service.dart';
 import '../classroom/classroom_screen.dart';
@@ -25,9 +27,64 @@ class StudentHomeScreen extends StatefulWidget {
   State<StudentHomeScreen> createState() => _StudentHomeScreenState();
 }
 
-class _StudentHomeScreenState extends State<StudentHomeScreen> {
+class _StudentHomeScreenState extends State<StudentHomeScreen>
+    with WidgetsBindingObserver {
   int _activityRevision = 0;
   StudentMenuItem _selectedMenu = StudentMenuItem.dashboard;
+  bool _isRecordingActivityDay = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _recordActiveLearningDay();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _recordActiveLearningDay();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _recordActiveLearningDay() async {
+    if (_isRecordingActivityDay) return;
+    _isRecordingActivityDay = true;
+
+    try {
+      final token = await AuthService().getSessionToken();
+      if (!mounted || token == null || token.isEmpty) return;
+
+      await Supabase.instance.client.rpc<void>(
+        'record_user_activity_day',
+        params: {'p_session_token': token},
+      );
+    } on AssertionError catch (error) {
+      if (!error.message.toString().contains(
+        'initialize the supabase instance',
+      )) {
+        rethrow;
+      }
+      debugPrint('Active learning day not recorded: ${error.message}');
+    } on Exception catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'student home screen',
+          context: ErrorDescription('while recording an active learning day'),
+        ),
+      );
+    } finally {
+      _isRecordingActivityDay = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

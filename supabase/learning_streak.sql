@@ -35,6 +35,33 @@ create trigger user_sessions_record_login_day
 after insert on public.user_sessions
 for each row execute function public.record_user_login_day();
 
+create or replace function public.record_user_activity_day(p_session_token text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  found_user_id bigint;
+begin
+  select user_id into found_user_id
+  from public.user_sessions
+  where session_token = p_session_token and expires_at > now()
+  limit 1;
+
+  if found_user_id is null then
+    raise exception 'Invalid or expired session';
+  end if;
+
+  insert into public.user_login_days (user_id, login_date)
+  values (found_user_id, current_date)
+  on conflict (user_id, login_date) do nothing;
+end;
+$$;
+
+revoke all on function public.record_user_activity_day(text) from public;
+grant execute on function public.record_user_activity_day(text) to anon, authenticated;
+
 create or replace function public.get_login_activity(p_session_token text)
 returns jsonb
 language plpgsql
