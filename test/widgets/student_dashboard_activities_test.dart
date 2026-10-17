@@ -29,6 +29,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
     await tester.drag(
       find.byType(SingleChildScrollView).first,
       const Offset(0, -1800),
@@ -115,6 +116,19 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.byType(GridView), findsNothing);
+
+    final panelOneHeight = tester
+        .getSize(find.byKey(const ValueKey<String>('dashboard_panel_1')))
+        .height;
+    final panelTwoHeight = tester
+        .getSize(find.byKey(const ValueKey<String>('dashboard_panel_2')))
+        .height;
+    final panelThreeHeight = tester
+        .getSize(find.byKey(const ValueKey<String>('dashboard_panel_3')))
+        .height;
+    expect(panelOneHeight / (panelThreeHeight - 20), closeTo(0.6, 0.01));
+    expect(panelTwoHeight / (panelThreeHeight - 20), closeTo(0.4, 0.01));
 
     await tester.drag(
       find.byType(SingleChildScrollView).first,

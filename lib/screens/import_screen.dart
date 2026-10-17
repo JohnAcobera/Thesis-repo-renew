@@ -577,7 +577,7 @@ class _FilePickerPanel extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
         decoration: BoxDecoration(
           color: _inputFill,
           borderRadius: BorderRadius.circular(16),
@@ -586,8 +586,8 @@ class _FilePickerPanel extends StatelessWidget {
         child: Column(
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -602,24 +602,24 @@ class _FilePickerPanel extends StatelessWidget {
               child: const Icon(
                 Icons.cloud_upload_outlined,
                 color: _primary,
-                size: 32,
+                size: 28,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             const Text(
               'Drag & drop a file here, or click to browse',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: _heading,
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               'Supported: PDF, DOCX, TXT (max 3 MB)',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: _subtle),
+              style: TextStyle(fontSize: 12, color: _subtle),
             ),
           ],
         ),
@@ -795,13 +795,13 @@ class _QuestionTypeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected ? _primary : _inputFill,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? _primary : _border,
             width: isSelected ? 2 : 1,
@@ -810,8 +810,8 @@ class _QuestionTypeChip extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: _primary.withValues(alpha: 0.25),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ]
               : null,
@@ -822,14 +822,14 @@ class _QuestionTypeChip extends StatelessWidget {
             Icon(
               type.icon,
               color: isSelected ? Colors.white : _primary,
-              size: 22,
+              size: 18,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Text(
               type.label,
               style: TextStyle(
                 color: isSelected ? Colors.white : _heading,
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -867,17 +867,15 @@ class _ItemCountPanel extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final items = [10, 20, 30];
-          if (constraints.maxWidth < 400) {
-            return Column(
-              children: items.map((count) => _buildRadioItem(count)).toList(),
-            );
-          }
+          final isLandscape =
+              MediaQuery.of(context).orientation == Orientation.landscape;
+          final compact = constraints.maxWidth < 400 || isLandscape;
           return Row(
             children: items
                 .expand(
                   (count) => [
-                    Expanded(child: _buildRadioItem(count)),
-                    if (count != items.last) const SizedBox(width: 12),
+                    Expanded(child: _buildRadioItem(count, compact: compact)),
+                    if (count != items.last) SizedBox(width: compact ? 8 : 12),
                   ],
                 )
                 .toList(),
@@ -887,17 +885,20 @@ class _ItemCountPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildRadioItem(int count) {
+  Widget _buildRadioItem(int count, {bool compact = false}) {
     final isSelected = selectedCount == count;
     return InkWell(
       onTap: () => onChanged(count),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(compact ? 12 : 16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        padding: EdgeInsets.symmetric(
+          vertical: compact ? 12 : 24,
+          horizontal: compact ? 4 : 16,
+        ),
         decoration: BoxDecoration(
           color: isSelected ? _primary : _inputFill,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(compact ? 12 : 16),
           border: Border.all(
             color: isSelected ? _primary : _border,
             width: isSelected ? 2 : 1,
@@ -906,8 +907,8 @@ class _ItemCountPanel extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: _primary.withValues(alpha: 0.25),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    blurRadius: compact ? 8 : 12,
+                    offset: Offset(0, compact ? 2 : 4),
                   ),
                 ]
               : null,
@@ -918,19 +919,19 @@ class _ItemCountPanel extends StatelessWidget {
               '$count',
               style: TextStyle(
                 color: isSelected ? Colors.white : _heading,
-                fontSize: 32,
+                fontSize: compact ? 24 : 32,
                 fontWeight: FontWeight.w900,
                 height: 1,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: compact ? 2 : 6),
             Text(
               count == 1 ? 'Item' : 'Items',
               style: TextStyle(
                 color: isSelected
                     ? Colors.white.withValues(alpha: 0.9)
                     : _subtle,
-                fontSize: 13,
+                fontSize: compact ? 11 : 13,
                 fontWeight: FontWeight.w600,
               ),
             ),

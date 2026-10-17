@@ -156,7 +156,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
               builder: (context, viewport) {
                 final isWide = viewport.maxWidth >= 800;
                 final dashboardHeight = (viewport.maxHeight - 48)
-                    .clamp(520.0, 720.0)
+                    .clamp(520.0, 770.0)
                     .toDouble();
 
                 return SingleChildScrollView(
@@ -189,7 +189,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                             ),
                           const SizedBox(height: 20),
                           SizedBox(
-                            height: isWide ? 440 : 880,
+                            height: isWide ? 440 : 1080,
                             child: _StudentClassroomActivitiesSection(
                               key: ValueKey<int>(_activityRevision),
                               user: user,
@@ -475,10 +475,21 @@ class _StudentClassroomActivitiesSectionState
           );
 
           if (widget.sideBySide) {
+            final calendarPanel =
+                MediaQuery.orientationOf(context) == Orientation.landscape
+                ? Align(
+                    alignment: Alignment.center,
+                    child: FractionallySizedBox(
+                      widthFactor: 0.9,
+                      heightFactor: 0.9,
+                      child: calendar,
+                    ),
+                  )
+                : calendar;
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(flex: 5, child: calendar),
+                Expanded(flex: 5, child: calendarPanel),
                 const SizedBox(width: 20),
                 Expanded(flex: 6, child: pending),
               ],
@@ -486,7 +497,7 @@ class _StudentClassroomActivitiesSectionState
           }
           return Column(
             children: [
-              SizedBox(height: constraints.maxHeight * 0.44, child: calendar),
+              SizedBox(height: constraints.maxHeight * 0.46, child: calendar),
               const SizedBox(height: 16),
               Expanded(child: pending),
             ],
@@ -591,85 +602,32 @@ class _ClassroomDeadlineCalendar extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Expanded(
-            child: GridView.builder(
-              padding: EdgeInsets.zero,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                childAspectRatio: 1.25,
-              ),
-              itemCount: 42,
-              itemBuilder: (context, index) {
-                final day = index - firstWeekday + 1;
-                if (day < 1 || day > daysInMonth) {
-                  return const SizedBox.shrink();
-                }
-                final isToday =
-                    today.year == visibleMonth.year &&
-                    today.month == visibleMonth.month &&
-                    today.day == day;
-                final deadlineCount = deadlineCounts[day] ?? 0;
-                return Semantics(
-                  label:
-                      '$day${deadlineCount > 0 ? ', $deadlineCount deadlines' : ''}',
-                  button: deadlineCount > 0,
-                  onTap: deadlineCount > 0
-                      ? () => onDateSelected(
-                          DateTime(visibleMonth.year, visibleMonth.month, day),
-                        )
-                      : null,
-                  child: InkWell(
-                    onTap: deadlineCount > 0
-                        ? () => onDateSelected(
-                            DateTime(
-                              visibleMonth.year,
-                              visibleMonth.month,
-                              day,
-                            ),
-                          )
-                        : null,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      margin: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: deadlineCount > 0
-                            ? const Color(0xFFFFE6D8)
-                            : Colors.transparent,
-                        border: isToday
-                            ? Border.all(color: const Color(0xFFF4773C))
-                            : null,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '$day',
-                            style: TextStyle(
-                              color: deadlineCount > 0
-                                  ? const Color(0xFFB64E20)
-                                  : const Color(0xFF4B352A),
-                              fontSize: 12,
-                              fontWeight: deadlineCount > 0 || isToday
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                          if (deadlineCount > 0)
-                            Container(
-                              width: 5,
-                              height: 5,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFF4773C),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+            child: Column(
+              children: List.generate(
+                6,
+                (week) => Expanded(
+                  child: Row(
+                    children: List.generate(7, (weekday) {
+                      final day = week * 7 + weekday - firstWeekday + 1;
+                      if (day < 1 || day > daysInMonth) {
+                        return const Expanded(child: SizedBox.shrink());
+                      }
+                      final isToday =
+                          today.year == visibleMonth.year &&
+                          today.month == visibleMonth.month &&
+                          today.day == day;
+                      final deadlineCount = deadlineCounts[day] ?? 0;
+                      return Expanded(
+                        child: _buildDayCell(
+                          day: day,
+                          isToday: isToday,
+                          deadlineCount: deadlineCount,
+                        ),
+                      );
+                    }),
                   ),
-                );
-              },
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -701,6 +659,59 @@ class _ClassroomDeadlineCalendar extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDayCell({
+    required int day,
+    required bool isToday,
+    required int deadlineCount,
+  }) {
+    final date = DateTime(visibleMonth.year, visibleMonth.month, day);
+    return Semantics(
+      label: '$day${deadlineCount > 0 ? ', $deadlineCount deadlines' : ''}',
+      button: deadlineCount > 0,
+      onTap: deadlineCount > 0 ? () => onDateSelected(date) : null,
+      child: InkWell(
+        onTap: deadlineCount > 0 ? () => onDateSelected(date) : null,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          margin: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: deadlineCount > 0
+                ? const Color(0xFFFFE6D8)
+                : Colors.transparent,
+            border: isToday ? Border.all(color: const Color(0xFFF4773C)) : null,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '$day',
+                style: TextStyle(
+                  color: deadlineCount > 0
+                      ? const Color(0xFFB64E20)
+                      : const Color(0xFF4B352A),
+                  fontSize: 12,
+                  fontWeight: deadlineCount > 0 || isToday
+                      ? FontWeight.w700
+                      : FontWeight.w400,
+                ),
+              ),
+              if (deadlineCount > 0)
+                Container(
+                  width: 5,
+                  height: 5,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF4773C),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -976,6 +987,7 @@ class _WideStudentDashboard extends StatelessWidget {
         child: Column(
           children: [
             Expanded(
+              flex: 3,
               child: _DashboardPanel(
                 key: _DashboardPanel.greetingPanelKey,
                 icon: null,
@@ -991,15 +1003,18 @@ class _WideStudentDashboard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            _DashboardPanel(
-              key: _DashboardPanel.quizCreationPanelKey,
-              icon: Icons.quiz_outlined,
-              title: 'Create your own quiz',
-              description:
-                  'Turn your study materials into a personalized practice quiz.',
-              actionLabel: 'Generate a quiz',
-              onAction: onImportSelected,
-              centerContent: true,
+            Expanded(
+              flex: 2,
+              child: _DashboardPanel(
+                key: _DashboardPanel.quizCreationPanelKey,
+                icon: Icons.quiz_outlined,
+                title: 'Create your own quiz',
+                description:
+                    'Turn your study materials into a personalized practice quiz.',
+                actionLabel: 'Generate a quiz',
+                onAction: onImportSelected,
+                centerContent: true,
+              ),
             ),
           ],
         ),
@@ -1782,8 +1797,9 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final chartHeight =
-          (constraints.maxWidth * 0.4).clamp(140.0, 175.0).toDouble() * 1.2;
+      final chartHeight = (constraints.maxWidth * 0.52)
+          .clamp(200.0, 260.0)
+          .toDouble();
 
       return FutureBuilder<List<QuizActivity>>(
         future: _metricsData,
@@ -1843,15 +1859,6 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                )
-              else
-                Text(
-                  'Accuracy (latest attempts): ${accuracyPercentage == null ? '—' : '${accuracyPercentage.round()}%'} · Retention: ${retentionPercentage == null ? '—' : '${retentionPercentage.round()}%'} · Improvement: ${improvementPercentage == null ? '—' : '${improvementPercentage >= 0 ? '+' : ''}${improvementPercentage.round()} pp'} · Consistency: ${consistencyPercentage == null ? '—' : '${consistencyPercentage.round()}%'}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF8A7A70),
-                  ),
                 ),
             ],
           );
@@ -1887,7 +1894,7 @@ class _RadarChartPainter extends CustomPainter {
     if (metrics.isEmpty || size.isEmpty) return;
 
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.min((size.width - 112) / 2, (size.height - 48) / 2);
+    final radius = math.min((size.width - 116) / 2, (size.height - 72) / 2);
     if (radius <= 0) return;
 
     final angles = List<double>.generate(
@@ -1990,7 +1997,7 @@ class _RadarChartPainter extends CustomPainter {
             : '${accuracyPercentage!.round()}%',
         style: TextStyle(
           color: accentColor,
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -2011,26 +2018,26 @@ class _RadarChartPainter extends CustomPainter {
           text: metrics[index],
           style: TextStyle(
             color: labelColor,
-            fontSize: 14.3,
+            fontSize: 12.5,
             fontWeight: FontWeight.w600,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
       final labelCenter = Offset(
-        center.dx + math.cos(angle) * (radius + 20),
-        center.dy + math.sin(angle) * (radius + 20),
+        center.dx + math.cos(angle) * (radius + 22),
+        center.dy + math.sin(angle) * (radius + 22),
       );
       label.paint(
         canvas,
         Offset(
           (labelCenter.dx - label.width / 2).clamp(
-            0.0,
-            size.width - label.width,
+            8.0,
+            size.width - label.width - 8,
           ),
           (labelCenter.dy - label.height / 2).clamp(
-            0.0,
-            size.height - label.height,
+            8.0,
+            size.height - label.height - 8,
           ),
         ),
       );
