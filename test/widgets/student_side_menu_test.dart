@@ -44,6 +44,53 @@ void main() {
     expect(didGoBack, isTrue);
   });
 
+  testWidgets('student can open the weekly leaderboard from the side menu', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudentHomeScreen(
+          user: UserModel(
+            id: 1,
+            fullName: 'Student Name',
+            email: 'student@example.com',
+            role: 'student',
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Leaderboard'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Weekly Leaderboard'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Student rankings'), findsOneWidget);
+    expect(find.text('Rankings are on the way'), findsOneWidget);
+    expect(find.text('Weekly activity'), findsNothing);
+    await tester.tap(find.byTooltip('Select leaderboard week'));
+    await tester.pumpAndSettle();
+    expect(find.text('This week'), findsOneWidget);
+    expect(find.text('Last week (-1)'), findsOneWidget);
+    expect(find.text('Two weeks ago (-2)'), findsOneWidget);
+    await tester.tap(find.text('Last week (-1)'));
+    await tester.pumpAndSettle();
+    expect(find.text('LAST WEEK (-1)'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('import screen displays the student side-menu controls', (
     tester,
   ) async {

@@ -6,19 +6,21 @@ import '../screens/auth/login_screen.dart';
 import '../services/auth_service.dart';
 import 'student_nav_bar.dart';
 
-enum StudentMenuItem { dashboard, profile, classroom }
+enum StudentMenuItem { dashboard, profile, classroom, leaderboard }
 
 extension StudentMenuItemPresentation on StudentMenuItem {
   String get label => switch (this) {
     StudentMenuItem.dashboard => 'Dashboard',
     StudentMenuItem.profile => 'Profile',
     StudentMenuItem.classroom => 'My Classroom',
+    StudentMenuItem.leaderboard => 'Leaderboard',
   };
 
   IconData get icon => switch (this) {
     StudentMenuItem.dashboard => Icons.dashboard_outlined,
     StudentMenuItem.profile => Icons.person_outline,
     StudentMenuItem.classroom => Icons.class_outlined,
+    StudentMenuItem.leaderboard => Icons.emoji_events_outlined,
   };
 }
 
