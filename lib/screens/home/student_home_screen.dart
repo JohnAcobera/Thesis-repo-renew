@@ -224,7 +224,9 @@ class _WideStudentDashboard extends StatelessWidget {
                 titleSize: 30,
                 centerContent: true,
                 titleAtTop: true,
-                content: const _StudentMetricsChart(),
+                content: _StudentMetricsChart(
+                  activityRevision: activityRevision,
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -288,7 +290,7 @@ class _StackedStudentDashboard extends StatelessWidget {
         titleSize: 28,
         centerContent: true,
         titleAtTop: true,
-        content: const _StudentMetricsChart(),
+        content: _StudentMetricsChart(activityRevision: activityRevision),
       ),
       const SizedBox(height: 16),
       _DashboardPanel(
@@ -963,8 +965,17 @@ class _DashboardPanel extends StatelessWidget {
   }
 }
 
-class _StudentMetricsChart extends StatelessWidget {
-  const _StudentMetricsChart();
+class _StudentMetricsChart extends StatefulWidget {
+  const _StudentMetricsChart({required this.activityRevision});
+
+  final int activityRevision;
+
+  @override
+  State<_StudentMetricsChart> createState() => _StudentMetricsChartState();
+}
+
+class _StudentMetricsChartState extends State<_StudentMetricsChart> {
+  late Future<(List<QuizScore>, List<QuizActivity>)> _metricsData;
 
   static const _metrics = [
     'Accuracy',
@@ -975,32 +986,120 @@ class _StudentMetricsChart extends StatelessWidget {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _metricsData = _loadMetrics();
+  }
+
+  @override
+  void didUpdateWidget(covariant _StudentMetricsChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activityRevision != widget.activityRevision) {
+      _metricsData = _loadMetrics();
+    }
+  }
+
+  Future<(List<QuizScore>, List<QuizActivity>)> _loadMetrics() async {
+    try {
+      final quizService = QuizService();
+      return await (
+        quizService.recentQuizScores(),
+        quizService.recentAttempts(),
+      ).wait;
+    } on Object catch (error, stackTrace) {
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  double? _accuracyPercentage(List<QuizScore> attempts) {
+    if (attempts.isEmpty) return null;
+
+    final totalScore = attempts.fold<int>(
+      0,
+      (total, attempt) => total + attempt.score,
+    );
+    final totalQuestions = attempts.fold<int>(
+      0,
+      (total, attempt) => total + attempt.totalQuestions,
+    );
+    return totalScore / totalQuestions * 100;
+  }
+
+  void _retry() {
+    setState(() => _metricsData = _loadMetrics());
+  }
+
+  @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final chartHeight =
           (constraints.maxWidth * 0.4).clamp(140.0, 175.0).toDouble() * 1.2;
 
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            height: chartHeight,
-            width: double.infinity,
-            child: CustomPaint(
-              painter: _RadarChartPainter(
-                metrics: _metrics,
-                gridColor: const Color(0xFFE9E1D8),
-                accentColor: const Color(0xFFF4773C),
-                labelColor: const Color(0xFF725F53),
+      return FutureBuilder<(List<QuizScore>, List<QuizActivity>)>(
+        future: _metricsData,
+        builder: (context, snapshot) {
+          final attempts = snapshot.data?.$1 ?? const <QuizScore>[];
+          final quizzes = snapshot.data?.$2 ?? const <QuizActivity>[];
+          final accuracyPercentage = _accuracyPercentage(attempts);
+          final retentionPercentage = averageQuizRetentionPercentage(quizzes);
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: chartHeight,
+                width: double.infinity,
+                child: CustomPaint(
+                  painter: _RadarChartPainter(
+                    metrics: _metrics,
+                    accuracyPercentage: accuracyPercentage,
+                    retentionPercentage: retentionPercentage,
+                    gridColor: const Color(0xFFE9E1D8),
+                    accentColor: const Color(0xFFF4773C),
+                    labelColor: const Color(0xFF725F53),
+                  ),
+                ),
               ),
-            ),
-          ),
-          const Text(
-            'Your metrics will appear as you complete learning activities.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: Color(0xFF8A7A70)),
-          ),
-        ],
+              if (snapshot.hasError)
+                Column(
+                  children: [
+                    Text(
+                      'Could not load quiz metrics: ${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF8A7A70),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _retry,
+                      child: const Text('Try again'),
+                    ),
+                  ],
+                )
+              else if (snapshot.connectionState == ConnectionState.waiting)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                Text(
+                  accuracyPercentage == null
+                      ? 'Your metrics will appear as you complete learning activities.'
+                      : 'Accuracy: ${accuracyPercentage.round()}% across ${attempts.length} ${attempts.length == 1 ? 'attempt' : 'attempts'}${retentionPercentage == null ? '' : ' · Retention: ${retentionPercentage.round()}%'}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF8A7A70),
+                  ),
+                ),
+            ],
+          );
+        },
       );
     },
   );
@@ -1009,12 +1108,16 @@ class _StudentMetricsChart extends StatelessWidget {
 class _RadarChartPainter extends CustomPainter {
   const _RadarChartPainter({
     required this.metrics,
+    required this.accuracyPercentage,
+    required this.retentionPercentage,
     required this.gridColor,
     required this.accentColor,
     required this.labelColor,
   });
 
   final List<String> metrics;
+  final double? accuracyPercentage;
+  final double? retentionPercentage;
   final Color gridColor;
   final Color accentColor;
   final Color labelColor;
@@ -1070,9 +1173,49 @@ class _RadarChartPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, 31, centerPaint);
 
-    final emptyLabel = TextPainter(
+    if (accuracyPercentage != null) {
+      final accuracyPoint = Offset(
+        center.dx + math.cos(angles.first) * radius * accuracyPercentage! / 100,
+        center.dy + math.sin(angles.first) * radius * accuracyPercentage! / 100,
+      );
+      final accuracyPaint = Paint()
+        ..color = accentColor
+        ..strokeWidth = 2;
+      canvas.drawLine(center, accuracyPoint, accuracyPaint);
+      canvas.drawCircle(
+        accuracyPoint,
+        4,
+        Paint()
+          ..color = accentColor
+          ..style = PaintingStyle.fill,
+      );
+    }
+    if (retentionPercentage != null) {
+      final retentionPoint = Offset(
+        center.dx + math.cos(angles[1]) * radius * retentionPercentage! / 100,
+        center.dy + math.sin(angles[1]) * radius * retentionPercentage! / 100,
+      );
+      canvas.drawLine(
+        center,
+        retentionPoint,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.7)
+          ..strokeWidth = 2,
+      );
+      canvas.drawCircle(
+        retentionPoint,
+        4,
+        Paint()
+          ..color = accentColor.withValues(alpha: 0.7)
+          ..style = PaintingStyle.fill,
+      );
+    }
+
+    final centerLabel = TextPainter(
       text: TextSpan(
-        text: 'No scores yet',
+        text: accuracyPercentage == null
+            ? 'No scores yet'
+            : '${accuracyPercentage!.round()}%',
         style: TextStyle(
           color: accentColor,
           fontSize: 11,
@@ -1081,11 +1224,11 @@ class _RadarChartPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    emptyLabel.paint(
+    centerLabel.paint(
       canvas,
       Offset(
-        center.dx - emptyLabel.width / 2,
-        center.dy - emptyLabel.height / 2,
+        center.dx - centerLabel.width / 2,
+        center.dy - centerLabel.height / 2,
       ),
     );
 
@@ -1125,6 +1268,8 @@ class _RadarChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _RadarChartPainter oldDelegate) =>
       oldDelegate.metrics != metrics ||
+      oldDelegate.accuracyPercentage != accuracyPercentage ||
+      oldDelegate.retentionPercentage != retentionPercentage ||
       oldDelegate.gridColor != gridColor ||
       oldDelegate.accentColor != accentColor ||
       oldDelegate.labelColor != labelColor;

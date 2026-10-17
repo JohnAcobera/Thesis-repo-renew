@@ -105,6 +105,14 @@ class QuizActivity {
 
   int get totalQuestions => questions.length;
 
+  double? get retentionPercentage {
+    if (attempts.length < 2) return null;
+
+    final latestAttempts = List<QuizScore>.of(attempts)
+      ..sort((first, second) => second.createdAt.compareTo(first.createdAt));
+    return (latestAttempts[0].percentage + latestAttempts[1].percentage) / 2;
+  }
+
   int get highestPercentage => attempts.fold(0, (highest, attempt) {
     final percentage = (attempt.score / attempt.totalQuestions * 100).round();
     return percentage > highest ? percentage : highest;
@@ -138,6 +146,17 @@ class QuizActivity {
       maxAttempts: (json['max_attempts'] as num?)?.toInt(),
     );
   }
+}
+
+double? averageQuizRetentionPercentage(Iterable<QuizActivity> quizzes) {
+  final quizAverages = quizzes
+      .map((quiz) => quiz.retentionPercentage)
+      .whereType<double>()
+      .toList(growable: false);
+  if (quizAverages.isEmpty) return null;
+
+  return quizAverages.reduce((sum, average) => sum + average) /
+      quizAverages.length;
 }
 
 class ClassroomActivity {
@@ -224,6 +243,8 @@ class QuizScore {
   final int totalQuestions;
   final DateTime createdAt;
   final String? classroomName;
+
+  double get percentage => score / totalQuestions * 100;
 
   factory QuizScore.fromJson(Map<String, dynamic> json) => QuizScore(
     score: (json['score'] as num).toInt(),
@@ -505,6 +526,34 @@ class QuizService {
       throw const QuizServiceException(
         'Recent quiz activity could not be read.',
       );
+    }
+  }
+
+  Future<List<QuizScore>> recentQuizScores() async {
+    final token = await _requireSessionToken();
+    try {
+      final response = await _client.rpc<List<dynamic>>(
+        'list_recent_quiz_attempts',
+        params: {'p_session_token': token},
+      );
+      return response
+          .map(
+            (attempt) =>
+                QuizScore.fromJson(Map<String, dynamic>.from(attempt as Map)),
+          )
+          .toList(growable: false);
+    } on PostgrestException catch (error) {
+      throw QuizServiceException(
+        _databaseMessage(
+          error,
+          failureMessage:
+              'Your quiz scores could not be loaded. Please try again.',
+        ),
+      );
+    } on FormatException {
+      throw const QuizServiceException('Quiz scores could not be read.');
+    } on TypeError {
+      throw const QuizServiceException('Quiz scores could not be read.');
     }
   }
 

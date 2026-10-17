@@ -115,6 +115,43 @@ void main() {
     });
   });
 
+  test('QuizScore percentage is based on score over total questions', () {
+    final score = QuizScore(
+      score: 3,
+      totalQuestions: 10,
+      createdAt: DateTime.utc(2026, 10, 16),
+    );
+
+    expect(score.percentage, 30);
+  });
+
+  test('quiz retention averages each quiz latest two attempt percentages', () {
+    final now = DateTime.utc(2026, 10, 16);
+    QuizScore score(int points, int daysAgo) => QuizScore(
+      score: points,
+      totalQuestions: 10,
+      createdAt: now.subtract(Duration(days: daysAgo)),
+    );
+    QuizActivity quiz(String id, List<QuizScore> attempts) => QuizActivity(
+      id: id,
+      title: id,
+      sourceFile: '$id.pdf',
+      createdAt: now,
+      questions: const [],
+      attempts: attempts,
+    );
+
+    final quizzes = [
+      quiz('first', [score(0, 3), score(2, 2), score(8, 1)]),
+      quiz('second', [score(5, 2), score(7, 1)]),
+      quiz('not-retained', [score(10, 1)]),
+    ];
+
+    expect(quizzes.first.retentionPercentage, 50);
+    expect(averageQuizRetentionPercentage(quizzes), 55);
+    expect(averageQuizRetentionPercentage([quizzes.last]), isNull);
+  });
+
   test('ClassroomActivity parses its schedule and availability', () {
     final now = DateTime.now().toUtc();
     final activity = ClassroomActivity.fromJson({
