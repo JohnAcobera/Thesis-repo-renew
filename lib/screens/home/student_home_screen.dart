@@ -1205,8 +1205,6 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                               children: [
                                 Text(
                                   activity.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: Color(0xFF3B2419),
                                     fontWeight: FontWeight.w700,
@@ -1215,7 +1213,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                                 const SizedBox(height: 3),
                                 Text(
                                   '${activity.sourceFile} · ${_formatActivityDate(activity.createdAt)}',
-                                  maxLines: 1,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: Color(0xFF725F53),
@@ -1235,15 +1233,15 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                                     ),
                                   ),
                                 ],
+                                const SizedBox(height: 3),
+                                Text(
+                                  '${activity.highestPercentage}% · ${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
+                                  style: const TextStyle(
+                                    color: Color(0xFFF4773C),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${activity.highestPercentage}% · ${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
-                            style: const TextStyle(
-                              color: Color(0xFFF4773C),
-                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ],
