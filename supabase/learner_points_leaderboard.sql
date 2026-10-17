@@ -52,7 +52,9 @@ begin
     group by student.id, student.full_name
   )
   select
-    dense_rank() over (order by totals.points desc),
+    row_number() over (
+      order by totals.points desc, totals.full_name, totals.id
+    ),
     totals.id,
     totals.full_name,
     totals.points

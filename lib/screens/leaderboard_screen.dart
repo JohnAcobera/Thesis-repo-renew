@@ -265,45 +265,72 @@ class _LeaderboardRow extends StatelessWidget {
   final WeeklyLeaderboardEntry entry;
 
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 10),
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFF8EE),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: _border),
-    ),
-    child: Row(
-      children: [
-        SizedBox(
-          width: 42,
-          child: Text(
-            '#${entry.rank}',
-            style: const TextStyle(
-              color: _primary,
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
+  Widget build(BuildContext context) {
+    final podiumStyle = switch (entry.rank) {
+      1 => (
+        color: const Color(0xFFFFC107),
+        fill: const Color(0xFFFFF3C4),
+        borderWidth: 5.0,
+      ),
+      2 => (
+        color: const Color(0xFF9EA7B3),
+        fill: const Color(0xFFF0F2F5),
+        borderWidth: 4.0,
+      ),
+      3 => (
+        color: const Color(0xFFB76524),
+        fill: const Color(0xFFFFE8D2),
+        borderWidth: 3.0,
+      ),
+      _ => (color: _border, fill: const Color(0xFFFFF8EE), borderWidth: 1.0),
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: podiumStyle.fill,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: podiumStyle.color,
+          width: podiumStyle.borderWidth,
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 42,
+            child: Text(
+              '#${entry.rank}',
+              style: const TextStyle(
+                color: _primary,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: Text(
-            entry.fullName,
+          Expanded(
+            child: Text(
+              entry.fullName,
+              style: const TextStyle(
+                color: _heading,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const Icon(Icons.diamond_outlined, size: 18, color: _primary),
+          const SizedBox(width: 6),
+          Text(
+            '${_formatPoints(entry.points)} LP',
             style: const TextStyle(
               color: _heading,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
             ),
           ),
-        ),
-        const Icon(Icons.diamond_outlined, size: 18, color: _primary),
-        const SizedBox(width: 6),
-        Text(
-          '${_formatPoints(entry.points)} LP',
-          style: const TextStyle(color: _heading, fontWeight: FontWeight.w800),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 String _formatPoints(int points) {

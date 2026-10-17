@@ -84,6 +84,38 @@ void main() {
     expect(find.text('Student rankings'), findsOneWidget);
     expect(find.text('Alex Student'), findsOneWidget);
     expect(find.text('1,250 LP'), findsOneWidget);
+    BorderSide rowBorder(String studentName) {
+      final row = tester.widget<Container>(
+        find
+            .ancestor(
+              of: find.text(studentName),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      return (row.decoration! as BoxDecoration).border!.top;
+    }
+
+    expect(
+      rowBorder('Alex Student'),
+      const BorderSide(color: Color(0xFFFFC107), width: 5),
+    );
+    expect(
+      rowBorder('Blair Student'),
+      const BorderSide(color: Color(0xFF9EA7B3), width: 4),
+    );
+    expect(
+      rowBorder('Casey Student'),
+      const BorderSide(color: Color(0xFFB76524), width: 3),
+    );
+    expect(find.text('#1'), findsOneWidget);
+    expect(find.text('#2'), findsOneWidget);
+    expect(find.text('#3'), findsOneWidget);
+    expect(find.text('#4'), findsOneWidget);
+    expect(
+      rowBorder('Drew Student'),
+      const BorderSide(color: Color(0xFFE8D7C2), width: 1),
+    );
     expect(find.text('Weekly activity'), findsNothing);
     await tester.tap(find.byTooltip('Select leaderboard week'));
     await tester.pumpAndSettle();
@@ -614,6 +646,24 @@ class _FakeLeaderboardRepository implements LeaderboardRepository {
         userId: 2,
         fullName: 'Alex Student',
         points: 1250,
+      ),
+      WeeklyLeaderboardEntry(
+        rank: 2,
+        userId: 3,
+        fullName: 'Blair Student',
+        points: 1100,
+      ),
+      WeeklyLeaderboardEntry(
+        rank: 3,
+        userId: 4,
+        fullName: 'Casey Student',
+        points: 1000,
+      ),
+      WeeklyLeaderboardEntry(
+        rank: 4,
+        userId: 5,
+        fullName: 'Drew Student',
+        points: 900,
       ),
     ];
   }
