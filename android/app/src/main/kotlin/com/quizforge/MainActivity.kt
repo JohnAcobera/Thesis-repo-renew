@@ -1,4 +1,4 @@
-package com.example.thesis_repo_renew
+package com.quizforge
 
 import io.flutter.embedding.android.FlutterActivity
 
