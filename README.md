@@ -53,6 +53,9 @@ Run `supabase/learning_inventory.sql` in the Supabase SQL Editor to create the
 separate inventory tables and custom-session RPCs. This migration does not
 alter existing tables. Student-generated quizzes are listed from existing
 saved-quiz data; flashcards and matching activities use the new inventory.
+Run `supabase/learning_inventory_favorites.sql` as well to enable persisted
+favorites for personal inventory activities. Inventory also supports title
+search and groups results under quizzes, flashcards, and matching games.
 
 Deploy the Edge Functions with the Supabase CLI:
 

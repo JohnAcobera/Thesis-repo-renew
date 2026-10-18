@@ -4,6 +4,9 @@ import 'auth_service.dart';
 
 enum LearningActivityType { flashcards, matching }
 
+String inventoryFavoriteKey(String itemType, String itemId) =>
+    '$itemType:$itemId';
+
 class Flashcard {
   const Flashcard({
     required this.question,
@@ -166,6 +169,70 @@ class LearningModeService {
 
   final SupabaseClient _client;
   final AuthService _authService;
+
+  Future<Set<String>> inventoryFavorites() async {
+    final token = await _requireSessionToken();
+    try {
+      final response = await _client.rpc<List<dynamic>>(
+        'list_learning_inventory_favorites',
+        params: {'p_session_token': token},
+      );
+      return response.map((item) {
+        final favorite = Map<String, dynamic>.from(item as Map);
+        final type = favorite['item_type'];
+        final id = favorite['item_id'];
+        if (type is! String || id is! String) {
+          throw const FormatException('A saved favorite was invalid.');
+        }
+        return inventoryFavoriteKey(type, id);
+      }).toSet();
+    } on PostgrestException catch (error) {
+      throw LearningModeServiceException(
+        _sessionAwareMessage(error, 'Your favorites could not be loaded.'),
+      );
+    } on FormatException {
+      throw const LearningModeServiceException(
+        'Your favorites could not be read.',
+      );
+    } on TypeError {
+      throw const LearningModeServiceException(
+        'Your favorites could not be read.',
+      );
+    }
+  }
+
+  Future<void> setInventoryFavorite({
+    required String itemType,
+    required String itemId,
+    required bool isFavorite,
+  }) async {
+    if (!const {'quiz', 'flashcards', 'matching'}.contains(itemType)) {
+      throw const LearningModeServiceException(
+        'This activity cannot be favorited.',
+      );
+    }
+    final token = await _requireSessionToken();
+    try {
+      await _client.rpc<void>(
+        'set_learning_inventory_favorite',
+        params: {
+          'p_session_token': token,
+          'p_item_type': itemType,
+          'p_item_id': itemId,
+          'p_is_favorite': isFavorite,
+        },
+      );
+    } on PostgrestException catch (error) {
+      throw LearningModeServiceException(
+        _sessionAwareMessage(
+          error,
+          isFavorite
+              ? 'This activity could not be added to favorites.'
+              : 'This activity could not be removed from favorites.',
+        ),
+      );
+    }
+  }
 
   Future<List<Flashcard>> generateFlashcards({
     required int itemCount,

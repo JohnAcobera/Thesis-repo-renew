@@ -2,6 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/services/learning_mode_service.dart';
 
 void main() {
+  test('favorite keys distinguish activities by type and id', () {
+    expect(inventoryFavoriteKey('quiz', 'activity-id'), 'quiz:activity-id');
+    expect(
+      inventoryFavoriteKey('flashcards', 'activity-id'),
+      'flashcards:activity-id',
+    );
+  });
+
   group('Flashcard.fromJson', () {
     test('reads question, answer, and explanation', () {
       final card = Flashcard.fromJson({

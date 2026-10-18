@@ -24,7 +24,7 @@ extension on _InventorySort {
   };
 }
 
-enum _InventoryFilter { all, quiz, flashcards, matching }
+enum _InventoryFilter { all, favorites, quiz, flashcards, matching }
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({
@@ -41,9 +41,13 @@ class InventoryScreen extends StatefulWidget {
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
-  late Future<List<_InventoryRecord>> _inventory;
+  late Future<_InventoryData> _inventory;
   _InventorySort _sort = _InventorySort.recent;
   _InventoryFilter _filter = _InventoryFilter.all;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  Set<String>? _favoriteOverrides;
+  final Set<String> _pendingFavorites = {};
 
   @override
   void initState() {
@@ -51,22 +55,74 @@ class _InventoryScreenState extends State<InventoryScreen> {
     _inventory = _loadInventory();
   }
 
-  Future<List<_InventoryRecord>> _loadInventory() async {
+  Future<_InventoryData> _loadInventory() async {
     final results = await Future.wait<Object>([
       QuizService().recentAttempts(),
       LearningModeService().inventoryItems(),
+      LearningModeService().inventoryFavorites(),
     ]);
     final quizzes = results[0] as List<QuizActivity>;
     final learningItems = results[1] as List<LearningInventoryItem>;
-    return [
-      for (final quiz in quizzes)
-        if (quiz.classroomActivityId == null) _InventoryRecord.quiz(quiz),
-      for (final item in learningItems) _InventoryRecord.learning(item),
-    ];
+    return _InventoryData(
+      records: [
+        for (final quiz in quizzes)
+          if (quiz.classroomActivityId == null) _InventoryRecord.quiz(quiz),
+        for (final item in learningItems) _InventoryRecord.learning(item),
+      ],
+      favoriteKeys: results[2] as Set<String>,
+    );
   }
 
   void _reload() {
-    setState(() => _inventory = _loadInventory());
+    setState(() {
+      _favoriteOverrides = null;
+      _inventory = _loadInventory();
+    });
+  }
+
+  Future<void> _toggleFavorite(
+    _InventoryRecord record,
+    Set<String> favoriteKeys,
+  ) async {
+    final key = record.favoriteKey;
+    final makeFavorite = !favoriteKeys.contains(key);
+    setState(() => _pendingFavorites.add(key));
+    try {
+      await LearningModeService().setInventoryFavorite(
+        itemType: record.type,
+        itemId: record.id,
+        isFavorite: makeFavorite,
+      );
+      if (!mounted) return;
+      setState(() {
+        final updated = Set<String>.of(_favoriteOverrides ?? favoriteKeys);
+        if (makeFavorite) {
+          updated.add(key);
+        } else {
+          updated.remove(key);
+        }
+        _favoriteOverrides = updated;
+        _pendingFavorites.remove(key);
+      });
+    } on LearningModeServiceException catch (error) {
+      if (!mounted) return;
+      setState(() => _pendingFavorites.remove(key));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() => _pendingFavorites.remove(key));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update favorite: $error')),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -74,7 +130,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     child: RefreshIndicator(
       color: _inventoryPrimary,
       onRefresh: () async => _reload(),
-      child: FutureBuilder<List<_InventoryRecord>>(
+      child: FutureBuilder<_InventoryData>(
         future: _inventory,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -95,7 +151,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
             );
           }
 
-          final records = _filteredAndSorted(snapshot.data ?? const []);
+          final inventory = snapshot.data!;
+          final favoriteKeys = _favoriteOverrides ?? inventory.favoriteKeys;
+          final records = _filteredAndSorted(
+            inventory.records,
+            favoriteKeys: favoriteKeys,
+          );
+          final groups = _groupRecords(records);
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(24),
@@ -123,17 +185,25 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       _InventoryControls(
                         filter: _filter,
                         sort: _sort,
+                        searchController: _searchController,
+                        onSearchChanged: (query) =>
+                            setState(() => _searchQuery = query.trim()),
                         onFilterChanged: (filter) =>
                             setState(() => _filter = filter),
                         onSortChanged: (sort) => setState(() => _sort = sort),
                       ),
                       const SizedBox(height: 18),
                       if (records.isEmpty)
-                        const _InventoryMessage(
-                          icon: Icons.auto_stories_outlined,
-                          title: 'Your inventory is ready',
-                          detail:
-                              'Complete a generated activity and it will be saved here for your next study session.',
+                        _InventoryMessage(
+                          icon: inventory.records.isEmpty
+                              ? Icons.auto_stories_outlined
+                              : Icons.search_off_rounded,
+                          title: inventory.records.isEmpty
+                              ? 'Your inventory is ready'
+                              : 'No activities found',
+                          detail: inventory.records.isEmpty
+                              ? 'Complete a generated activity and it will be saved here for your next study session.'
+                              : 'Try a different title or activity filter.',
                         )
                       else ...[
                         Text(
@@ -145,13 +215,37 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        for (final record in records) ...[
-                          _InventoryTile(
-                            record: record,
-                            onTap: () => _openActivity(record),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
+                        for (final type in const [
+                          'quiz',
+                          'flashcards',
+                          'matching',
+                        ])
+                          if (groups[type]?.isNotEmpty ?? false) ...[
+                            _InventoryGroupHeading(
+                              title: switch (type) {
+                                'quiz' => 'Quizzes',
+                                'flashcards' => 'Flashcards',
+                                _ => 'Matching games',
+                              },
+                              count: groups[type]!.length,
+                            ),
+                            for (final record in groups[type]!) ...[
+                              _InventoryTile(
+                                record: record,
+                                isFavorite: favoriteKeys.contains(
+                                  record.favoriteKey,
+                                ),
+                                isFavoritePending: _pendingFavorites.contains(
+                                  record.favoriteKey,
+                                ),
+                                onFavorite: () =>
+                                    _toggleFavorite(record, favoriteKeys),
+                                onTap: () => _openActivity(record),
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                            const SizedBox(height: 14),
+                          ],
                       ],
                     ],
                   ),
@@ -164,10 +258,18 @@ class _InventoryScreenState extends State<InventoryScreen> {
     ),
   );
 
-  List<_InventoryRecord> _filteredAndSorted(List<_InventoryRecord> source) {
+  List<_InventoryRecord> _filteredAndSorted(
+    List<_InventoryRecord> source, {
+    required Set<String> favoriteKeys,
+  }) {
     final records = source.where((record) {
+      if (_searchQuery.isNotEmpty &&
+          !record.title.toLowerCase().contains(_searchQuery.toLowerCase())) {
+        return false;
+      }
       return switch (_filter) {
         _InventoryFilter.all => true,
+        _InventoryFilter.favorites => favoriteKeys.contains(record.favoriteKey),
         _InventoryFilter.quiz => record.isQuiz,
         _InventoryFilter.flashcards => record.type == 'flashcards',
         _InventoryFilter.matching => record.type == 'matching',
@@ -188,6 +290,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
       };
     });
     return records;
+  }
+
+  Map<String, List<_InventoryRecord>> _groupRecords(
+    List<_InventoryRecord> records,
+  ) {
+    final groups = <String, List<_InventoryRecord>>{};
+    for (final record in records) {
+      groups.putIfAbsent(record.type, () => []).add(record);
+    }
+    return groups;
   }
 
   Future<void> _openActivity(_InventoryRecord record) async {
@@ -257,6 +369,8 @@ class _InventoryRecord {
   final QuizActivity? quiz;
   final LearningInventoryItem? learning;
 
+  String get id => quiz?.id ?? learning!.id;
+  String get favoriteKey => inventoryFavoriteKey(type, id);
   bool get isQuiz => type == 'quiz';
   String get title => quiz?.title ?? learning!.title;
   String get sourceFile => quiz?.sourceFile ?? learning!.sourceFile;
@@ -279,16 +393,27 @@ class _InventoryRecord {
   };
 }
 
+class _InventoryData {
+  const _InventoryData({required this.records, required this.favoriteKeys});
+
+  final List<_InventoryRecord> records;
+  final Set<String> favoriteKeys;
+}
+
 class _InventoryControls extends StatelessWidget {
   const _InventoryControls({
     required this.filter,
     required this.sort,
+    required this.searchController,
+    required this.onSearchChanged,
     required this.onFilterChanged,
     required this.onSortChanged,
   });
 
   final _InventoryFilter filter;
   final _InventorySort sort;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
   final ValueChanged<_InventoryFilter> onFilterChanged;
   final ValueChanged<_InventorySort> onSortChanged;
 
@@ -296,6 +421,28 @@ class _InventoryControls extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
+      TextField(
+        controller: searchController,
+        onChanged: onSearchChanged,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Search activity titles',
+          prefixIcon: const Icon(Icons.search_rounded),
+          suffixIcon: searchController.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  onPressed: () {
+                    searchController.clear();
+                    onSearchChanged('');
+                  },
+                  icon: const Icon(Icons.close_rounded),
+                ),
+          filled: true,
+          fillColor: Colors.white,
+        ),
+      ),
+      const SizedBox(height: 12),
       SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -304,6 +451,7 @@ class _InventoryControls extends StatelessWidget {
                 final selected = filter == value;
                 final label = switch (value) {
                   _InventoryFilter.all => 'All',
+                  _InventoryFilter.favorites => 'Favorites',
                   _InventoryFilter.quiz => 'Quizzes',
                   _InventoryFilter.flashcards => 'Flashcards',
                   _InventoryFilter.matching => 'Matching',
@@ -360,9 +508,18 @@ class _InventoryControls extends StatelessWidget {
 }
 
 class _InventoryTile extends StatelessWidget {
-  const _InventoryTile({required this.record, required this.onTap});
+  const _InventoryTile({
+    required this.record,
+    required this.isFavorite,
+    required this.isFavoritePending,
+    required this.onFavorite,
+    required this.onTap,
+  });
 
   final _InventoryRecord record;
+  final bool isFavorite;
+  final bool isFavoritePending;
+  final VoidCallback onFavorite;
   final VoidCallback onTap;
 
   @override
@@ -433,7 +590,24 @@ class _InventoryTile extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            IconButton(
+              tooltip: isFavorite
+                  ? 'Remove from favorites'
+                  : 'Add to favorites',
+              onPressed: isFavoritePending ? null : onFavorite,
+              icon: isFavoritePending
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      isFavorite
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: isFavorite ? _inventoryPrimary : _inventorySubtle,
+                    ),
+            ),
             const Icon(Icons.chevron_right_rounded, color: _inventorySubtle),
           ],
         ),
@@ -445,6 +619,47 @@ class _InventoryTile extends StatelessWidget {
     final local = date.toLocal();
     return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
   }
+}
+
+class _InventoryGroupHeading extends StatelessWidget {
+  const _InventoryGroupHeading({required this.title, required this.count});
+
+  final String title;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: _inventoryHeading,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: _inventoryFill,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              color: _inventoryPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _TypeBadge extends StatelessWidget {
@@ -513,7 +728,3 @@ class _InventoryMessage extends StatelessWidget {
     ),
   );
 }
-
-String _displayRole(String role) => role.isEmpty
-    ? role
-    : '${role[0].toUpperCase()}${role.substring(1).toLowerCase()}';
