@@ -265,6 +265,56 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('instructor can create an activity from classroom activities', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    var createActivityPressed = false;
+    final repository = _FakeClassroomRepository()
+      ..classrooms.add(
+        ClassroomModel(
+          id: 'test-id',
+          name: 'Grade 11 - STEM A',
+          subject: 'General Biology 1',
+          code: 'ABCD2345',
+          createdAt: DateTime.utc(2026),
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ClassroomScreen(
+            user: const UserModel(
+              id: 1,
+              fullName: 'Instructor Name',
+              email: 'instructor@example.com',
+              role: 'instructor',
+            ),
+            classroomService: repository,
+            onCreateActivity: () => createActivityPressed = true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grade 11 - STEM A'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Post Activities'));
+    expect(find.text('Create activity'), findsOneWidget);
+    expect(
+      tester.getCenter(find.text('Create activity')).dx,
+      greaterThan(tester.getCenter(find.byTooltip('Refresh activities')).dx),
+    );
+
+    await tester.tap(find.text('Create activity'));
+    expect(createActivityPressed, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('students can open an available classroom activity', (
     tester,
   ) async {

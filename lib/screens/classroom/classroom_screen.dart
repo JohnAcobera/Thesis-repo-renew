@@ -60,12 +60,14 @@ class ClassroomScreen extends StatefulWidget {
     required this.user,
     this.classroomService,
     this.initialClassroomId,
+    this.onCreateActivity,
     super.key,
   });
 
   final UserModel user;
   final ClassroomRepository? classroomService;
   final String? initialClassroomId;
+  final VoidCallback? onCreateActivity;
 
   @override
   State<ClassroomScreen> createState() => _ClassroomScreenState();
@@ -289,6 +291,7 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
         onBack: () => setState(() => _selectedClassroom = null),
         onDelete: _deleteClassroom,
         isDeleting: _isDeletingClassroom,
+        onCreateActivity: widget.onCreateActivity,
       );
     }
 
@@ -910,6 +913,7 @@ class ClassroomDetailScreen extends StatelessWidget {
     required this.onBack,
     required this.onDelete,
     required this.isDeleting,
+    this.onCreateActivity,
     super.key,
   });
 
@@ -919,6 +923,7 @@ class ClassroomDetailScreen extends StatelessWidget {
   final VoidCallback onBack;
   final Future<void> Function(ClassroomModel) onDelete;
   final bool isDeleting;
+  final VoidCallback? onCreateActivity;
 
   Future<void> _copyCode(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: classroom.code));
@@ -1113,6 +1118,7 @@ class ClassroomDetailScreen extends StatelessWidget {
               classroom: classroom,
               user: user,
               classroomService: classroomService,
+              onCreateActivity: onCreateActivity,
             ),
           ],
         ),
@@ -1484,11 +1490,13 @@ class _PostActivitiesSection extends StatefulWidget {
     required this.classroom,
     required this.user,
     required this.classroomService,
+    this.onCreateActivity,
   });
 
   final ClassroomModel classroom;
   final UserModel user;
   final ClassroomRepository classroomService;
+  final VoidCallback? onCreateActivity;
 
   @override
   State<_PostActivitiesSection> createState() => _PostActivitiesSectionState();
@@ -1609,6 +1617,19 @@ class _PostActivitiesSectionState extends State<_PostActivitiesSection> {
               onPressed: _retry,
               icon: const Icon(Icons.refresh_rounded, color: _primary),
             ),
+            if (widget.user.role.toLowerCase() == 'instructor' &&
+                widget.onCreateActivity != null)
+              FilledButton.icon(
+                onPressed: widget.onCreateActivity,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Create activity'),
+              ),
           ],
         ),
         const SizedBox(height: 4),

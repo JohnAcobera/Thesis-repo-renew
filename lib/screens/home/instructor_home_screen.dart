@@ -150,6 +150,7 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
                     ? ClassroomScreen(
                         user: user,
                         classroomService: widget.classroomService,
+                        onCreateActivity: _openCreateActivity,
                       )
                     : _InstructorDashboard(
                         classroomService:

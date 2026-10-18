@@ -143,12 +143,22 @@ void main() {
         ),
         findsOneWidget,
       );
+      await tester.ensureVisible(find.text('Create activity'));
+      await tester.tap(find.text('Create activity'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Turn your notes into a focused study session'),
+        findsOneWidget,
+      );
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await tester.pumpAndSettle();
       expect(find.byTooltip('Open menu'), findsOneWidget);
       await tester.tap(find.byTooltip('Open menu'));
       await tester.pumpAndSettle();
       expect(find.text('Instructor Name'), findsNWidgets(profileDetailsCount));
       await tester.tap(find.byTooltip('Close menu'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Your classrooms'));
       await tester.tap(find.text('Your classrooms'));
       await tester.pumpAndSettle();
       expect(find.text('Your classrooms'), findsOneWidget);
