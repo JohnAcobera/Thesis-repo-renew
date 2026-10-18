@@ -724,11 +724,7 @@ class _LearnerPointsBadge extends StatelessWidget {
           },
         ),
         SizedBox(width: 4),
-        Tooltip(
-          message:
-              'Learner Points - earn LP through daily login and activities.',
-          child: Icon(Icons.info_outline, size: 18, color: Color(0xFF765C4F)),
-        ),
+        const _LearnerPointsTooltip(),
       ],
     ),
   );
@@ -746,6 +742,89 @@ class _LearnerPointsBadge extends StatelessWidget {
     }
     return '${isNegative ? '-' : ''}$formattedDigits';
   }
+}
+
+class _LearnerPointsTooltip extends StatelessWidget {
+  const _LearnerPointsTooltip();
+
+  static const _headingStyle = TextStyle(
+    color: Color(0xFFFFC18F),
+    fontSize: 11,
+    fontWeight: FontWeight.w800,
+    letterSpacing: 0.8,
+  );
+
+  static const _bodyStyle = TextStyle(
+    color: Color(0xFFFFF8F1),
+    fontSize: 12,
+    height: 1.4,
+  );
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    triggerMode: TooltipTriggerMode.tap,
+    preferBelow: false,
+    showDuration: const Duration(seconds: 12),
+    constraints: const BoxConstraints(maxWidth: 310),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    decoration: BoxDecoration(
+      color: const Color(0xFF3B2419),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFF4773C).withValues(alpha: 0.6)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x33000000),
+          blurRadius: 18,
+          offset: Offset(0, 8),
+        ),
+      ],
+    ),
+    richMessage: const TextSpan(
+      children: [
+        TextSpan(text: 'HOW TO EARN LEARNER POINTS\n\n', style: _headingStyle),
+        TextSpan(text: 'DAILY LOGIN STREAK\n', style: _headingStyle),
+        TextSpan(
+          text:
+              'Earn 100 LP on day 1, increasing by 100 LP per consecutive day, up to 700 LP per day. Missing a day resets the streak.\n\n',
+          style: _bodyStyle,
+        ),
+        TextSpan(text: 'QUIZ ATTEMPTS\n', style: _headingStyle),
+        TextSpan(
+          text:
+              'Every attempt earns LP equal to your rounded score percentage. The first attempt on a quiz adds 50 LP; the second adds 25 LP.\n\n',
+          style: _bodyStyle,
+        ),
+        TextSpan(text: 'PERFECT QUIZ\n', style: _headingStyle),
+        TextSpan(
+          text:
+              'Earn a one-time 150 LP bonus the first time you get every question correct on a quiz.\n\n',
+          style: _bodyStyle,
+        ),
+        TextSpan(
+          text: 'Quiz score and attempt bonuses can be earned together.',
+          style: _bodyStyle,
+        ),
+      ],
+    ),
+    child: Semantics(
+      button: true,
+      label: 'Show how to earn Learner Points',
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF1E5),
+          shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFFF2D8C2)),
+        ),
+        child: const Icon(
+          Icons.info_outline_rounded,
+          size: 19,
+          color: Color(0xFFF4773C),
+        ),
+      ),
+    ),
+  );
 }
 
 class _WeeklyRankingLabel extends StatelessWidget {

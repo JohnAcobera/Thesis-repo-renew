@@ -493,10 +493,23 @@ void main() {
       expect(find.text('0'), findsOneWidget);
       expect(find.text('Weekly ranking #2'), findsOneWidget);
       expect(find.byIcon(Icons.diamond_outlined), findsOneWidget);
-      expect(
-        find.byTooltip(
-          'Learner Points - earn LP through daily login and activities.',
+      final learnerPointsTooltip = tester.widget<Tooltip>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.richMessage?.toPlainText().contains(
+                    'HOW TO EARN LEARNER POINTS',
+                  ) ==
+                  true,
         ),
+      );
+      final tooltipText = learnerPointsTooltip.richMessage!.toPlainText();
+      expect(tooltipText, contains('up to 700 LP per day'));
+      expect(tooltipText, contains('first attempt on a quiz adds 50 LP'));
+      expect(tooltipText, contains('the second adds 25 LP'));
+      expect(tooltipText, contains('one-time 150 LP bonus'));
+      expect(
+        find.bySemanticsLabel('Show how to earn Learner Points'),
         findsOneWidget,
       );
       expect(
