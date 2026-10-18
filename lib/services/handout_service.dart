@@ -111,11 +111,14 @@ class StudyHandout {
     if (terms.length < 4 || terms.length > 15) {
       throw const FormatException('The handout terms were invalid.');
     }
-    final rawTakeaways = _readList(handout['keyTakeaways'], 'key takeaways');
+    final takeawaysValue = handout['keyTakeaways'];
+    final rawTakeaways = takeawaysValue == null
+        ? const <dynamic>[]
+        : _readList(takeawaysValue, 'key takeaways');
     final keyTakeaways = rawTakeaways
         .map((item) => _readText(item, 'key takeaway', 300))
         .toList(growable: false);
-    if (keyTakeaways.length < 2 || keyTakeaways.length > 8) {
+    if (keyTakeaways.length > 8) {
       throw const FormatException('The handout key takeaways were invalid.');
     }
 
@@ -242,7 +245,18 @@ HandoutSubsection _readSubsection(Object? value) {
   final items = rawItems
       .map((item) => _readText(item, 'item', 400))
       .toList(growable: false);
-  if (items.length < 2 || items.length > 8) {
+  if (items.length > 5) {
+    throw const FormatException('A handout subsection was invalid.');
+  }
+
+  final heading = _readText(json['heading'], 'subsection heading', 80);
+  final explanation = _readText(
+    json['explanation'],
+    'subsection explanation',
+    600,
+    allowEmpty: true,
+  );
+  if (items.isEmpty && explanation.isEmpty) {
     throw const FormatException('A handout subsection was invalid.');
   }
 
@@ -252,13 +266,8 @@ HandoutSubsection _readSubsection(Object? value) {
     _ => throw const FormatException('A handout list style was invalid.'),
   };
   return HandoutSubsection(
-    heading: _readText(json['heading'], 'subsection heading', 100),
-    explanation: _readText(
-      json['explanation'],
-      'subsection explanation',
-      700,
-      allowEmpty: true,
-    ),
+    heading: heading,
+    explanation: explanation,
     style: style,
     items: items,
   );

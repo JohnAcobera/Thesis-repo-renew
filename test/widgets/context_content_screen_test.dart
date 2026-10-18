@@ -63,10 +63,10 @@ void main() {
   testWidgets('color palette updates the preview text color', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: ContextContentScreen()));
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Palette').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Green'));
-    await tester.pumpAndSettle();
+    expect(find.text('Start with an idea'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    final paletteButton = find.widgetWithText(OutlinedButton, 'Palette').first;
+    await _selectColor(tester, paletteButton, 'Green');
 
     final previewTitle = tester.widget<Text>(find.text('Preview'));
     expect(previewTitle.style?.color, const Color(0xFF388343));
@@ -83,10 +83,8 @@ void main() {
       ),
     );
     await tester.enterText(find.byType(TextField), 'The water cycle');
-    await tester.tap(find.text('Palette').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Green'));
-    await tester.pumpAndSettle();
+    final titlePalette = find.widgetWithText(OutlinedButton, 'Palette').first;
+    await _selectColor(tester, titlePalette, 'Green');
     final generateButton = find.text('Generate content');
     await tester.ensureVisible(generateButton);
     await tester.pumpAndSettle();
@@ -102,12 +100,7 @@ void main() {
     expect(find.text('Solar energy drives the cycle.'), findsOneWidget);
 
     final termsPalette = find.widgetWithText(OutlinedButton, 'Palette').at(1);
-    await tester.ensureVisible(termsPalette);
-    await tester.pumpAndSettle();
-    await tester.tap(termsPalette);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Red'));
-    await tester.pumpAndSettle();
+    await _selectColor(tester, termsPalette, 'Red');
     expect(
       tester.widget<Text>(find.text('Evaporation')).style?.color,
       const Color(0xFFB54040),
@@ -121,9 +114,73 @@ void main() {
     expect(exporter.exportedHandout?.title, 'Water Cycle');
     expect(exporter.exportedHandout?.style.termsColor, const Color(0xFFB54040));
   });
+
+  testWidgets('long handouts scroll in preview while download stays visible', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(400, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ContextContentScreen(
+          generator: _FakeHandoutGenerator(longOutput: true),
+          pdfExporter: _FakeHandoutPdfExporter(),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), 'The water cycle');
+    await tester.tap(find.text('Generate content'));
+    await tester.pumpAndSettle();
+
+    final preview = find.byKey(const ValueKey('generated-handout-scroll'));
+    await tester.ensureVisible(preview);
+    await tester.pumpAndSettle();
+    final previewRect = tester.getRect(preview);
+    final downloadButton = find.text('Download PDF');
+    final downloadRect = tester.getRect(downloadButton);
+    expect(downloadRect.bottom, lessThanOrEqualTo(640));
+    expect(downloadRect.top, greaterThan(400));
+    expect(find.text('Start with an idea'), findsOneWidget);
+    expect(previewRect.height, lessThan(300));
+
+    await tester.ensureVisible(find.text('Cycle detail 40.'));
+    await tester.pumpAndSettle();
+
+    final lastDetailRect = tester.getRect(find.text('Cycle detail 40.'));
+    final scrolledPreviewRect = tester.getRect(preview);
+    expect(lastDetailRect.top, greaterThanOrEqualTo(scrolledPreviewRect.top));
+    expect(
+      lastDetailRect.bottom,
+      lessThanOrEqualTo(scrolledPreviewRect.bottom),
+    );
+    expect(tester.getRect(downloadButton), downloadRect);
+  });
+}
+
+Future<void> _selectColor(
+  WidgetTester tester,
+  Finder paletteButton,
+  String colorName,
+) async {
+  tester.widget<OutlinedButton>(paletteButton).onPressed!();
+  await tester.pumpAndSettle();
+  final swatch = tester.widget<InkWell>(
+    find.descendant(
+      of: find.byTooltip(colorName),
+      matching: find.byType(InkWell),
+    ),
+  );
+  swatch.onTap!();
+  await tester.pumpAndSettle();
 }
 
 class _FakeHandoutGenerator implements HandoutGenerator {
+  _FakeHandoutGenerator({this.longOutput = false});
+
+  final bool longOutput;
   String? context;
   HandoutStyle? style;
 
@@ -137,7 +194,7 @@ class _FakeHandoutGenerator implements HandoutGenerator {
     return StudyHandout(
       title: 'Water Cycle',
       summary: 'Water moves through Earth systems.',
-      sections: const [
+      sections: [
         HandoutSection(
           heading: 'Water movement',
           overview: 'The Sun powers the cycle.',
@@ -146,7 +203,9 @@ class _FakeHandoutGenerator implements HandoutGenerator {
               heading: 'Main stages',
               explanation: 'Heat turns liquid water into vapor.',
               style: HandoutListStyle.numbered,
-              items: ['Water evaporates.', 'Clouds form.'],
+              items: longOutput
+                  ? List.generate(40, (index) => 'Cycle detail ${index + 1}.')
+                  : ['Water evaporates.', 'Clouds form.'],
             ),
           ],
         ),

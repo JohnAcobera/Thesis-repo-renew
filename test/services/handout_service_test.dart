@@ -152,6 +152,25 @@ void main() {
     expect(() => StudyHandout.fromResponse(response), throwsFormatException);
   });
 
+  test('parses updated prose-first handouts without takeaways', () {
+    final response = _response();
+    final handout = response['handout'] as Map<String, dynamic>;
+    handout.remove('keyTakeaways');
+    final sections = handout['sections'] as List;
+    final subsections =
+        (sections.first as Map<String, dynamic>)['subsections'] as List;
+    (subsections.first as Map<String, dynamic>)['items'] = const [];
+
+    final parsed = StudyHandout.fromResponse(response);
+
+    expect(parsed.keyTakeaways, isEmpty);
+    expect(parsed.sections.first.subsections.first.items, isEmpty);
+    expect(
+      parsed.sections.first.subsections.first.explanation,
+      'Heat changes liquid water into vapor.',
+    );
+  });
+
   test('renders a PDF with the handout structure', () async {
     final response = _response();
     final sections =

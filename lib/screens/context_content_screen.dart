@@ -169,168 +169,197 @@ class _ContextContentScreenState extends State<ContextContentScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Generate study content')),
-    body: Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Start with an idea',
-                style: TextStyle(
-                  color: Color(0xFF3B2419),
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Describe what you want to learn about. The connected '
-                'generation service will use this context to create structured '
-                'terms and definitions.',
-                style: TextStyle(color: Color(0xFF725F53), height: 1.5),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _contextController,
-                minLines: 4,
-                maxLines: 6,
-                inputFormatters: [
-                  TextInputFormatter.withFunction((oldValue, newValue) {
-                    final value = _limitToServiceLength(newValue.text);
-                    if (value == newValue.text) return newValue;
-                    final cursor = newValue.selection.extentOffset
-                        .clamp(0, value.length)
-                        .toInt();
-                    return newValue.copyWith(
-                      text: value,
-                      selection: TextSelection.collapsed(offset: cursor),
-                      composing: TextRange.empty,
-                    );
-                  }),
-                ],
-                textCapitalization: TextCapitalization.sentences,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: 'Your context',
-                  hintText:
-                      'For example: Explain the water cycle for beginners',
-                  alignLabelWithHint: true,
-                  counterText: '${_contextController.text.length}/200',
-                  filled: true,
-                  fillColor: const Color(0xFFFFF8F1),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+    body: LayoutBuilder(
+      builder: (context, constraints) => Center(
+        child: SizedBox(
+          width: constraints.maxWidth.clamp(0.0, 760.0).toDouble(),
+          height: constraints.maxHeight,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Start with an idea',
+                  style: TextStyle(
+                    color: Color(0xFF3B2419),
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              _ColorSettingRow(
-                label: 'Title',
-                color: _titleColor,
-                onTap: () => _chooseColor(
-                  label: 'Title',
-                  selectedColor: _titleColor,
-                  onSelected: (color) => _updateStyle(titleColor: color),
+                const SizedBox(height: 8),
+                const Text(
+                  'Describe what you want to learn about. The connected '
+                  'generation service will use this context to create structured '
+                  'terms and definitions.',
+                  style: TextStyle(color: Color(0xFF725F53), height: 1.5),
                 ),
-              ),
-              _ColorSettingRow(
-                label: 'Terms',
-                color: _termsColor,
-                onTap: () => _chooseColor(
-                  label: 'Terms',
-                  selectedColor: _termsColor,
-                  onSelected: (color) => _updateStyle(termsColor: color),
-                ),
-              ),
-              _ColorSettingRow(
-                label: 'Definitions',
-                color: _definitionsColor,
-                onTap: () => _chooseColor(
-                  label: 'Definitions',
-                  selectedColor: _definitionsColor,
-                  onSelected: (color) => _updateStyle(definitionsColor: color),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (_handout == null)
-                Card(
-                  color: const Color(0xFFFFF8F1),
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Preview',
-                          style: TextStyle(
-                            color: _titleColor,
-                            fontSize: 21,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Example term',
-                          style: TextStyle(
-                            color: _termsColor,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'A sample definition will appear here.',
-                          style: TextStyle(color: _definitionsColor),
-                        ),
-                      ],
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _contextController,
+                  minLines: 4,
+                  maxLines: 6,
+                  inputFormatters: [
+                    TextInputFormatter.withFunction((oldValue, newValue) {
+                      final value = _limitToServiceLength(newValue.text);
+                      if (value == newValue.text) return newValue;
+                      final cursor = newValue.selection.extentOffset
+                          .clamp(0, value.length)
+                          .toInt();
+                      return newValue.copyWith(
+                        text: value,
+                        selection: TextSelection.collapsed(offset: cursor),
+                        composing: TextRange.empty,
+                      );
+                    }),
+                  ],
+                  textCapitalization: TextCapitalization.sentences,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: 'Your context',
+                    hintText:
+                        'For example: Explain the water cycle for beginners',
+                    alignLabelWithHint: true,
+                    counterText: '${_contextController.text.length}/200',
+                    filled: true,
+                    fillColor: const Color(0xFFFFF8F1),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                )
-              else
-                _GeneratedHandoutPreview(handout: _handout!),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: FilledButton.icon(
-                  onPressed: _isGenerating ? null : _generateHandout,
-                  icon: _isGenerating
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome_outlined),
-                  label: Text(
-                    _isGenerating
-                        ? 'Generating handout...'
-                        : 'Generate content',
+                ),
+                const SizedBox(height: 12),
+                _ColorSettingRow(
+                  label: 'Title',
+                  color: _titleColor,
+                  onTap: () => _chooseColor(
+                    label: 'Title',
+                    selectedColor: _titleColor,
+                    onSelected: (color) => _updateStyle(titleColor: color),
                   ),
                 ),
-              ),
-              if (_handout != null) ...[
+                _ColorSettingRow(
+                  label: 'Terms',
+                  color: _termsColor,
+                  onTap: () => _chooseColor(
+                    label: 'Terms',
+                    selectedColor: _termsColor,
+                    onSelected: (color) => _updateStyle(termsColor: color),
+                  ),
+                ),
+                _ColorSettingRow(
+                  label: 'Definitions',
+                  color: _definitionsColor,
+                  onTap: () => _chooseColor(
+                    label: 'Definitions',
+                    selectedColor: _definitionsColor,
+                    onSelected: (color) =>
+                        _updateStyle(definitionsColor: color),
+                  ),
+                ),
                 const SizedBox(height: 12),
+                if (_handout == null)
+                  Card(
+                    color: const Color(0xFFFFF8F1),
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Preview',
+                            style: TextStyle(
+                              color: _titleColor,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Example term',
+                            style: TextStyle(
+                              color: _termsColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'A sample definition will appear here.',
+                            style: TextStyle(color: _definitionsColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: (MediaQuery.sizeOf(context).height * 0.38)
+                        .clamp(160.0, 360.0)
+                        .toDouble(),
+                    child: SingleChildScrollView(
+                      key: const ValueKey('generated-handout-scroll'),
+                      child: _GeneratedHandoutPreview(handout: _handout!),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+    bottomNavigationBar: SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+        child: Align(
+          alignment: Alignment.center,
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 SizedBox(
                   width: double.infinity,
                   height: 52,
-                  child: OutlinedButton.icon(
-                    onPressed: _isExporting ? null : _exportPdf,
-                    icon: _isExporting
+                  child: FilledButton.icon(
+                    onPressed: _isGenerating ? null : _generateHandout,
+                    icon: _isGenerating
                         ? const SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.picture_as_pdf_outlined),
+                        : const Icon(Icons.auto_awesome_outlined),
                     label: Text(
-                      _isExporting ? 'Preparing PDF...' : 'Download PDF',
+                      _isGenerating
+                          ? 'Generating handout...'
+                          : 'Generate content',
                     ),
                   ),
                 ),
+                if (_handout != null) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: _isExporting ? null : _exportPdf,
+                      icon: _isExporting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.picture_as_pdf_outlined),
+                      label: Text(
+                        _isExporting ? 'Preparing PDF...' : 'Download PDF',
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -441,26 +470,28 @@ class _GeneratedHandoutPreview extends StatelessWidget {
               style: TextStyle(color: handout.style.definitionsColor),
             ),
           ],
-          const SizedBox(height: 18),
-          Text(
-            'Key takeaways',
-            style: TextStyle(
-              color: handout.style.titleColor,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          for (final takeaway in handout.keyTakeaways)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(width: 22, child: Text('•')),
-                  Expanded(child: Text(takeaway)),
-                ],
+          if (handout.keyTakeaways.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text(
+              'Key takeaways',
+              style: TextStyle(
+                color: handout.style.titleColor,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
               ),
             ),
+            for (final takeaway in handout.keyTakeaways)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(width: 22, child: Text('•')),
+                    Expanded(child: Text(takeaway)),
+                  ],
+                ),
+              ),
+          ],
         ],
       ),
     ),

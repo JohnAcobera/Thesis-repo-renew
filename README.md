@@ -70,8 +70,8 @@ supabase functions deploy pdf-generation
 
 The `pdf-generation` study-handout function accepts a custom session token, up
 to 200 characters of context, and optional title/term/definition hex colors.
-It generates a detailed handout with section overviews, subsection
-explanations, key terms, and takeaways. The Flutter app validates and previews
+It generates a detailed, prose-first handout with section overviews,
+subsection explanations, and key terms. The Flutter app validates and previews
 the structured response, then creates the downloadable PDF on the client.
 Deploy the function after adding the required
 `GEMINI_API_KEY_1`–`GEMINI_API_KEY_5` and `GROQ_API_KEY_1`–`GROQ_API_KEY_3`

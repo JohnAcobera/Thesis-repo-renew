@@ -175,33 +175,35 @@ class PrintingHandoutPdfExporter implements HandoutPdfExporter {
                 ],
               ),
             ),
-          pw.Header(
-            level: 1,
-            child: pw.Text(
-              'Key takeaways',
-              style: pw.TextStyle(
-                color: titleColor,
-                fontSize: 17,
-                fontWeight: pw.FontWeight.bold,
+          if (handout.keyTakeaways.isNotEmpty) ...[
+            pw.Header(
+              level: 1,
+              child: pw.Text(
+                'Key takeaways',
+                style: pw.TextStyle(
+                  color: titleColor,
+                  fontSize: 17,
+                  fontWeight: pw.FontWeight.bold,
+                ),
               ),
             ),
-          ),
-          for (final takeaway in handout.keyTakeaways)
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 5),
-              child: pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.SizedBox(width: 18, child: pw.Text('-')),
-                  pw.Expanded(
-                    child: pw.Text(
-                      takeaway,
-                      style: const pw.TextStyle(fontSize: 10, lineSpacing: 2),
+            for (final takeaway in handout.keyTakeaways)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 5),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.SizedBox(width: 18, child: pw.Text('-')),
+                    pw.Expanded(
+                      child: pw.Text(
+                        takeaway,
+                        style: const pw.TextStyle(fontSize: 10, lineSpacing: 2),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+          ],
         ],
       ),
     );
