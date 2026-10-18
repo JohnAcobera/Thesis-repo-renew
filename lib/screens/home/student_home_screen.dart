@@ -1862,7 +1862,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
     'Retention',
     'Improvement',
     'Consistency',
-    'Efficiency',
+    'Focus',
   ];
 
   @override
@@ -1907,6 +1907,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
           final improvementPercentage = averageQuizImprovementPercentage(
             quizzes,
           );
+          final focusPercentage = firstQuizAttemptFocusPercentage(quizzes);
           final consistencyPercentage = quizLearningConsistencyPercentage(
             quizzes: quizzes,
             accountCreatedAt: widget.accountCreatedAt,
@@ -1946,6 +1947,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
               retentionPercentage: retentionPercentage,
               improvementPercentage: improvementPercentage,
               consistencyPercentage: consistencyPercentage,
+              focusPercentage: focusPercentage,
               gridColor: const Color(0xFFE9E1D8),
               accentColor: const Color(0xFFF4773C),
               labelColor: const Color(0xFF725F53),
@@ -1958,7 +1960,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
                 Expanded(
                   child: SizedBox(width: double.infinity, child: chart),
                 ),
-                if (status != null) status,
+                ?status,
               ],
             );
           }
@@ -1971,7 +1973,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
                 width: double.infinity,
                 child: chart,
               ),
-              if (status != null) status,
+              ?status,
             ],
           );
         },
@@ -1987,6 +1989,7 @@ class _RadarChartPainter extends CustomPainter {
     required this.retentionPercentage,
     required this.improvementPercentage,
     required this.consistencyPercentage,
+    required this.focusPercentage,
     required this.gridColor,
     required this.accentColor,
     required this.labelColor,
@@ -1997,6 +2000,7 @@ class _RadarChartPainter extends CustomPainter {
   final double? retentionPercentage;
   final double? improvementPercentage;
   final double? consistencyPercentage;
+  final double? focusPercentage;
   final Color gridColor;
   final Color accentColor;
   final Color labelColor;
@@ -2054,7 +2058,7 @@ class _RadarChartPainter extends CustomPainter {
           ? null
           : (improvementPercentage! + 100).clamp(0.0, 200.0) / 2,
       consistencyPercentage,
-      null,
+      focusPercentage,
     ];
     final metricPoints = List<Offset>.generate(metrics.length, (index) {
       final value = index < metricValues.length
@@ -2163,6 +2167,7 @@ class _RadarChartPainter extends CustomPainter {
       oldDelegate.retentionPercentage != retentionPercentage ||
       oldDelegate.improvementPercentage != improvementPercentage ||
       oldDelegate.consistencyPercentage != consistencyPercentage ||
+      oldDelegate.focusPercentage != focusPercentage ||
       oldDelegate.gridColor != gridColor ||
       oldDelegate.accentColor != accentColor ||
       oldDelegate.labelColor != labelColor;
