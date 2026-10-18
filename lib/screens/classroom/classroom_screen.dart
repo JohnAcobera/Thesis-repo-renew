@@ -1101,6 +1101,13 @@ class ClassroomDetailScreen extends StatelessWidget {
                 ],
               ),
             ),
+            if (user.role.toLowerCase() == 'instructor') ...[
+              const SizedBox(height: 24),
+              _ClassroomStudentsSection(
+                classroom: classroom,
+                classroomService: classroomService,
+              ),
+            ],
             const SizedBox(height: 24),
             _PostActivitiesSection(
               classroom: classroom,
@@ -1110,6 +1117,364 @@ class ClassroomDetailScreen extends StatelessWidget {
           ],
         ),
       ),
+    ),
+  );
+}
+
+class _ClassroomStudentsSection extends StatefulWidget {
+  const _ClassroomStudentsSection({
+    required this.classroom,
+    required this.classroomService,
+  });
+
+  final ClassroomModel classroom;
+  final ClassroomRepository classroomService;
+
+  @override
+  State<_ClassroomStudentsSection> createState() =>
+      _ClassroomStudentsSectionState();
+}
+
+class _ClassroomStudentsSectionState extends State<_ClassroomStudentsSection> {
+  late Future<List<ClassroomStudentSummary>> _students;
+  int? _removingStudentId;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    _students = widget.classroomService.classroomStudents(widget.classroom.id);
+  }
+
+  Future<void> _removeStudent(ClassroomStudentSummary student) async {
+    final confirmed = await _showDeleteConfirmation(
+      context,
+      title: 'Remove student?',
+      description:
+          '${student.fullName} will no longer have access to '
+          '“${widget.classroom.name}”. Their existing quiz records will be '
+          'kept. They can rejoin with the classroom code.',
+      confirmLabel: 'Remove student',
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _removingStudentId = student.id);
+    try {
+      await widget.classroomService.removeClassroomStudent(
+        classroomId: widget.classroom.id,
+        studentId: student.id,
+      );
+      if (!mounted) return;
+      setState(_load);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${student.fullName} removed from the classroom'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on ClassroomServiceException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.message),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } on Exception catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('The student could not be removed: $error'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _removingStudentId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: _border),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Students',
+                style: TextStyle(
+                  color: _heading,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Refresh students',
+              onPressed: () => setState(_load),
+              icon: const Icon(Icons.refresh_rounded, color: _primary),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Review assignment completion and quiz performance for this class.',
+          style: TextStyle(color: _subtle, fontSize: 13),
+        ),
+        const SizedBox(height: 16),
+        FutureBuilder<List<ClassroomStudentSummary>>(
+          future: _students,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: CircularProgressIndicator(color: _primary),
+                ),
+              );
+            }
+            if (snapshot.hasError) {
+              return Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Could not load classroom students: ${snapshot.error}',
+                      style: const TextStyle(color: _subtle),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => setState(_load),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              );
+            }
+
+            final students = snapshot.data ?? const [];
+            if (students.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 22,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBF6),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _border),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(
+                      Icons.people_outline_rounded,
+                      color: Color(0xFFC49A7E),
+                      size: 30,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'No students have joined yet',
+                      style: TextStyle(
+                        color: _heading,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Share the classroom code to invite students.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _subtle, fontSize: 12),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 440),
+              child: Scrollbar(
+                child: ListView.separated(
+                  primary: false,
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.only(right: 8),
+                  itemCount: students.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) => _ClassroomStudentTile(
+                    student: students[index],
+                    isRemoving: _removingStudentId == students[index].id,
+                    onRemove: () => _removeStudent(students[index]),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    ),
+  );
+}
+
+class _ClassroomStudentTile extends StatelessWidget {
+  const _ClassroomStudentTile({
+    required this.student,
+    required this.isRemoving,
+    required this.onRemove,
+  });
+
+  final ClassroomStudentSummary student;
+  final bool isRemoving;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final averageScore = student.averageScore;
+    final initials = student.fullName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBF6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0E3D7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFFFFE5D5),
+                child: Text(
+                  initials.isEmpty ? '?' : initials,
+                  style: const TextStyle(
+                    color: _primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      student.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _heading,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      student.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: _subtle, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Remove ${student.fullName}',
+                onPressed: isRemoving ? null : onRemove,
+                color: _danger,
+                icon: isRemoving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _danger,
+                        ),
+                      )
+                    : const Icon(Icons.person_remove_outlined),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _StudentMetric(
+                icon: Icons.assignment_turned_in_outlined,
+                label:
+                    '${student.completedActivityCount} of '
+                    '${student.totalActivityCount} assignments',
+              ),
+              _StudentMetric(
+                icon: Icons.trending_up_rounded,
+                label: averageScore == null
+                    ? 'No quiz scores yet'
+                    : 'Average ${averageScore.toStringAsFixed(0)}%',
+              ),
+              _StudentMetric(
+                icon: Icons.edit_note_rounded,
+                label:
+                    '${student.attemptCount} '
+                    '${student.attemptCount == 1 ? 'attempt' : 'attempts'}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Joined ${MaterialLocalizations.of(context).formatMediumDate(student.joinedAt.toLocal())}',
+            style: const TextStyle(color: Color(0xFF9A8071), fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StudentMetric extends StatelessWidget {
+  const _StudentMetric({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF1E6),
+      borderRadius: BorderRadius.circular(9),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: _primary),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: const TextStyle(
+            color: _heading,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     ),
   );
 }

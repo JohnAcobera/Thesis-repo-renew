@@ -6,24 +6,8 @@ import 'package:thesis_repo_renew/screens/home/student_home_screen.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
 import 'package:thesis_repo_renew/services/student_notification_service.dart';
-import 'package:thesis_repo_renew/widgets/student_nav_bar.dart';
 
 void main() {
-  testWidgets('instructor navbar does not show student notifications', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          appBar: StudentNavBar(roleLabel: 'Instructor'),
-          body: SizedBox.shrink(),
-        ),
-      ),
-    );
-
-    expect(find.byTooltip('Notifications'), findsNothing);
-  });
-
   testWidgets('notifications mark individually and open their classroom', (
     tester,
   ) async {
@@ -134,6 +118,17 @@ class _FakeClassroomRepository implements ClassroomRepository {
     createdAt: DateTime.utc(2026),
   );
   bool studentClassroomsRequested = false;
+
+  @override
+  Future<List<ClassroomStudentSummary>> classroomStudents(
+    String classroomId,
+  ) async => [];
+
+  @override
+  Future<void> removeClassroomStudent({
+    required String classroomId,
+    required int studentId,
+  }) async {}
 
   @override
   Future<List<ClassroomModel>> listStudentClassrooms() async {

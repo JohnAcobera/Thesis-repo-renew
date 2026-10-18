@@ -260,6 +260,17 @@ class _FakeClassroomRepository implements ClassroomRepository {
   );
 
   @override
+  Future<List<ClassroomStudentSummary>> classroomStudents(
+    String classroomId,
+  ) async => [];
+
+  @override
+  Future<void> removeClassroomStudent({
+    required String classroomId,
+    required int studentId,
+  }) async {}
+
+  @override
   Future<List<ClassroomActivity>> classroomActivities(
     String classroomId,
   ) async => activities

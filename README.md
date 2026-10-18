@@ -110,6 +110,12 @@ includes classroom quiz attempts and their classroom names. Existing attempts
 are associated with an activity only when their classroom and schedule match
 exactly one activity.
 
+Run `supabase/instructor_classroom_students.sql` after `classrooms.sql`,
+`classroom_activities.sql`, and `quiz_attempts.sql` to enable the instructor
+classroom roster. Instructors can review each student's completed activity
+count, average quiz score, attempt count, and join date, and remove students
+from a classroom. Removing a student preserves existing quiz attempts.
+
 Run `supabase/student_notifications.sql` after the learner-points, learning
 streak, weekly leaderboard, classroom, and classroom-activity migrations to
 enable the student notification bell. It shows daily LP and streak rewards,
@@ -118,6 +124,13 @@ week's final leaderboard rank, classroom activity posts, activities due within
 24 hours, and classroom join/removal events. Notifications are kept for 90
 days, support marking unread items as read, and the removal trigger records
 future classroom removals.
+
+Run `supabase/instructor_notifications.sql` after `custom_auth.sql`,
+`classrooms.sql`, `classroom_activities.sql`, and `quiz_attempts.sql` to enable
+the instructor notification bell. It reports student quiz submissions with
+their score, new classroom memberships, and activities due within 24 hours
+with a reminder to notify students. Submission and join notifications are
+kept for 90 days, and notifications support marking unread items as read.
 
 The quiz-generation function reads `GEMINI_API_KEY_1` through
 `GEMINI_API_KEY_6` from Edge Function secrets and rotates keys on transient

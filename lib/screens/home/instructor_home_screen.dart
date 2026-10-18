@@ -6,6 +6,7 @@ import '../../models/classroom_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/classroom_service.dart';
+import '../../services/instructor_notification_service.dart';
 import '../import_screen.dart';
 import '../classroom/classroom_screen.dart';
 import '../profile_screen.dart';
@@ -18,11 +19,13 @@ class InstructorHomeScreen extends StatefulWidget {
   const InstructorHomeScreen({
     required this.user,
     this.classroomService,
+    this.notificationRepository,
     super.key,
   });
 
   final UserModel user;
   final ClassroomRepository? classroomService;
+  final InstructorNotificationRepository? notificationRepository;
 
   @override
   State<InstructorHomeScreen> createState() => _InstructorHomeScreenState();
@@ -99,6 +102,7 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
             : 'Instructor Dashboard',
         username: user.fullName,
         email: user.email,
+        instructorNotificationRepository: widget.notificationRepository,
         onProfileSelected: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => ProfileScreen(

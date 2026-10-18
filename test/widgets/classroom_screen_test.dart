@@ -191,6 +191,80 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('instructors can review and remove classroom students', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+
+    final repository = _FakeClassroomRepository()
+      ..classrooms.add(
+        ClassroomModel(
+          id: 'test-id',
+          name: 'Grade 11 - STEM A',
+          subject: 'General Biology 1',
+          code: 'ABCD2345',
+          createdAt: DateTime.utc(2026),
+          studentCount: 1,
+        ),
+      )
+      ..students.add(
+        ClassroomStudentSummary(
+          id: 12,
+          fullName: 'Ari Santos',
+          email: 'ari@example.com',
+          joinedAt: DateTime.utc(2026, 10, 1),
+          completedActivityCount: 2,
+          totalActivityCount: 3,
+          attemptCount: 4,
+          averageScore: 82.5,
+        ),
+      );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ClassroomScreen(
+            user: const UserModel(
+              id: 1,
+              fullName: 'Instructor Name',
+              email: 'instructor@example.com',
+              role: 'instructor',
+            ),
+            classroomService: repository,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grade 11 - STEM A'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Students'), findsOneWidget);
+    expect(find.text('Ari Santos'), findsOneWidget);
+    expect(find.text('2 of 3 assignments'), findsOneWidget);
+    expect(find.text('Average 83%'), findsOneWidget);
+    expect(find.text('4 attempts'), findsOneWidget);
+    await tester.ensureVisible(find.byTooltip('Remove Ari Santos'));
+    await tester.tap(find.byTooltip('Remove Ari Santos'));
+    await tester.pumpAndSettle();
+    expect(find.text('Remove student?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(repository.students, hasLength(1));
+
+    await tester.ensureVisible(find.byTooltip('Remove Ari Santos'));
+    await tester.tap(find.byTooltip('Remove Ari Santos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove student'));
+    await tester.pumpAndSettle();
+    expect(repository.removedStudents, [12]);
+    expect(find.text('No students have joined yet'), findsOneWidget);
+    expect(find.text('Ari Santos removed from the classroom'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('students can open an available classroom activity', (
     tester,
   ) async {
@@ -411,10 +485,26 @@ void main() {
 class _FakeClassroomRepository implements ClassroomRepository {
   final List<ClassroomModel> classrooms = [];
   final List<ClassroomActivity> activities = [];
+  final List<ClassroomStudentSummary> students = [];
+  final List<int> removedStudents = [];
   String? createdName;
   String? createdSubject;
   String? createdIconKey;
   final List<String> deletedActivities = [];
+
+  @override
+  Future<List<ClassroomStudentSummary>> classroomStudents(
+    String classroomId,
+  ) async => students;
+
+  @override
+  Future<void> removeClassroomStudent({
+    required String classroomId,
+    required int studentId,
+  }) async {
+    removedStudents.add(studentId);
+    students.removeWhere((student) => student.id == studentId);
+  }
 
   @override
   Future<List<ClassroomActivity>> classroomActivities(

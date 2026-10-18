@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../services/instructor_notification_service.dart';
 import '../services/student_notification_service.dart';
 import '../screens/auth/login_screen.dart';
+import 'instructor_notifications_sheet.dart';
 import 'student_notifications_sheet.dart';
 
 class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
@@ -15,6 +17,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     this.onSettingsSelected,
     this.onLogoutSelected,
     this.notificationRepository,
+    this.instructorNotificationRepository,
     this.onNotificationSelected,
     this.leading,
     this.leadingWidth,
@@ -29,6 +32,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onSettingsSelected;
   final VoidCallback? onLogoutSelected;
   final StudentNotificationRepository? notificationRepository;
+  final InstructorNotificationRepository? instructorNotificationRepository;
   final ValueChanged<StudentNotification>? onNotificationSelected;
   final Widget? leading;
   final double? leadingWidth;
@@ -108,6 +112,12 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
           StudentNotificationsButton(
             repository: notificationRepository ?? StudentNotificationService(),
             onNotificationSelected: onNotificationSelected,
+          ),
+        if (roleLabel.trim().toLowerCase() == 'instructor')
+          InstructorNotificationsButton(
+            repository:
+                instructorNotificationRepository ??
+                InstructorNotificationService(),
           ),
         Padding(
           padding: const EdgeInsets.only(right: 16),

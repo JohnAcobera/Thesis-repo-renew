@@ -7,6 +7,13 @@ import 'quiz_service.dart';
 abstract interface class ClassroomRepository {
   Future<InstructorDashboardStats> getInstructorDashboardStats();
 
+  Future<List<ClassroomStudentSummary>> classroomStudents(String classroomId);
+
+  Future<void> removeClassroomStudent({
+    required String classroomId,
+    required int studentId,
+  });
+
   Future<List<ClassroomActivity>> classroomActivities(String classroomId);
 
   Future<List<ClassroomModel>> listClassrooms();
@@ -36,6 +43,67 @@ class ClassroomService implements ClassroomRepository {
 
   final SupabaseClient _client;
   final AuthService _authService;
+
+  @override
+  Future<List<ClassroomStudentSummary>> classroomStudents(
+    String classroomId,
+  ) async {
+    final token = await _requireSessionToken();
+    try {
+      final response = await _client.rpc<List<dynamic>>(
+        'list_instructor_classroom_students',
+        params: {'p_session_token': token, 'p_classroom_id': classroomId},
+      );
+      return response
+          .map(
+            (student) => ClassroomStudentSummary.fromJson(
+              Map<String, dynamic>.from(student as Map),
+            ),
+          )
+          .toList(growable: false);
+    } on PostgrestException catch (error) {
+      throw ClassroomServiceException(
+        _databaseMessage(
+          error,
+          failureMessage:
+              'The classroom student list could not be loaded. Please try again.',
+        ),
+      );
+    } on FormatException {
+      throw const ClassroomServiceException(
+        'The classroom student list could not be read. Please try again.',
+      );
+    } on TypeError {
+      throw const ClassroomServiceException(
+        'The classroom student list could not be read. Please try again.',
+      );
+    }
+  }
+
+  @override
+  Future<void> removeClassroomStudent({
+    required String classroomId,
+    required int studentId,
+  }) async {
+    final token = await _requireSessionToken();
+    try {
+      await _client.rpc<void>(
+        'remove_instructor_classroom_student',
+        params: {
+          'p_session_token': token,
+          'p_classroom_id': classroomId,
+          'p_student_id': studentId,
+        },
+      );
+    } on PostgrestException catch (error) {
+      throw ClassroomServiceException(
+        _databaseMessage(
+          error,
+          failureMessage: 'The student could not be removed. Please try again.',
+        ),
+      );
+    }
+  }
 
   @override
   Future<List<ClassroomActivity>> classroomActivities(
@@ -298,6 +366,12 @@ class ClassroomService implements ClassroomRepository {
     if (error.message.contains('Only instructors')) {
       if (error.message.contains('view dashboard statistics')) {
         return 'Only instructor accounts can view dashboard statistics.';
+      }
+      if (error.message.contains('view classroom students')) {
+        return 'Only instructor accounts can view classroom students.';
+      }
+      if (error.message.contains('remove classroom students')) {
+        return 'Only instructor accounts can remove classroom students.';
       }
       return 'Only instructor accounts can manage classrooms.';
     }
