@@ -6,7 +6,7 @@ import '../screens/auth/login_screen.dart';
 import '../services/auth_service.dart';
 import 'student_nav_bar.dart';
 
-enum StudentMenuItem { dashboard, profile, classroom, leaderboard }
+enum StudentMenuItem { dashboard, profile, classroom, leaderboard, inventory }
 
 extension StudentMenuItemPresentation on StudentMenuItem {
   String get label => switch (this) {
@@ -14,6 +14,7 @@ extension StudentMenuItemPresentation on StudentMenuItem {
     StudentMenuItem.profile => 'Profile',
     StudentMenuItem.classroom => 'My Classroom',
     StudentMenuItem.leaderboard => 'Leaderboard',
+    StudentMenuItem.inventory => 'Inventory',
   };
 
   IconData get icon => switch (this) {
@@ -21,6 +22,7 @@ extension StudentMenuItemPresentation on StudentMenuItem {
     StudentMenuItem.profile => Icons.person_outline,
     StudentMenuItem.classroom => Icons.class_outlined,
     StudentMenuItem.leaderboard => Icons.emoji_events_outlined,
+    StudentMenuItem.inventory => Icons.inventory_2_outlined,
   };
 }
 
@@ -131,9 +133,8 @@ class _StudentScaffoldState extends State<StudentScaffold> {
     ),
     body: LayoutBuilder(
       builder: (context, constraints) {
-        final emailStyle = Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF765C4F));
+        final emailStyle = Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: const Color(0xFF765C4F));
         final emailPainter = TextPainter(
           text: TextSpan(text: widget.email, style: emailStyle),
           textDirection: Directionality.of(context),
@@ -447,7 +448,9 @@ class _MenuItemTile extends StatelessWidget {
             width: 30,
             height: 30,
             decoration: BoxDecoration(
-              color: selected ? const Color(0xFFF4773C) : const Color(0xFFFFF1DF),
+              color: selected
+                  ? const Color(0xFFF4773C)
+                  : const Color(0xFFFFF1DF),
               borderRadius: BorderRadius.circular(9),
             ),
             child: Icon(
@@ -465,7 +468,11 @@ class _MenuItemTile extends StatelessWidget {
             ),
           ),
           trailing: selected
-              ? const Icon(Icons.chevron_right, size: 18, color: Color(0xFFF4773C))
+              ? const Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: Color(0xFFF4773C),
+                )
               : null,
           shape: RoundedRectangleBorder(
             side: BorderSide(
