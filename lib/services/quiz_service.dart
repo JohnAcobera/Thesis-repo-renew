@@ -114,6 +114,15 @@ class QuizActivity {
     );
   }
 
+  QuizScore? get firstAttempt {
+    if (attempts.isEmpty) return null;
+
+    return attempts.reduce(
+      (first, attempt) =>
+          attempt.createdAt.isBefore(first.createdAt) ? attempt : first,
+    );
+  }
+
   double? get retentionPercentage {
     if (attempts.length < 2) return null;
 
@@ -187,6 +196,21 @@ double? latestQuizAccuracyPercentage(Iterable<QuizActivity> quizzes) {
   var totalQuestions = 0;
   for (final quiz in quizzes) {
     final attempt = quiz.latestAttempt;
+    if (attempt == null) continue;
+
+    totalScore += attempt.score;
+    totalQuestions += attempt.totalQuestions;
+  }
+  if (totalQuestions == 0) return null;
+
+  return totalScore / totalQuestions * 100;
+}
+
+double? firstQuizAttemptFocusPercentage(Iterable<QuizActivity> quizzes) {
+  var totalScore = 0;
+  var totalQuestions = 0;
+  for (final quiz in quizzes) {
+    final attempt = quiz.firstAttempt;
     if (attempt == null) continue;
 
     totalScore += attempt.score;

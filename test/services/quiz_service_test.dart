@@ -177,6 +177,34 @@ void main() {
     expect(latestQuizAccuracyPercentage([]), isNull);
   });
 
+  test('Focus uses the first attempt for each quiz', () {
+    final now = DateTime.utc(2026, 10, 16);
+    QuizScore score(int points, int total, int daysAgo) => QuizScore(
+      score: points,
+      totalQuestions: total,
+      createdAt: now.subtract(Duration(days: daysAgo)),
+    );
+    QuizActivity quiz(String id, List<QuizScore> attempts) => QuizActivity(
+      id: id,
+      title: id,
+      sourceFile: '$id.pdf',
+      createdAt: now,
+      questions: const [],
+      attempts: attempts,
+    );
+
+    final quizzes = [
+      quiz('first', [score(8, 10, 0), score(0, 10, 1)]),
+      quiz('second', [score(1, 20, 1), score(1, 20, 2)]),
+    ];
+
+    expect(
+      firstQuizAttemptFocusPercentage(quizzes),
+      closeTo(1 / 30 * 100, 0.001),
+    );
+    expect(firstQuizAttemptFocusPercentage([]), isNull);
+  });
+
   test(
     'quiz consistency measures active days in the rolling 28-day window',
     () {
