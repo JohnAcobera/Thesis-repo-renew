@@ -56,10 +56,16 @@ Future<bool?> _showDeleteConfirmation(
 );
 
 class ClassroomScreen extends StatefulWidget {
-  const ClassroomScreen({required this.user, this.classroomService, super.key});
+  const ClassroomScreen({
+    required this.user,
+    this.classroomService,
+    this.initialClassroomId,
+    super.key,
+  });
 
   final UserModel user;
   final ClassroomRepository? classroomService;
+  final String? initialClassroomId;
 
   @override
   State<ClassroomScreen> createState() => _ClassroomScreenState();
@@ -91,8 +97,16 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
           ? await _classroomService.listStudentClassrooms()
           : await _classroomService.listClassrooms();
       if (!mounted) return;
+      ClassroomModel? initialClassroom;
+      for (final classroom in classrooms) {
+        if (classroom.id == widget.initialClassroomId) {
+          initialClassroom = classroom;
+          break;
+        }
+      }
       setState(() {
         _classrooms = classrooms;
+        _selectedClassroom = initialClassroom;
         _isLoading = false;
       });
     } on ClassroomServiceException catch (error) {

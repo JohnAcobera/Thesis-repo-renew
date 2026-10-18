@@ -100,6 +100,15 @@ includes classroom quiz attempts and their classroom names. Existing attempts
 are associated with an activity only when their classroom and schedule match
 exactly one activity.
 
+Run `supabase/student_notifications.sql` after the learner-points, learning
+streak, weekly leaderboard, classroom, and classroom-activity migrations to
+enable the student notification bell. It shows daily LP and streak rewards,
+streaks of at least three days that ended, quiz LP reward breakdowns, last
+week's final leaderboard rank, classroom activity posts, activities due within
+24 hours, and classroom join/removal events. Notifications are kept for 90
+days, support marking unread items as read, and the removal trigger records
+future classroom removals.
+
 The quiz-generation function reads `GEMINI_API_KEY_1` through
 `GEMINI_API_KEY_6` from Edge Function secrets and rotates keys on transient
 Gemini failures. It tries `gemini-3.8-flash` first, then falls back through

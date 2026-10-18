@@ -10,6 +10,7 @@ import '../../services/classroom_service.dart';
 import '../../services/learning_mode_service.dart';
 import '../../services/leaderboard_service.dart';
 import '../../services/quiz_service.dart';
+import '../../services/student_notification_service.dart';
 import '../classroom/classroom_screen.dart';
 import '../import_screen.dart';
 import '../inventory_screen.dart';
@@ -23,12 +24,14 @@ class StudentHomeScreen extends StatefulWidget {
     required this.user,
     this.classroomService,
     this.leaderboardRepository,
+    this.notificationRepository,
     super.key,
   });
 
   final UserModel user;
   final ClassroomRepository? classroomService;
   final LeaderboardRepository? leaderboardRepository;
+  final StudentNotificationRepository? notificationRepository;
 
   @override
   State<StudentHomeScreen> createState() => _StudentHomeScreenState();
@@ -39,6 +42,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   int _activityRevision = 0;
   StudentMenuItem _selectedMenu = StudentMenuItem.dashboard;
   bool _isRecordingActivityDay = false;
+  String? _notificationClassroomId;
 
   @override
   void initState() {
@@ -149,12 +153,16 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       role: _displayRole(user.role),
       selectedMenu: _selectedMenu,
       onMenuSelected: onMenuSelected,
+      notificationRepository: widget.notificationRepository,
+      onNotificationSelected: _openNotificationClassroom,
       body: _selectedMenu == StudentMenuItem.inventory
           ? InventoryScreen(user: user, onMenuSelected: onMenuSelected)
           : _selectedMenu == StudentMenuItem.classroom
           ? ClassroomScreen(
+              key: ValueKey<String?>(_notificationClassroomId),
               user: user,
               classroomService: widget.classroomService,
+              initialClassroomId: _notificationClassroomId,
             )
           : _selectedMenu == StudentMenuItem.leaderboard
           ? LeaderboardScreen(repository: widget.leaderboardRepository)
@@ -221,8 +229,24 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
         item == StudentMenuItem.classroom ||
         item == StudentMenuItem.leaderboard ||
         item == StudentMenuItem.inventory) {
-      setState(() => _selectedMenu = item);
+      setState(() {
+        _selectedMenu = item;
+        _notificationClassroomId = null;
+      });
     }
+  }
+
+  void _openNotificationClassroom(StudentNotification notification) {
+    final classroomId = notification.classroomId;
+    if (notification.type != StudentNotificationType.classroomActivity ||
+        classroomId == null) {
+      return;
+    }
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    setState(() {
+      _selectedMenu = StudentMenuItem.classroom;
+      _notificationClassroomId = classroomId;
+    });
   }
 
   String _displayRole(String role) => role.isEmpty
@@ -814,10 +838,12 @@ class _PendingClassroomActivityTile extends StatelessWidget {
     final scheduledAt = canTakeActivity
         ? activity.deadlineAt.toLocal()
         : activity.startsAt.toLocal();
-    final deadlineDate = MaterialLocalizations.of(context)
-        .formatMediumDate(scheduledAt);
-    final deadlineTime = MaterialLocalizations.of(context)
-        .formatTimeOfDay(TimeOfDay.fromDateTime(scheduledAt));
+    final deadlineDate = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(scheduledAt);
+    final deadlineTime = MaterialLocalizations.of(
+      context,
+    ).formatTimeOfDay(TimeOfDay.fromDateTime(scheduledAt));
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1016,7 +1042,8 @@ class _WideStudentDashboard extends StatelessWidget {
                 key: _DashboardPanel.quizCreationPanelKey,
                 icon: Icons.quiz_outlined,
                 title: 'Create your own quiz',
-                description: 'Turn your study materials into a personalized practice quiz.',
+                description:
+                    'Turn your study materials into a personalized practice quiz.',
                 actionLabel: 'Generate a quiz',
                 onAction: onImportSelected,
                 centerContent: true,
