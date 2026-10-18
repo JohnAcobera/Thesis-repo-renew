@@ -4,5 +4,11 @@ verify_jwt = false
 [functions.generate-true-or-false]
 verify_jwt = false
 
+[functions.generate-flashcards]
+verify_jwt = false
+
+[functions.generate-matching]
+verify_jwt = false
+
 [functions.extract-source-text]
 verify_jwt = false

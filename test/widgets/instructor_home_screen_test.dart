@@ -92,7 +92,7 @@ void main() {
       await tester.tap(find.text('Create activity'));
       await tester.pumpAndSettle();
       expect(
-        find.text('Upload your notes and generate a practice quiz'),
+        find.text('Turn your notes into a focused study session'),
         findsOneWidget,
       );
       await tester.tap(find.byTooltip('Open menu'));

@@ -48,13 +48,23 @@ time and deadline. Students can take posted activities from their classroom
 while they are available, and can retake them until the instructor-set attempt
 limit is reached. The student dashboard shows recent quiz scores and classroom
 attribution; saved student quizzes can be retaken from the dashboard. The
-recent activity list has no fixed item limit. Deploy all three Edge Functions
-with the Supabase CLI:
+recent activity list includes completed flashcard and matching sessions.
+Run `supabase/learning_inventory.sql` in the Supabase SQL Editor to create the
+separate inventory tables and custom-session RPCs. This migration does not
+alter existing tables. Student-generated quizzes are listed from existing
+saved-quiz data; flashcards and matching activities use the new inventory.
+Run `supabase/learning_inventory_favorites.sql` as well to enable persisted
+favorites for personal inventory activities. Inventory also supports title
+search and groups results under quizzes, flashcards, and matching games.
+
+Deploy the Edge Functions with the Supabase CLI:
 
 ```sh
 supabase functions deploy extract-source-text
 supabase functions deploy generate-quiz
 supabase functions deploy generate-true-or-false
+supabase functions deploy generate-flashcards
+supabase functions deploy generate-matching
 ```
 
 Run `supabase/learning_streak.sql` in the Supabase SQL Editor to enable profile

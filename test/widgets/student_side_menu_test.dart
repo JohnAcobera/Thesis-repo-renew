@@ -135,6 +135,43 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('inventory uses the dashboard top bar without a duplicate', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudentHomeScreen(
+          user: UserModel(
+            id: 1,
+            fullName: 'Student Name',
+            email: 'student@example.com',
+            role: 'student',
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Inventory'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppBar), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Inventory'),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('import screen displays the student side-menu controls', (
     tester,
   ) async {
@@ -160,6 +197,34 @@ void main() {
     expect(find.text('Your profile'), findsOneWidget);
     expect(find.text('student@example.com'), findsWidgets);
     expect(find.byTooltip('Open menu'), findsOneWidget);
+  });
+
+  testWidgets('import screen offers three learning modes', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ImportScreen(
+          username: 'Student Name',
+          email: 'student@example.com',
+        ),
+      ),
+    );
+
+    expect(find.text('Learning Mode'), findsOneWidget);
+    expect(find.text('Quiz'), findsOneWidget);
+    expect(find.text('Flashcards'), findsOneWidget);
+    expect(find.text('Matching'), findsOneWidget);
+    expect(find.text('Question Types'), findsOneWidget);
+
+    await tester.tap(find.text('Flashcards').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Question Types'), findsNothing);
+    expect(find.text('Number of Items'), findsOneWidget);
+
+    await tester.tap(find.text('Matching').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Question Types'), findsNothing);
+    expect(find.text('Number of Items'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('dashboard Profile menu opens the profile screen', (

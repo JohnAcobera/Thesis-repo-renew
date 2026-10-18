@@ -161,7 +161,9 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
             ),
           );
-        } else if (item == StudentMenuItem.classroom) {
+        } else if (item == StudentMenuItem.classroom ||
+            item == StudentMenuItem.inventory ||
+            item == StudentMenuItem.leaderboard) {
           Navigator.of(context).popUntil((route) => route.isFirst);
           widget.onMenuSelected?.call(item);
         }

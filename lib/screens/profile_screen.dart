@@ -104,7 +104,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     onMenuSelected: (item) {
       if (item == StudentMenuItem.dashboard ||
           item == StudentMenuItem.classroom ||
-          item == StudentMenuItem.leaderboard) {
+          item == StudentMenuItem.leaderboard ||
+          item == StudentMenuItem.inventory) {
         final callback = widget.onMenuSelected;
         Navigator.of(context).popUntil((route) => route.isFirst);
         callback?.call(item);

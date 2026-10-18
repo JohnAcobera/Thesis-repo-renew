@@ -5,8 +5,10 @@ import 'package:file_picker/file_picker.dart';
 
 import 'profile_screen.dart';
 import 'quiz_screen.dart';
+import 'study_activity_screens.dart';
 import '../models/classroom_model.dart';
 import '../services/classroom_service.dart';
+import '../services/learning_mode_service.dart';
 import '../services/quiz_service.dart';
 import '../widgets/student_side_menu.dart';
 
@@ -41,12 +43,19 @@ class ImportScreen extends StatefulWidget {
 class _ImportScreenState extends State<ImportScreen> {
   PlatformFile? _selectedFile;
   final TextEditingController _quizNameController = TextEditingController();
+  _LearningMode _selectedMode = _LearningMode.quiz;
   QuizQuestionType _selectedType = QuizQuestionType.multipleChoice;
   int _selectedItemCount = 10;
   bool _isGenerating = false;
   String? _generationStatus;
 
   bool get _isInstructor => widget.role.toLowerCase() == 'instructor';
+
+  String get _activityName => switch (_selectedMode) {
+    _LearningMode.quiz => 'quiz',
+    _LearningMode.flashcards => 'flashcard set',
+    _LearningMode.matching => 'matching game',
+  };
 
   String _displayRole(String role) => role.isEmpty
       ? role
@@ -92,8 +101,11 @@ class _ImportScreenState extends State<ImportScreen> {
   Future<void> _generate() async {
     if (_selectedFile == null) return;
     final quizName = _quizNameController.text.trim();
+    final selectedMode = _selectedMode;
+    final selectedType = _selectedType;
+    final selectedItemCount = _selectedItemCount;
     if (quizName.isEmpty) {
-      _showMessage('Enter a name for your quiz.', isError: true);
+      _showMessage('Enter a name for your $_activityName.', isError: true);
       return;
     }
 
@@ -145,35 +157,84 @@ class _ImportScreenState extends State<ImportScreen> {
       if (!mounted) return;
       setState(
         () => _generationStatus =
-            'Generating $_selectedItemCount questions. This may take up to a minute...',
+            'Generating $selectedItemCount ${selectedMode == _LearningMode.quiz ? 'questions' : 'items'}. This may take up to a minute...',
       );
-      final questions = await QuizService().generateQuiz(
-        questionCount: _selectedItemCount,
-        fileName: file.name,
-        sourceText: sourceText,
-        questionType: _selectedType,
-      );
-      if (!mounted) return;
-      setState(() => _isGenerating = false);
+      if (selectedMode == _LearningMode.quiz) {
+        final questions = await QuizService().generateQuiz(
+          questionCount: selectedItemCount,
+          fileName: file.name,
+          sourceText: sourceText,
+          questionType: selectedType,
+        );
+        if (!mounted) return;
+        setState(() => _isGenerating = false);
 
-      if (_isInstructor) {
-        await _showInstructorQuizActions(
+        if (_isInstructor) {
+          await _showInstructorQuizActions(
+            title: quizName,
+            sourceFile: file.name,
+            questions: questions,
+          );
+        } else {
+          await _takeQuiz(
+            title: quizName,
+            sourceFile: file.name,
+            questions: questions,
+          );
+        }
+      } else if (selectedMode == _LearningMode.flashcards) {
+        final service = LearningModeService();
+        final cards = await service.generateFlashcards(
+          itemCount: selectedItemCount,
+          fileName: file.name,
+          sourceText: sourceText,
+        );
+        final activityId = await service.saveActivity(
+          type: LearningActivityType.flashcards,
           title: quizName,
           sourceFile: file.name,
-          questions: questions,
+          content: cards.map((card) => card.toJson()).toList(),
+        );
+        if (!mounted) return;
+        setState(() => _isGenerating = false);
+        await _takeFlashcards(
+          activityId: activityId,
+          title: quizName,
+          sourceFile: file.name,
+          cards: cards,
         );
       } else {
-        await _takeQuiz(
+        final service = LearningModeService();
+        final pairs = await service.generateMatchingPairs(
+          itemCount: selectedItemCount,
+          fileName: file.name,
+          sourceText: sourceText,
+        );
+        final activityId = await service.saveActivity(
+          type: LearningActivityType.matching,
           title: quizName,
           sourceFile: file.name,
-          questions: questions,
+          content: pairs.map((pair) => pair.toJson()).toList(),
+        );
+        if (!mounted) return;
+        setState(() => _isGenerating = false);
+        await _takeMatching(
+          activityId: activityId,
+          title: quizName,
+          sourceFile: file.name,
+          pairs: pairs,
         );
       }
+    } on LearningModeServiceException catch (error) {
+      if (mounted) _showMessage(error.message, isError: true);
     } on QuizServiceException catch (error) {
       if (mounted) _showMessage(error.message, isError: true);
     } on Exception catch (error) {
       if (mounted) {
-        _showMessage('Quiz generation failed: $error', isError: true);
+        _showMessage(
+          'Learning activity generation failed: $error',
+          isError: true,
+        );
       }
     } finally {
       if (mounted && _isGenerating) {
@@ -201,6 +262,54 @@ class _ImportScreenState extends State<ImportScreen> {
           title: title,
           sourceFile: sourceFile,
           questions: questions,
+        ),
+      ),
+    );
+    if (completed == true && mounted) Navigator.of(context).pop(true);
+  }
+
+  Future<void> _takeFlashcards({
+    required String activityId,
+    required String title,
+    required String sourceFile,
+    required List<Flashcard> cards,
+  }) async {
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => FlashcardsScreen(
+          activityId: activityId,
+          username: widget.username,
+          email: widget.email,
+          role: widget.role,
+          title: title,
+          sourceFile: sourceFile,
+          cards: cards,
+          createdAt: widget.createdAt,
+          onMenuSelected: widget.onMenuSelected,
+        ),
+      ),
+    );
+    if (completed == true && mounted) Navigator.of(context).pop(true);
+  }
+
+  Future<void> _takeMatching({
+    required String activityId,
+    required String title,
+    required String sourceFile,
+    required List<MatchingPair> pairs,
+  }) async {
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => MatchingScreen(
+          activityId: activityId,
+          username: widget.username,
+          email: widget.email,
+          role: widget.role,
+          title: title,
+          sourceFile: sourceFile,
+          pairs: pairs,
+          createdAt: widget.createdAt,
+          onMenuSelected: widget.onMenuSelected,
         ),
       ),
     );
@@ -380,7 +489,7 @@ class _ImportScreenState extends State<ImportScreen> {
   @override
   Widget build(BuildContext context) {
     return StudentScaffold(
-      title: 'Create a Quiz',
+      title: 'Create a Study Activity',
       username: widget.username,
       email: widget.email,
       role: _displayRole(widget.role),
@@ -402,6 +511,9 @@ class _ImportScreenState extends State<ImportScreen> {
         } else if (item == StudentMenuItem.classroom) {
           Navigator.of(context).popUntil((route) => route.isFirst);
           widget.onMenuSelected?.call(item);
+        } else if (item == StudentMenuItem.inventory) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          widget.onMenuSelected?.call(item);
         }
       },
       body: SafeArea(
@@ -415,17 +527,28 @@ class _ImportScreenState extends State<ImportScreen> {
                 children: [
                   _buildHeader(),
                   const SizedBox(height: 24),
+                  _LearningModePanel(
+                    selectedMode: _selectedMode,
+                    onChanged: (mode) => setState(() {
+                      _selectedMode = mode;
+                      _quizNameController.clear();
+                    }),
+                  ),
+                  const SizedBox(height: 16),
                   _FilePickerPanel(
                     selectedFile: _selectedFile,
                     quizNameController: _quizNameController,
+                    activityName: _activityName,
                     onPick: _pickFile,
                     onClear: _clearFile,
                   ),
-                  const SizedBox(height: 16),
-                  _QuestionTypesPanel(
-                    selectedType: _selectedType,
-                    onChanged: (type) => setState(() => _selectedType = type),
-                  ),
+                  if (_selectedMode == _LearningMode.quiz) ...[
+                    const SizedBox(height: 16),
+                    _QuestionTypesPanel(
+                      selectedType: _selectedType,
+                      onChanged: (type) => setState(() => _selectedType = type),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   _ItemCountPanel(
                     selectedCount: _selectedItemCount,
@@ -495,7 +618,7 @@ class _ImportScreenState extends State<ImportScreen> {
         ),
         const SizedBox(height: 16),
         const Text(
-          'Upload your notes and generate a practice quiz',
+          'Turn your notes into a focused study session',
           style: TextStyle(
             color: _heading,
             fontSize: 28,
@@ -505,7 +628,7 @@ class _ImportScreenState extends State<ImportScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Select a file, choose the number of questions, and take your quiz.',
+          'Choose a learning mode, select the number of items, and start learning.',
           style: TextStyle(fontSize: 16, height: 1.5, color: _subtle),
         ),
       ],
@@ -517,12 +640,14 @@ class _FilePickerPanel extends StatelessWidget {
   const _FilePickerPanel({
     required this.selectedFile,
     required this.quizNameController,
+    required this.activityName,
     required this.onPick,
     required this.onClear,
   });
 
   final PlatformFile? selectedFile;
   final TextEditingController quizNameController;
+  final String activityName;
   final VoidCallback onPick;
   final VoidCallback onClear;
 
@@ -531,7 +656,7 @@ class _FilePickerPanel extends StatelessWidget {
     return _SettingsPanel(
       icon: Icons.upload_file_outlined,
       title: 'Source File',
-      description: 'Upload a file and give your quiz a name',
+      description: 'Upload a file and name your $activityName',
       child: selectedFile == null
           ? _buildDropZone()
           : Column(
@@ -544,8 +669,9 @@ class _FilePickerPanel extends StatelessWidget {
                   maxLength: 200,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
-                    labelText: 'Quiz name',
-                    hintText: 'Enter a name for your quiz',
+                    labelText:
+                        '${activityName[0].toUpperCase()}${activityName.substring(1)} name',
+                    hintText: 'Enter a name for your $activityName',
                     prefixIcon: const Icon(
                       Icons.edit_outlined,
                       color: _primary,
@@ -746,6 +872,138 @@ class _FileTypeIcon extends StatelessWidget {
     }
 
     return Icon(icon, color: color, size: 28);
+  }
+}
+
+enum _LearningMode { quiz, flashcards, matching }
+
+class _LearningModePanel extends StatelessWidget {
+  const _LearningModePanel({
+    required this.selectedMode,
+    required this.onChanged,
+  });
+
+  final _LearningMode selectedMode;
+  final ValueChanged<_LearningMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsPanel(
+      icon: Icons.style_outlined,
+      title: 'Learning Mode',
+      description: 'Choose how you want to study',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final choices = _LearningMode.values
+              .map(
+                (mode) => _LearningModeChoice(
+                  mode: mode,
+                  selected: mode == selectedMode,
+                  onTap: () => onChanged(mode),
+                ),
+              )
+              .toList(growable: false);
+          if (constraints.maxWidth < 580) {
+            return Column(
+              children: [
+                for (var index = 0; index < choices.length; index++) ...[
+                  if (index > 0) const SizedBox(height: 10),
+                  choices[index],
+                ],
+              ],
+            );
+          }
+          return Row(
+            children: [
+              for (var index = 0; index < choices.length; index++) ...[
+                if (index > 0) const SizedBox(width: 10),
+                Expanded(child: choices[index]),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _LearningModeChoice extends StatelessWidget {
+  const _LearningModeChoice({
+    required this.mode,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _LearningMode mode;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final (title, description, icon) = switch (mode) {
+      _LearningMode.quiz => (
+        'Quiz',
+        'Test your knowledge',
+        Icons.checklist_rounded,
+      ),
+      _LearningMode.flashcards => (
+        'Flashcards',
+        'Recall concepts',
+        Icons.style_rounded,
+      ),
+      _LearningMode.matching => (
+        'Matching',
+        'Pair concepts',
+        Icons.extension_rounded,
+      ),
+    };
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        constraints: const BoxConstraints(minHeight: 104),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+        decoration: BoxDecoration(
+          color: selected ? _primary : _inputFill,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selected ? _primary : _border),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: _primary.withValues(alpha: 0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: selected ? Colors.white : _heading, size: 24),
+            const SizedBox(height: 7),
+            Text(
+              title,
+              style: TextStyle(
+                color: selected ? Colors.white : _heading,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: selected ? Colors.white.withValues(alpha: 0.9) : _subtle,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

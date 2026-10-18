@@ -7,10 +7,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/classroom_service.dart';
+import '../../services/learning_mode_service.dart';
 import '../../services/leaderboard_service.dart';
 import '../../services/quiz_service.dart';
 import '../classroom/classroom_screen.dart';
 import '../import_screen.dart';
+import '../inventory_screen.dart';
 import '../leaderboard_screen.dart';
 import '../profile_screen.dart';
 import '../quiz_screen.dart';
@@ -139,13 +141,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           ? 'My Classroom'
           : _selectedMenu == StudentMenuItem.leaderboard
           ? 'Weekly Leaderboard'
+          : _selectedMenu == StudentMenuItem.inventory
+          ? 'Inventory'
           : 'Student Dashboard',
       username: user.fullName,
       email: user.email,
       role: _displayRole(user.role),
       selectedMenu: _selectedMenu,
       onMenuSelected: onMenuSelected,
-      body: _selectedMenu == StudentMenuItem.classroom
+      body: _selectedMenu == StudentMenuItem.inventory
+          ? InventoryScreen(user: user, onMenuSelected: onMenuSelected)
+          : _selectedMenu == StudentMenuItem.classroom
           ? ClassroomScreen(
               user: user,
               classroomService: widget.classroomService,
@@ -213,7 +219,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   void _selectMenuItem(StudentMenuItem item) {
     if (item == StudentMenuItem.dashboard ||
         item == StudentMenuItem.classroom ||
-        item == StudentMenuItem.leaderboard) {
+        item == StudentMenuItem.leaderboard ||
+        item == StudentMenuItem.inventory) {
       setState(() => _selectedMenu = item);
     }
   }
@@ -807,12 +814,10 @@ class _PendingClassroomActivityTile extends StatelessWidget {
     final scheduledAt = canTakeActivity
         ? activity.deadlineAt.toLocal()
         : activity.startsAt.toLocal();
-    final deadlineDate = MaterialLocalizations.of(
-      context,
-    ).formatMediumDate(scheduledAt);
-    final deadlineTime = MaterialLocalizations.of(
-      context,
-    ).formatTimeOfDay(TimeOfDay.fromDateTime(scheduledAt));
+    final deadlineDate = MaterialLocalizations.of(context)
+        .formatMediumDate(scheduledAt);
+    final deadlineTime = MaterialLocalizations.of(context)
+        .formatTimeOfDay(TimeOfDay.fromDateTime(scheduledAt));
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1010,8 +1015,7 @@ class _WideStudentDashboard extends StatelessWidget {
                 key: _DashboardPanel.quizCreationPanelKey,
                 icon: Icons.quiz_outlined,
                 title: 'Create your own quiz',
-                description:
-                    'Turn your study materials into a personalized practice quiz.',
+                description: 'Turn your study materials into a personalized practice quiz.',
                 actionLabel: 'Generate a quiz',
                 onAction: onImportSelected,
                 centerContent: true,
@@ -1120,7 +1124,7 @@ class _RecentActivityContent extends StatefulWidget {
 }
 
 class _RecentActivityContentState extends State<_RecentActivityContent> {
-  late Future<List<QuizActivity>> _activities;
+  late Future<(List<QuizActivity>, List<LearningInventoryItem>)> _activities;
 
   @override
   void initState() {
@@ -1132,16 +1136,22 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
     setState(() => _activities = _loadActivities());
   }
 
-  Future<List<QuizActivity>> _loadActivities() {
-    try {
-      return QuizService().recentAttempts();
-    } on Object catch (error, stackTrace) {
-      return Future<List<QuizActivity>>.error(error, stackTrace);
-    }
+  Future<(List<QuizActivity>, List<LearningInventoryItem>)>
+  _loadActivities() async {
+    final results = await Future.wait<Object>([
+      QuizService().recentAttempts(),
+      LearningModeService().inventoryItems(),
+    ]);
+    return (
+      results[0] as List<QuizActivity>,
+      results[1] as List<LearningInventoryItem>,
+    );
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<List<QuizActivity>>(
+  Widget build(
+    BuildContext context,
+  ) => FutureBuilder<(List<QuizActivity>, List<LearningInventoryItem>)>(
     future: _activities,
     builder: (context, snapshot) {
       if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1169,12 +1179,27 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
         );
       }
 
-      final activities = snapshot.data ?? const <QuizActivity>[];
+      final quizzes = snapshot.data?.$1 ?? const <QuizActivity>[];
+      final studyItems =
+          snapshot.data?.$2
+              .where((item) => item.attempts.isNotEmpty)
+              .toList(growable: false) ??
+          const <LearningInventoryItem>[];
+      final activities = <Object>[...quizzes, ...studyItems]
+        ..sort((first, second) {
+          final firstDate = first is QuizActivity
+              ? first.latestAttempt?.createdAt ?? first.createdAt
+              : (first as LearningInventoryItem).lastActivity;
+          final secondDate = second is QuizActivity
+              ? second.latestAttempt?.createdAt ?? second.createdAt
+              : (second as LearningInventoryItem).lastActivity;
+          return secondDate.compareTo(firstDate);
+        });
       if (activities.isEmpty) {
         return const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
           child: Text(
-            'No quiz activity yet. Complete a quiz and it will appear here.',
+            'No learning activity yet. Complete a quiz or study session and it will appear here.',
             style: TextStyle(color: Color(0xFF725F53)),
           ),
         );
@@ -1189,7 +1214,11 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
         itemCount: activities.length,
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
-          final activity = activities[index];
+          final entry = activities[index];
+          if (entry is LearningInventoryItem) {
+            return _buildStudyModeActivity(entry);
+          }
+          final activity = entry as QuizActivity;
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
@@ -1293,6 +1322,73 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
       );
     },
   );
+
+  Widget _buildStudyModeActivity(LearningInventoryItem activity) {
+    final latestAttempt = activity.attempts.first;
+    final isFlashcards = activity.type == LearningActivityType.flashcards;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: InkWell(
+        onTap: () => widget.onMenuSelected(StudentMenuItem.inventory),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1DF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isFlashcards
+                      ? Icons.style_outlined
+                      : Icons.extension_outlined,
+                  color: const Color(0xFFF4773C),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activity.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF3B2419),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${isFlashcards ? 'Flashcards' : 'Matching'} · ${_formatActivityDate(latestAttempt.createdAt)}',
+                      style: const TextStyle(
+                        color: Color(0xFF725F53),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${latestAttempt.percentage.round()}% · ${activity.attemptCount} ${activity.attemptCount == 1 ? 'attempt' : 'attempts'}',
+                      style: const TextStyle(
+                        color: Color(0xFFF4773C),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Color(0xFF725F53)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   String _formatActivityDate(DateTime date) {
     const months = [
