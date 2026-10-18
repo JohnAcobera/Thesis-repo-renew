@@ -45,6 +45,32 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('wide dashboard fits the stats panel in a short viewport', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(1280, 700);
+    tester.view.devicePixelRatio = 1;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudentHomeScreen(
+          user: const UserModel(
+            id: 1,
+            fullName: 'Student Name',
+            email: 'student@example.com',
+            role: 'student',
+          ),
+          classroomService: _FakeClassroomRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('dashboard shows classroom deadlines and launches an activity', (
     tester,
   ) async {

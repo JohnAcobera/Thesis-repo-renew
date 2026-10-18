@@ -1000,6 +1000,7 @@ class _WideStudentDashboard extends StatelessWidget {
                   activityRevision: activityRevision,
                   accountCreatedAt: user.createdAt,
                 ),
+                expandContent: true,
               ),
             ),
             const SizedBox(height: 20),
@@ -1797,7 +1798,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final chartHeight = (constraints.maxWidth * 0.52)
+      final preferredChartHeight = (constraints.maxWidth * 0.52)
           .clamp(200.0, 260.0)
           .toDouble();
 
@@ -1814,28 +1815,8 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
             quizzes: quizzes,
             accountCreatedAt: widget.accountCreatedAt,
           );
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                height: chartHeight,
-                width: double.infinity,
-                child: CustomPaint(
-                  painter: _RadarChartPainter(
-                    metrics: _metrics,
-                    accuracyPercentage: accuracyPercentage,
-                    retentionPercentage: retentionPercentage,
-                    improvementPercentage: improvementPercentage,
-                    consistencyPercentage: consistencyPercentage,
-                    gridColor: const Color(0xFFE9E1D8),
-                    accentColor: const Color(0xFFF4773C),
-                    labelColor: const Color(0xFF725F53),
-                  ),
-                ),
-              ),
-              if (snapshot.hasError)
-                Column(
+          final status = snapshot.hasError
+              ? Column(
                   children: [
                     Text(
                       'Could not load quiz metrics: ${snapshot.error}',
@@ -1851,15 +1832,50 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
                     ),
                   ],
                 )
-              else if (snapshot.connectionState == ConnectionState.waiting)
-                const Padding(
+              : snapshot.connectionState == ConnectionState.waiting
+              ? const Padding(
                   padding: EdgeInsets.only(top: 8),
                   child: SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
+                )
+              : null;
+
+          final chart = CustomPaint(
+            painter: _RadarChartPainter(
+              metrics: _metrics,
+              accuracyPercentage: accuracyPercentage,
+              retentionPercentage: retentionPercentage,
+              improvementPercentage: improvementPercentage,
+              consistencyPercentage: consistencyPercentage,
+              gridColor: const Color(0xFFE9E1D8),
+              accentColor: const Color(0xFFF4773C),
+              labelColor: const Color(0xFF725F53),
+            ),
+          );
+
+          if (constraints.hasBoundedHeight) {
+            return Column(
+              children: [
+                Expanded(
+                  child: SizedBox(width: double.infinity, child: chart),
                 ),
+                if (status != null) status,
+              ],
+            );
+          }
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: preferredChartHeight,
+                width: double.infinity,
+                child: chart,
+              ),
+              if (status != null) status,
             ],
           );
         },
