@@ -185,7 +185,9 @@ class _StandingsCard extends StatelessWidget {
             if (snapshot.hasError) {
               return _StatusMessage(
                 icon: Icons.error_outline,
-                message: snapshot.error.toString(),
+                message: snapshot.error is LeaderboardException
+                    ? (snapshot.error! as LeaderboardException).message
+                    : 'Weekly rankings could not be loaded. Please try again.',
                 action: TextButton.icon(
                   onPressed: onRetry,
                   icon: const Icon(Icons.refresh),

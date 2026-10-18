@@ -1,9 +1,44 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:thesis_repo_renew/services/auth_service.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
 
 void main() {
+  test('does not expose Edge Function error details to the caller', () async {
+    final client = _supabaseClient((request) async {
+      return http.Response(
+        jsonEncode({'error': 'Internal provider key or endpoint diagnostic'}),
+        500,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final service = QuizService(
+      client: client,
+      authService: _TestAuthService(client),
+    );
+
+    await expectLater(
+      service.generateQuiz(
+        questionCount: 1,
+        fileName: 'biology.pdf',
+        sourceText: 'Cells store genetic information.',
+      ),
+      throwsA(
+        isA<QuizServiceException>().having(
+          (error) => error.message,
+          'message',
+          'The quiz could not be generated. Please try again.',
+        ),
+      ),
+    );
+    await client.dispose();
+  });
+
   group('QuizQuestion.fromJson', () {
     test('parses a valid four-option multiple-choice question', () {
       final question = QuizQuestion.fromJson({
@@ -402,4 +437,19 @@ void main() {
       expect(question.explanation, original.explanation);
     }
   });
+}
+
+SupabaseClient _supabaseClient(
+  Future<http.Response> Function(http.Request request) handler,
+) => SupabaseClient(
+  'https://example.supabase.co',
+  'test-anon-key',
+  httpClient: MockClient(handler),
+);
+
+class _TestAuthService extends AuthService {
+  _TestAuthService(SupabaseClient client) : super(client: client);
+
+  @override
+  Future<String?> getSessionToken() async => 's' * 40;
 }

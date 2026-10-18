@@ -334,10 +334,7 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
                       ),
                     if (snapshot.hasError) ...[
                       const SizedBox(height: 16),
-                      _DashboardLoadError(
-                        error: snapshot.error!,
-                        onRetry: _retryLoadingStats,
-                      ),
+                      _DashboardLoadError(onRetry: _retryLoadingStats),
                     ],
                     const SizedBox(height: 24),
                     Wrap(
@@ -529,9 +526,8 @@ class _MetricCard extends StatelessWidget {
 }
 
 class _DashboardLoadError extends StatelessWidget {
-  const _DashboardLoadError({required this.error, required this.onRetry});
+  const _DashboardLoadError({required this.onRetry});
 
-  final Object error;
   final VoidCallback onRetry;
 
   @override
@@ -549,7 +545,7 @@ class _DashboardLoadError extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            'Could not load classroom statistics: $error',
+            'Could not load classroom statistics. Please try again.',
             style: const TextStyle(color: Color(0xFF6C3C28), fontSize: 12),
           ),
         ),

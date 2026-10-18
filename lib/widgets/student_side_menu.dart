@@ -150,11 +150,13 @@ class _StudentScaffoldState extends State<StudentScaffold> {
         ),
         (route) => route.isFirst,
       );
-    } on Exception catch (error) {
+    } on Exception {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('The classroom could not be opened: $error'),
+            content: const Text(
+              'The classroom could not be opened. Please try again.',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );

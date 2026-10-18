@@ -110,11 +110,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
-    } on Exception catch (error) {
+    } on Exception {
       if (!mounted) return;
       setState(() => _pendingFavorites.remove(key));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update favorite: $error')),
+        const SnackBar(
+          content: Text('Could not update favorite. Please try again.'),
+        ),
       );
     }
   }
@@ -142,7 +144,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             return _InventoryMessage(
               icon: Icons.cloud_off_outlined,
               title: 'Could not load your inventory',
-              detail: '${snapshot.error}',
+              detail: 'Please try again in a moment.',
               action: FilledButton.icon(
                 onPressed: _reload,
                 icon: const Icon(Icons.refresh_rounded),

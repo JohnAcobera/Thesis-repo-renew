@@ -116,10 +116,10 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
           _isLoading = false;
         });
       }
-    } on Exception catch (error) {
+    } on Exception {
       if (mounted) {
         setState(() {
-          _loadError = 'Unable to load classrooms: $error';
+          _loadError = 'Unable to load classrooms. Please try again.';
           _isLoading = false;
         });
       }
@@ -203,11 +203,13 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
           ),
         );
       }
-    } on Exception catch (error) {
+    } on Exception {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('The classroom could not be deleted: $error'),
+            content: const Text(
+              'The classroom could not be deleted. Please try again.',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -431,10 +433,11 @@ class _CreateClassroomDialogState extends State<_CreateClassroomDialog> {
           _isCreating = false;
         });
       }
-    } on Exception catch (error) {
+    } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage = 'The classroom could not be created: $error';
+          _errorMessage =
+              'The classroom could not be created. Please try again.';
           _isCreating = false;
         });
       }
@@ -564,10 +567,10 @@ class _JoinClassroomDialogState extends State<_JoinClassroomDialog> {
           _isJoining = false;
         });
       }
-    } on Exception catch (error) {
+    } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Could not join the classroom: $error';
+          _errorMessage = 'Could not join the classroom. Please try again.';
           _isJoining = false;
         });
       }
@@ -1190,11 +1193,13 @@ class _PostActivitiesSectionState extends State<_PostActivitiesSection> {
           ),
         );
       }
-    } on Exception catch (error) {
+    } on Exception {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('The posted quiz could not be deleted: $error'),
+            content: const Text(
+              'The posted quiz could not be deleted. Please try again.',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -1263,7 +1268,7 @@ class _PostActivitiesSectionState extends State<_PostActivitiesSection> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Could not load classroom activities: ${snapshot.error}',
+                      'Could not load classroom activities. Please try again.',
                       style: const TextStyle(color: _subtle),
                     ),
                   ),

@@ -53,7 +53,7 @@ void main() {
     },
   );
 
-  test('returns the Edge Function validation error to the caller', () async {
+  test('does not expose Edge Function error details to the caller', () async {
     final client = _supabaseClient((request) async {
       return http.Response(
         jsonEncode({'error': 'No supported AI API keys are configured.'}),
@@ -79,7 +79,7 @@ void main() {
         isA<HandoutServiceException>().having(
           (error) => error.message,
           'message',
-          'No supported AI API keys are configured.',
+          'Study content could not be generated. Please try again.',
         ),
       ),
     );

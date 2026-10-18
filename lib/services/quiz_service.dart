@@ -536,9 +536,8 @@ class QuizService {
 
     final payload = response.data;
     if (response.status < 200 || response.status >= 300) {
-      final message = payload is Map ? payload['error']?.toString() : null;
-      throw QuizServiceException(
-        message ?? 'The quiz could not be generated. Please try again.',
+      throw const QuizServiceException(
+        'The quiz could not be generated. Please try again.',
       );
     }
     if (payload is! Map || payload['questions'] is! List) {
@@ -578,13 +577,10 @@ class QuizService {
     try {
       return await _client.functions.invoke(name, body: body);
     } on FunctionException catch (error) {
-      final details = error.details;
-      final message = details is Map ? details['error']?.toString() : null;
       throw QuizServiceException(
-        message ??
-            (error.status == 0
-                ? 'Could not connect to the quiz service. Please try again.'
-                : failureMessage),
+        error.status == 0
+            ? 'Could not connect to the quiz service. Please try again.'
+            : failureMessage,
       );
     }
   }

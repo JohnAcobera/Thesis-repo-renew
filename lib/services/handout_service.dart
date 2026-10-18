@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -179,23 +177,14 @@ class HandoutService implements HandoutGenerator {
         body: {'sessionToken': token, 'context': topic, ...style.toJson()},
       );
     } on FunctionException catch (error) {
-      final message = _readErrorMessage(error.details);
       throw HandoutServiceException(
-        (error.status == 404 && _isMissingFunctionError(error.details)
-                ? null
-                : message) ??
-            _functionFailureMessage(
-              status: error.status,
-              reasonPhrase: error.reasonPhrase,
-              details: error.details,
-            ),
+        _functionFailureMessage(status: error.status),
       );
     }
 
     if (response.status < 200 || response.status >= 300) {
       throw HandoutServiceException(
-        _readErrorMessage(response.data) ??
-            'Study content could not be generated. Please try again.',
+        'Study content could not be generated. Please try again.',
       );
     }
 
@@ -315,11 +304,7 @@ Color _parseColor(Object? value, String label) {
 String _colorToHex(Color color) =>
     '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
 
-String _functionFailureMessage({
-  required int status,
-  required String? reasonPhrase,
-  required Object? details,
-}) {
+String _functionFailureMessage({required int status}) {
   if (status == 0) {
     return 'Could not connect to the content service. Check your connection and try again.';
   }
@@ -330,45 +315,5 @@ String _functionFailureMessage({
     return 'Your session could not be verified. Please log in again.';
   }
 
-  final detail = details is String
-      ? details.trim().replaceAll(RegExp(r'\s+'), ' ')
-      : null;
-  final safeDetail = detail == null || detail.isEmpty
-      ? null
-      : detail.substring(0, detail.length > 240 ? 240 : detail.length);
-  final reason = reasonPhrase?.trim();
-  final statusText = reason == null || reason.isEmpty
-      ? 'HTTP $status'
-      : 'HTTP $status ($reason)';
-  return safeDetail == null
-      ? 'The content service returned $statusText. Please try again.'
-      : 'The content service returned $statusText: $safeDetail';
-}
-
-String? _readErrorMessage(Object? value) {
-  if (value is String) {
-    final text = value.trim();
-    if (text.isEmpty) return null;
-    try {
-      return _readErrorMessage(jsonDecode(text));
-    } on FormatException {
-      return text;
-    }
-  }
-  if (value is! Map) return null;
-
-  final error = value['error'];
-  if (error is String && error.trim().isNotEmpty) return error.trim();
-  if (error is Map) {
-    final message = error['message'];
-    if (message is String && message.trim().isNotEmpty) return message.trim();
-  }
-  final message = value['message'];
-  return message is String && message.trim().isNotEmpty ? message.trim() : null;
-}
-
-bool _isMissingFunctionError(Object? value) {
-  final message = _readErrorMessage(value)?.toLowerCase();
-  return message == 'function not found' ||
-      message == 'requested function was not found';
+  return 'Study content could not be generated. Please try again.';
 }

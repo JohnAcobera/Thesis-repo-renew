@@ -115,8 +115,10 @@ class _ContextContentScreenState extends State<ContextContentScreen> {
       if (mounted) setState(() => _handout = handout);
     } on HandoutServiceException catch (error) {
       if (mounted) _showMessage(error.message);
-    } on Exception catch (error) {
-      if (mounted) _showMessage('Content generation failed: $error');
+    } on Exception {
+      if (mounted) {
+        _showMessage('Content generation failed. Please try again.');
+      }
     } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
@@ -131,8 +133,8 @@ class _ContextContentScreenState extends State<ContextContentScreen> {
       await _pdfExporter.export(handout);
     } on HandoutPdfExportException catch (error) {
       if (mounted) _showMessage(error.message);
-    } on Exception catch (error) {
-      if (mounted) _showMessage('PDF export failed: $error');
+    } on Exception {
+      if (mounted) _showMessage('PDF export failed. Please try again.');
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }

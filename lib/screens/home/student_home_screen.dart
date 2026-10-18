@@ -86,11 +86,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       )) {
         rethrow;
       }
-      debugPrint('Active learning day not recorded: ${error.message}');
-    } on Exception catch (error, stackTrace) {
+      debugPrint('Active learning day could not be recorded.');
+    } on Exception catch (_, stackTrace) {
       FlutterError.reportError(
         FlutterErrorDetails(
-          exception: error,
+          exception: Exception('Active learning day could not be recorded.'),
           stack: stackTrace,
           library: 'student home screen',
           context: ErrorDescription('while recording an active learning day'),
@@ -786,7 +786,7 @@ class _PendingClassroomActivities extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Could not load classroom activities: $error',
+                'Could not load classroom activities. Please try again.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Color(0xFF725F53)),
               ),
@@ -1213,7 +1213,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Could not load recent activity: ${snapshot.error}',
+              'Could not load recent activity. Please try again.',
               style: const TextStyle(color: Color(0xFF725F53), height: 1.4),
             ),
             TextButton.icon(
@@ -2133,7 +2133,7 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
               ? Column(
                   children: [
                     Text(
-                      'Could not load quiz metrics: ${snapshot.error}',
+                      'Could not load quiz metrics. Please try again.',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 11,

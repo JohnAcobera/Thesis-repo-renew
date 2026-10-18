@@ -71,21 +71,13 @@ class LeaderboardService implements LeaderboardRepository {
           )
           .toList(growable: false);
     } on PostgrestException catch (error) {
-      if (error.code == 'PGRST202' || error.code == '42883') {
+      if (error.message.contains('Invalid or expired session')) {
         throw const LeaderboardException(
-          'The weekly leaderboard database function is not installed or its '
-          'schema cache is stale. Run supabase/learner_points_leaderboard.sql '
-          'in Supabase SQL Editor, then reload the app.',
+          'Your session has expired. Please log in again.',
         );
       }
-      final databaseMessage = [
-        if (error.code != null) '[${error.code}]',
-        error.message,
-        if (error.details != null) error.details!,
-        if (error.hint != null) 'Hint: ${error.hint}',
-      ].join(' ');
-      throw LeaderboardException(
-        'Weekly rankings could not be loaded: $databaseMessage',
+      throw const LeaderboardException(
+        'Weekly rankings could not be loaded. Please try again.',
       );
     } on FormatException {
       throw const LeaderboardException(

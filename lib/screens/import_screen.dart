@@ -229,10 +229,10 @@ class _ImportScreenState extends State<ImportScreen> {
       if (mounted) _showMessage(error.message, isError: true);
     } on QuizServiceException catch (error) {
       if (mounted) _showMessage(error.message, isError: true);
-    } on Exception catch (error) {
+    } on Exception {
       if (mounted) {
         _showMessage(
-          'Learning activity generation failed: $error',
+          'Learning activity generation failed. Please try again.',
           isError: true,
         );
       }
@@ -459,10 +459,10 @@ class _ImportScreenState extends State<ImportScreen> {
       if (mounted) _showMessage(error.message, isError: true);
     } on ClassroomServiceException catch (error) {
       if (mounted) _showMessage(error.message, isError: true);
-    } on Exception catch (error) {
+    } on Exception {
       if (mounted) {
         _showMessage(
-          'The activity could not be completed: $error',
+          'The activity could not be completed. Please try again.',
           isError: true,
         );
       }

@@ -311,21 +311,16 @@ class LearningModeService {
         },
       );
     } on FunctionException catch (error) {
-      final details = error.details;
-      final message = details is Map ? details['error']?.toString() : null;
       throw LearningModeServiceException(
-        message ??
-            (error.status == 0
-                ? 'Could not connect to the learning service. Please try again.'
-                : 'The learning activity could not be generated. Please try again.'),
+        error.status == 0
+            ? 'Could not connect to the learning service. Please try again.'
+            : 'The learning activity could not be generated. Please try again.',
       );
     }
     final payload = response.data;
     if (response.status < 200 || response.status >= 300) {
-      final message = payload is Map ? payload['error']?.toString() : null;
-      throw LearningModeServiceException(
-        message ??
-            'The learning activity could not be generated. Please try again.',
+      throw const LearningModeServiceException(
+        'The learning activity could not be generated. Please try again.',
       );
     }
     if (payload is! Map || payload[resultKey] is! List) {
