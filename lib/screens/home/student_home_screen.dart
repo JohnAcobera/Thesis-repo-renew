@@ -1001,6 +1001,7 @@ class _WideStudentDashboard extends StatelessWidget {
                 titleSize: 30,
                 centerContent: true,
                 titleAtTop: true,
+                titleTooltip: const _StatsMetricTooltip(),
                 content: _StudentMetricsChart(
                   activityRevision: activityRevision,
                   accountCreatedAt: user.createdAt,
@@ -1072,6 +1073,7 @@ class _StackedStudentDashboard extends StatelessWidget {
         titleSize: 28,
         centerContent: true,
         titleAtTop: true,
+        titleTooltip: const _StatsMetricTooltip(),
         content: _StudentMetricsChart(
           activityRevision: activityRevision,
           accountCreatedAt: user.createdAt,
@@ -1722,6 +1724,7 @@ class _DashboardPanel extends StatelessWidget {
     super.key,
     this.icon,
     required this.title,
+    this.titleTooltip,
     required this.description,
     this.actionLabel,
     this.onAction,
@@ -1738,6 +1741,7 @@ class _DashboardPanel extends StatelessWidget {
 
   final IconData? icon;
   final String title;
+  final Widget? titleTooltip;
   final String description;
   final String? actionLabel;
   final VoidCallback? onAction;
@@ -1785,15 +1789,40 @@ class _DashboardPanel extends StatelessWidget {
                   : 16,
             ),
           ],
-          Text(
-            title,
-            textAlign: centerContent ? TextAlign.center : TextAlign.start,
-            style: TextStyle(
-              fontSize: titleSize,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF3B2419),
+          if (titleTooltip == null)
+            Text(
+              title,
+              textAlign: centerContent ? TextAlign.center : TextAlign.start,
+              style: TextStyle(
+                fontSize: titleSize,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF3B2419),
+              ),
+            )
+          else
+            Row(
+              mainAxisSize: centerContent ? MainAxisSize.min : MainAxisSize.max,
+              mainAxisAlignment: centerContent
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                Flexible(
+                  child: Text(
+                    title,
+                    textAlign: centerContent
+                        ? TextAlign.center
+                        : TextAlign.start,
+                    style: TextStyle(
+                      fontSize: titleSize,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF3B2419),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                titleTooltip!,
+              ],
             ),
-          ),
           if (description.isNotEmpty) ...[
             SizedBox(
               height: hasAction
@@ -1839,6 +1868,100 @@ class _DashboardPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+class _StatsMetricTooltip extends StatelessWidget {
+  const _StatsMetricTooltip();
+
+  static const _headingStyle = TextStyle(
+    color: Color(0xFFFFC18F),
+    fontSize: 11,
+    fontWeight: FontWeight.w800,
+    letterSpacing: 0.8,
+  );
+
+  static const _bodyStyle = TextStyle(
+    color: Color(0xFFFFF8F1),
+    fontSize: 12,
+    height: 1.4,
+  );
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    triggerMode: TooltipTriggerMode.tap,
+    preferBelow: false,
+    showDuration: const Duration(seconds: 12),
+    constraints: const BoxConstraints(maxWidth: 300),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    decoration: BoxDecoration(
+      color: const Color(0xFF3B2419),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFF4773C).withValues(alpha: 0.6)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x33000000),
+          blurRadius: 18,
+          offset: Offset(0, 8),
+        ),
+      ],
+    ),
+    richMessage: const TextSpan(
+      children: [
+        TextSpan(
+          text: 'HOW YOUR STATS ARE CALCULATED\n\n',
+          style: _headingStyle,
+        ),
+        TextSpan(text: 'ACCURACY\n', style: _headingStyle),
+        TextSpan(
+          text:
+              'Correct answers across each quiz’s latest attempt ÷ questions on those attempts × 100.\n\n',
+          style: _bodyStyle,
+        ),
+        TextSpan(text: 'RETENTION\n', style: _headingStyle),
+        TextSpan(
+          text:
+              'Average each quiz’s latest two attempt accuracies, then average those quiz values. Requires two attempts per quiz.\n\n',
+          style: _bodyStyle,
+        ),
+        TextSpan(text: 'IMPROVEMENT\n', style: _headingStyle),
+        TextSpan(
+          text:
+              'Average the chronological accuracy changes per quiz, then across quizzes. Shown in percentage points; drops count as negative.\n\n',
+          style: _bodyStyle,
+        ),
+        TextSpan(text: 'CONSISTENCY\n', style: _headingStyle),
+        TextSpan(
+          text:
+              'Unique days with a completed quiz ÷ eligible days × 100. Uses the last 28 days, or days since account creation for newer accounts.\n\n',
+          style: _bodyStyle,
+        ),
+        TextSpan(text: 'FOCUS\n', style: _headingStyle),
+        TextSpan(
+          text:
+              'Correct answers across each quiz’s first attempt ÷ questions on those attempts × 100.',
+          style: _bodyStyle,
+        ),
+      ],
+    ),
+    child: Semantics(
+      button: true,
+      label: 'Show how student stats are calculated',
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF1E5),
+          shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFFF2D8C2)),
+        ),
+        child: const Icon(
+          Icons.info_outline_rounded,
+          size: 19,
+          color: Color(0xFFF4773C),
+        ),
+      ),
+    ),
+  );
 }
 
 class _StudentMetricsChart extends StatefulWidget {
