@@ -65,7 +65,17 @@ supabase functions deploy generate-quiz
 supabase functions deploy generate-true-or-false
 supabase functions deploy generate-flashcards
 supabase functions deploy generate-matching
+supabase functions deploy pdf-generation
 ```
+
+The `pdf-generation` study-handout function accepts a custom session token, up
+to 200 characters of context, and optional title/term/definition hex colors.
+It generates a detailed handout with section overviews, subsection
+explanations, key terms, and takeaways. The Flutter app validates and previews
+the structured response, then creates the downloadable PDF on the client.
+Deploy the function after adding the required
+`GEMINI_API_KEY_1`–`GEMINI_API_KEY_5` and `GROQ_API_KEY_1`–`GROQ_API_KEY_3`
+secrets.
 
 Run `supabase/learning_streak.sql` in the Supabase SQL Editor to enable profile
 login-date highlights and consecutive-day streak counts. The migration records

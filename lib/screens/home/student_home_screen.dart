@@ -12,6 +12,7 @@ import '../../services/leaderboard_service.dart';
 import '../../services/quiz_service.dart';
 import '../../services/student_notification_service.dart';
 import '../classroom/classroom_screen.dart';
+import '../context_content_screen.dart';
 import '../import_screen.dart';
 import '../inventory_screen.dart';
 import '../leaderboard_screen.dart';
@@ -121,6 +122,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       }
     }
 
+    void openContextContentScreen() {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const ContextContentScreen()),
+      );
+    }
+
     void openProfileScreen() {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -186,6 +193,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                               child: _WideStudentDashboard(
                                 user: user,
                                 onImportSelected: openImportScreen,
+                                onContentSelected: openContextContentScreen,
                                 activityRevision: _activityRevision,
                                 onQuizCompleted: () =>
                                     setState(() => _activityRevision++),
@@ -196,6 +204,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                             _StackedStudentDashboard(
                               user: user,
                               onImportSelected: openImportScreen,
+                              onContentSelected: openContextContentScreen,
                               activityRevision: _activityRevision,
                               onQuizCompleted: () =>
                                   setState(() => _activityRevision++),
@@ -998,6 +1007,7 @@ class _WideStudentDashboard extends StatelessWidget {
   const _WideStudentDashboard({
     required this.user,
     required this.onImportSelected,
+    required this.onContentSelected,
     required this.activityRevision,
     required this.onQuizCompleted,
     required this.onMenuSelected,
@@ -1005,6 +1015,7 @@ class _WideStudentDashboard extends StatelessWidget {
 
   final UserModel user;
   final VoidCallback onImportSelected;
+  final VoidCallback onContentSelected;
   final int activityRevision;
   final VoidCallback onQuizCompleted;
   final ValueChanged<StudentMenuItem> onMenuSelected;
@@ -1046,6 +1057,8 @@ class _WideStudentDashboard extends StatelessWidget {
                     'Turn your study materials into a personalized practice quiz.',
                 actionLabel: 'Generate a quiz',
                 onAction: onImportSelected,
+                secondaryActionLabel: 'Generate content',
+                onSecondaryAction: onContentSelected,
                 centerContent: true,
               ),
             ),
@@ -1078,6 +1091,7 @@ class _StackedStudentDashboard extends StatelessWidget {
   const _StackedStudentDashboard({
     required this.user,
     required this.onImportSelected,
+    required this.onContentSelected,
     required this.activityRevision,
     required this.onQuizCompleted,
     required this.onMenuSelected,
@@ -1085,6 +1099,7 @@ class _StackedStudentDashboard extends StatelessWidget {
 
   final UserModel user;
   final VoidCallback onImportSelected;
+  final VoidCallback onContentSelected;
   final int activityRevision;
   final VoidCallback onQuizCompleted;
   final ValueChanged<StudentMenuItem> onMenuSelected;
@@ -1115,6 +1130,8 @@ class _StackedStudentDashboard extends StatelessWidget {
             'Turn your study materials into a personalized practice quiz.',
         actionLabel: 'Generate a quiz',
         onAction: onImportSelected,
+        secondaryActionLabel: 'Generate content',
+        onSecondaryAction: onContentSelected,
         centerContent: true,
       ),
       const SizedBox(height: 16),
@@ -1755,6 +1772,8 @@ class _DashboardPanel extends StatelessWidget {
     required this.description,
     this.actionLabel,
     this.onAction,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
     this.centerContent = false,
     this.titleAtTop = false,
     this.content,
@@ -1772,6 +1791,8 @@ class _DashboardPanel extends StatelessWidget {
   final String description;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
   final bool centerContent;
   final bool titleAtTop;
   final Widget? content;
@@ -1780,7 +1801,10 @@ class _DashboardPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasAction = actionLabel != null && onAction != null;
+    final hasPrimaryAction = actionLabel != null && onAction != null;
+    final hasSecondaryAction =
+        secondaryActionLabel != null && onSecondaryAction != null;
+    final hasAction = hasPrimaryAction || hasSecondaryAction;
 
     return Container(
       width: double.infinity,
@@ -1870,25 +1894,68 @@ class _DashboardPanel extends StatelessWidget {
           if (hasAction) ...[
             const SizedBox(height: 12),
             LayoutBuilder(
-              builder: (context, constraints) => Align(
-                alignment: centerContent
-                    ? Alignment.center
-                    : Alignment.centerLeft,
-                child: SizedBox(
-                  width: constraints.maxWidth * 0.6,
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: onAction,
-                    style: FilledButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+              builder: (context, constraints) {
+                final primaryButton = FilledButton.icon(
+                  onPressed: onAction,
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    icon: const Icon(Icons.upload_file_outlined),
-                    label: Text(actionLabel!),
                   ),
-                ),
-              ),
+                  icon: const Icon(Icons.upload_file_outlined),
+                  label: Text(actionLabel ?? ''),
+                );
+                final secondaryButton = OutlinedButton.icon(
+                  onPressed: onSecondaryAction,
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.auto_awesome_outlined),
+                  label: Text(secondaryActionLabel ?? ''),
+                );
+
+                if (hasPrimaryAction && hasSecondaryAction) {
+                  final buttons = constraints.maxWidth >= 370
+                      ? Row(
+                          children: [
+                            Expanded(child: primaryButton),
+                            const SizedBox(width: 12),
+                            Expanded(child: secondaryButton),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            primaryButton,
+                            const SizedBox(height: 8),
+                            secondaryButton,
+                          ],
+                        );
+                  return Align(
+                    alignment: centerContent
+                        ? Alignment.center
+                        : Alignment.centerLeft,
+                    child: SizedBox(
+                      width: constraints.maxWidth,
+                      child: buttons,
+                    ),
+                  );
+                }
+
+                final isPrimary = hasPrimaryAction;
+                return Align(
+                  alignment: centerContent
+                      ? Alignment.center
+                      : Alignment.centerLeft,
+                  child: SizedBox(
+                    width: constraints.maxWidth * 0.6,
+                    height: 48,
+                    child: isPrimary ? primaryButton : secondaryButton,
+                  ),
+                );
+              },
             ),
           ],
         ],

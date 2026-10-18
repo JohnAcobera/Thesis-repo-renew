@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.extract-source-text]
 verify_jwt = false
+
+[functions.pdf-generation]
+verify_jwt = false
