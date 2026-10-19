@@ -7,9 +7,16 @@ import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/classroom_service.dart';
 import '../../services/instructor_notification_service.dart';
+import '../../services/instructor_learning_materials_service.dart';
+import '../../services/instructor_reports_service.dart';
+import '../../services/instructor_todo_service.dart';
 import '../import_screen.dart';
+import '../learning_materials_screen.dart';
+import '../instructor_reports_screen.dart';
+import '../instructor_attention_section.dart';
 import '../classroom/classroom_screen.dart';
 import '../profile_screen.dart';
+import '../instructor_todo_section.dart';
 import '../../widgets/instructor_side_menu.dart';
 import '../../widgets/student_nav_bar.dart';
 import '../../widgets/student_side_menu.dart' show StudentMenuItem;
@@ -20,12 +27,18 @@ class InstructorHomeScreen extends StatefulWidget {
     required this.user,
     this.classroomService,
     this.notificationRepository,
+    this.learningMaterialsRepository,
+    this.reportsRepository,
+    this.todoRepository,
     super.key,
   });
 
   final UserModel user;
   final ClassroomRepository? classroomService;
   final InstructorNotificationRepository? notificationRepository;
+  final InstructorLearningMaterialsRepository? learningMaterialsRepository;
+  final InstructorReportsRepository? reportsRepository;
+  final InstructorTodoRepository? todoRepository;
 
   @override
   State<InstructorHomeScreen> createState() => _InstructorHomeScreenState();
@@ -99,6 +112,10 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
         roleLabel: _displayRole,
         title: _selectedMenu == InstructorMenuItem.classroom
             ? 'My Classroom'
+            : _selectedMenu == InstructorMenuItem.learningMaterials
+            ? 'Learning Materials'
+            : _selectedMenu == InstructorMenuItem.reports
+            ? 'Reports'
             : 'Instructor Dashboard',
         username: user.fullName,
         email: user.email,
@@ -152,10 +169,26 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
                         classroomService: widget.classroomService,
                         onCreateActivity: _openCreateActivity,
                       )
+                    : _selectedMenu == InstructorMenuItem.learningMaterials
+                    ? LearningMaterialsScreen(
+                        classroomService:
+                            widget.classroomService ?? ClassroomService(),
+                        materialsRepository: widget.learningMaterialsRepository,
+                        onCreateActivity: _openCreateActivity,
+                      )
+                    : _selectedMenu == InstructorMenuItem.reports
+                    ? InstructorReportsScreen(
+                        reportsRepository:
+                            widget.reportsRepository ??
+                            InstructorReportsService(),
+                      )
                     : _InstructorDashboard(
                         classroomService:
                             widget.classroomService ?? ClassroomService(),
                         onCreateActivity: _openCreateActivity,
+                        instructorId: user.id,
+                        todoRepository: widget.todoRepository,
+                        reportsRepository: widget.reportsRepository,
                       ),
               ),
               Positioned.fill(
@@ -217,10 +250,16 @@ class _InstructorDashboard extends StatefulWidget {
   const _InstructorDashboard({
     required this.classroomService,
     required this.onCreateActivity,
+    required this.instructorId,
+    this.todoRepository,
+    this.reportsRepository,
   });
 
   final ClassroomRepository classroomService;
   final VoidCallback onCreateActivity;
+  final int instructorId;
+  final InstructorTodoRepository? todoRepository;
+  final InstructorReportsRepository? reportsRepository;
 
   @override
   State<_InstructorDashboard> createState() => _InstructorDashboardState();
@@ -397,14 +436,9 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
                           SizedBox(width: _gap),
                           Expanded(
                             flex: 5,
-                            child: const _DashboardSection(
-                              title: 'Recent quizzes',
-                              icon: Icons.quiz_outlined,
-                              message: 'No quizzes yet',
-                              description:
-                                  'Quizzes you create will appear here for a '
-                                  'quick overview.',
-                              height: 440,
+                            child: InstructorTodoSection(
+                              instructorId: widget.instructorId,
+                              repository: widget.todoRepository,
                             ),
                           ),
                         ],
@@ -416,24 +450,16 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
                             const <ClassroomPerformance>[],
                       ),
                       const SizedBox(height: _gap),
-                      const _DashboardSection(
-                        title: 'Recent quizzes',
-                        icon: Icons.quiz_outlined,
-                        message: 'No quizzes yet',
-                        description:
-                            'Quizzes you create will appear here for a quick '
-                            'overview.',
-                        height: 440,
+                      InstructorTodoSection(
+                        instructorId: widget.instructorId,
+                        repository: widget.todoRepository,
                       ),
                     ],
                     const SizedBox(height: _gap),
-                    const _DashboardSection(
-                      title: 'Students needing attention',
-                      icon: Icons.support_agent_outlined,
-                      message: 'Student insights will appear here',
-                      description:
-                          'See who may need extra support as class activity grows.',
-                      compact: true,
+                    InstructorAttentionSection(
+                      reportsRepository:
+                          widget.reportsRepository ??
+                          InstructorReportsService(),
                     ),
                   ],
                 ),
@@ -866,101 +892,6 @@ class _ClassDetailChip extends StatelessWidget {
             color: Color(0xFF765C4F),
             fontSize: 11,
             fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _DashboardSection extends StatelessWidget {
-  const _DashboardSection({
-    required this.title,
-    required this.icon,
-    required this.message,
-    required this.description,
-    this.compact = false,
-    this.height = 272,
-  });
-
-  final String title;
-  final IconData icon;
-  final String message;
-  final String description;
-  final bool compact;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    height: compact ? 260 : height,
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFE8D7C2)),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x0A3B2419),
-          blurRadius: 18,
-          offset: Offset(0, 6),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  color: Color(0xFF3B2419),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const Divider(height: 24, color: Color(0xFFE8D7C2)),
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF1DF),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: const Color(0xFFF4773C), size: 22),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF3B2419),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF765C4F),
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ],

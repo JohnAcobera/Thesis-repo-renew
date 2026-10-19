@@ -190,7 +190,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
-    expect(find.text('Student'), findsOneWidget);
+    expect(find.text('STUDENT'), findsOneWidget);
+    expect(find.text('Student'), findsNothing);
 
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();

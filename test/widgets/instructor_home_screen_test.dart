@@ -2,8 +2,14 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/classroom_model.dart';
+import 'package:thesis_repo_renew/models/instructor_todo_task.dart';
 import 'package:thesis_repo_renew/models/user_model.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
+import 'package:thesis_repo_renew/services/instructor_todo_service.dart';
+import 'package:thesis_repo_renew/models/learning_material_model.dart';
+import 'package:thesis_repo_renew/models/instructor_report.dart';
+import 'package:thesis_repo_renew/services/instructor_learning_materials_service.dart';
+import 'package:thesis_repo_renew/services/instructor_reports_service.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
 import 'package:thesis_repo_renew/screens/home/instructor_home_screen.dart';
 
@@ -26,6 +32,10 @@ void main() {
           home: InstructorHomeScreen(
             key: ValueKey(size),
             classroomService: _FakeClassroomRepository(),
+            learningMaterialsRepository:
+                _FakeInstructorLearningMaterialsRepository(),
+            reportsRepository: _FakeInstructorReportsRepository(),
+            todoRepository: _FakeInstructorTodoRepository(),
             user: UserModel(
               id: 1,
               fullName: 'Instructor Name',
@@ -43,7 +53,7 @@ void main() {
         'Active classes',
         'Quizzes created',
         'Class performance',
-        'Recent quizzes',
+        'My tasks',
         'Students needing attention',
       ]) {
         expect(find.text(heading), findsOneWidget);
@@ -62,6 +72,16 @@ void main() {
       expect(find.text('Programming'), findsOneWidget);
       expect(find.text('75%'), findsOneWidget);
       expect(find.text('Database Systems'), findsOneWidget);
+      expect(find.text('Support Needed Student'), findsOneWidget);
+      expect(
+        find.text('Grade 11 - STEM A · General Biology 1'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Grade 11 - STEM B · General Biology 1'),
+        findsOneWidget,
+      );
+      expect(find.text('On track'), findsNothing);
       expect(find.text('68%'), findsOneWidget);
       expect(find.text('32 students'), findsOneWidget);
       expect(find.text('4 activities posted'), findsOneWidget);
@@ -103,7 +123,6 @@ void main() {
       await tester.pumpAndSettle();
 
       for (final menuItem in [
-        'Instructor',
         'Dashboard',
         'My Classroom',
         'Learning Materials',
@@ -114,12 +133,40 @@ void main() {
       ]) {
         expect(find.text(menuItem), findsOneWidget);
       }
+      expect(find.text('INSTRUCTOR'), findsOneWidget);
       final profileDetailsCount = size.width >= 600 ? 2 : 1;
       expect(find.text('Instructor Name'), findsNWidgets(profileDetailsCount));
       expect(
         find.text('instructor@example.com'),
         findsNWidgets(profileDetailsCount),
       );
+      await tester.tap(find.text('Reports'));
+      await tester.pumpAndSettle();
+      expect(find.text('Student performance'), findsOneWidget);
+      expect(find.text('Grade 11 - STEM A'), findsOneWidget);
+      expect(find.text('Report Student'), findsOneWidget);
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dashboard'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Learning Materials'));
+      await tester.pumpAndSettle();
+      expect(find.text('Learning Materials'), findsWidgets);
+      expect(find.text('Saved biology quiz'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Create activity'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Turn your notes into a focused study session'),
+        findsOneWidget,
+      );
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
 
@@ -178,6 +225,132 @@ void main() {
       expect(tester.takeException(), isNull);
     }
   });
+}
+
+class _FakeInstructorLearningMaterialsRepository
+    implements InstructorLearningMaterialsRepository {
+  @override
+  Future<List<LearningMaterialModel>> listMaterials() async => [
+    LearningMaterialModel(
+      id: 'saved-quiz',
+      title: 'Saved biology quiz',
+      sourceFile: 'biology.pdf',
+      createdAt: DateTime.utc(2026),
+      questionCount: 10,
+      postedClassroomNames: const [],
+    ),
+  ];
+
+  @override
+  Future<List<LearningMaterialFolder>> listFolders() async => [];
+
+  @override
+  Future<LearningMaterialFolder> createFolder(String name) async =>
+      LearningMaterialFolder(
+        id: 'folder-1',
+        name: name,
+        createdAt: DateTime.utc(2026),
+      );
+
+  @override
+  Future<void> assignMaterialToFolder({
+    required String quizId,
+    required String? folderId,
+  }) async {}
+
+  @override
+  Future<void> deleteMaterial(String quizId) async {}
+
+  @override
+  Future<void> postMaterial({
+    required String quizId,
+    required List<String> classroomIds,
+    required DateTime startsAt,
+    required DateTime deadlineAt,
+    required int maxAttempts,
+  }) async {}
+}
+
+class _FakeInstructorTodoRepository implements InstructorTodoRepository {
+  @override
+  Future<List<InstructorTodoTask>> listTasks(int instructorId) async => [];
+
+  @override
+  Future<void> saveTasks(
+    int instructorId,
+    List<InstructorTodoTask> tasks,
+  ) async {}
+}
+
+class _FakeInstructorReportsRepository implements InstructorReportsRepository {
+  @override
+  Future<List<InstructorReportClassroom>> loadReports() async => [
+    InstructorReportClassroom(
+      id: 'report-class',
+      name: 'Grade 11 - STEM A',
+      subject: 'General Biology 1',
+      studentCount: 1,
+      activityCount: 2,
+      averageScore: 85,
+      students: [
+        InstructorReportStudent(
+          id: 24,
+          fullName: 'Report Student',
+          email: 'student@example.com',
+          role: 'student',
+          joinedAt: DateTime(2025, 1, 10),
+          createdAt: DateTime(2024, 9, 1),
+          completedActivityCount: 2,
+          totalActivityCount: 2,
+          attemptCount: 2,
+          averageScore: 85,
+          generatedQuizCount: 3,
+          personalAttemptCount: 5,
+          personalAverageScore: 79,
+        ),
+        InstructorReportStudent(
+          id: 25,
+          fullName: 'Support Needed Student',
+          email: 'support@example.com',
+          role: 'student',
+          joinedAt: DateTime(2025, 2, 1),
+          createdAt: DateTime(2024, 9, 1),
+          completedActivityCount: 0,
+          totalActivityCount: 2,
+          attemptCount: 0,
+          averageScore: null,
+          generatedQuizCount: 0,
+          personalAttemptCount: 0,
+          personalAverageScore: null,
+        ),
+      ],
+    ),
+    InstructorReportClassroom(
+      id: 'class-2',
+      name: 'Grade 11 - STEM B',
+      subject: 'General Biology 1',
+      studentCount: 1,
+      activityCount: 1,
+      averageScore: 50,
+      students: [
+        InstructorReportStudent(
+          id: 25,
+          fullName: 'Support Needed Student',
+          email: 'support@example.com',
+          role: 'student',
+          joinedAt: DateTime(2025, 2, 1),
+          createdAt: DateTime(2024, 9, 1),
+          completedActivityCount: 1,
+          totalActivityCount: 1,
+          attemptCount: 1,
+          averageScore: 50,
+          generatedQuizCount: 0,
+          personalAttemptCount: 1,
+          personalAverageScore: 50,
+        ),
+      ],
+    ),
+  ];
 }
 
 class _FakeClassroomRepository implements ClassroomRepository {

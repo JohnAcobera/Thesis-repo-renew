@@ -116,6 +116,29 @@ classroom roster. Instructors can review each student's completed activity
 count, average quiz score, attempt count, and join date, and remove students
 from a classroom. Removing a student preserves existing quiz attempts.
 
+Run `supabase/instructor_reports.sql` after `custom_auth.sql`,
+`classrooms.sql`, `quiz_attempts.sql`, and `classroom_activities.sql` to enable
+the instructor Reports screen. It summarizes classrooms and student quiz
+performance and provides account details, overall quiz statistics, and quiz
+generation counts for each enrolled student. Student details include the same
+Accuracy, Retention, Improvement, Consistency, and Focus radar chart as the
+student dashboard. Re-run it to enable the dashboard student follow-up panel;
+it groups each student once across their classrooms and flags quiz averages
+below 60% or started classroom quizzes they have not completed.
+
+Run `supabase/instructor_learning_materials.sql` after `custom_auth.sql`,
+`quiz_attempts.sql`, and `classroom_activities.sql` to enable the instructor
+Learning Materials library. Instructors can review saved quizzes, post them to
+selected classrooms with an availability window and attempt limit, or delete
+them. Quizzes can be sorted by recency, name, or question count and organized
+into named folders. Deleting a quiz also removes its classroom activity
+postings; student quiz attempt records are retained.
+
+The instructor dashboard includes a personal task list saved on the
+current device for each instructor. Tasks support due dates, notes, priorities,
+completion tracking, and overdue or due-today/tomorrow dashboard alerts. These
+are in-app reminders shown on the dashboard, not background push notifications.
+
 Run `supabase/student_notifications.sql` after the learner-points, learning
 streak, weekly leaderboard, classroom, and classroom-activity migrations to
 enable the student notification bell. It shows daily LP and streak rewards,

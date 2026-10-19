@@ -178,16 +178,6 @@ class _InstructorMenuProfile extends StatelessWidget {
                 style: const TextStyle(color: Color(0xFF765C4F), fontSize: 11),
               ),
               const SizedBox(height: 8),
-              Text(
-                role,
-                style: const TextStyle(
-                  color: Color(0xFF9A512F),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
