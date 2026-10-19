@@ -196,10 +196,12 @@ begin
           ranked.position,
           ranked.points
         ),
-        week_period.week_start,
+        week_period.notification_at,
         null::uuid
       from (
-        select date_trunc('week', now()) - interval '1 week' as week_start
+        select
+          date_trunc('week', now()) - interval '1 week' as week_start,
+          date_trunc('week', now()) as notification_at
       ) week_period
       join (
         select

@@ -171,6 +171,71 @@ void main() {
     );
   });
 
+  test('splits inline numbering into separate numbered list items', () {
+    final response = _response();
+    final sections =
+        (response['handout'] as Map<String, dynamic>)['sections'] as List;
+    final subsections =
+        (sections.first as Map<String, dynamic>)['subsections'] as List;
+    final subsection = subsections.first as Map<String, dynamic>;
+    subsection['style'] = 'numbered';
+    subsection['items'] = [
+      '1. The king appoints senior officials.;2. Royal decrees are law.;3. The king can dissolve councils.',
+    ];
+
+    final handout = StudyHandout.fromResponse(response);
+
+    expect(handout.sections.first.subsections.first.items, [
+      'The king appoints senior officials.',
+      'Royal decrees are law.',
+      'The king can dissolve councils.',
+    ]);
+  });
+
+  test('accepts the current Edge Function handout output limits', () {
+    final response = _response();
+    final handout = response['handout'] as Map<String, dynamic>;
+    handout['title'] = 'T' * 101;
+    handout['summary'] = 'S' * 601;
+    final sections = handout['sections'] as List;
+    final firstSection = sections.first as Map<String, dynamic>;
+    firstSection['heading'] = 'H' * 81;
+    firstSection['overview'] = 'O' * 601;
+    final subsections = firstSection['subsections'] as List;
+    final firstSubsection = subsections.first as Map<String, dynamic>;
+    firstSubsection['heading'] = 'h' * 81;
+    firstSubsection['explanation'] = 'E' * 1301;
+    firstSubsection['items'] = ['I' * 351];
+
+    final terms = handout['terms'] as List<Map<String, String>>;
+    terms[0] = {'term': 't' * 61, 'definition': 'D' * 351};
+    terms.addAll([
+      {'term': 'Term 5', 'definition': 'Definition 5'},
+      {'term': 'Term 6', 'definition': 'Definition 6'},
+      {'term': 'Term 7', 'definition': 'Definition 7'},
+      {'term': 'Term 8', 'definition': 'Definition 8'},
+    ]);
+
+    final parsed = StudyHandout.fromResponse(response);
+
+    expect(parsed.title, hasLength(101));
+    expect(parsed.summary, hasLength(601));
+    expect(parsed.sections.first.heading, hasLength(81));
+    expect(parsed.sections.first.overview, hasLength(601));
+    expect(parsed.sections.first.subsections.first.heading, hasLength(81));
+    expect(
+      parsed.sections.first.subsections.first.explanation,
+      hasLength(1301),
+    );
+    expect(
+      parsed.sections.first.subsections.first.items.single,
+      hasLength(351),
+    );
+    expect(parsed.terms, hasLength(8));
+    expect(parsed.terms.first.term, hasLength(61));
+    expect(parsed.terms.first.definition, hasLength(351));
+  });
+
   test('renders a PDF with the handout structure', () async {
     final response = _response();
     final sections =

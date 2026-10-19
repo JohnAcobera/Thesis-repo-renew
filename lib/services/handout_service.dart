@@ -3,6 +3,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_service.dart';
 
+const _maxHandoutSections = 4;
+const _maxHandoutSubsections = 3;
+const _maxHandoutTerms = 8;
+
+// The Edge Function may append a period after truncating text at its limit.
+const _maxTitleLength = 101;
+const _maxSummaryLength = 601;
+const _maxHeadingLength = 81;
+const _maxOverviewLength = 601;
+const _maxExplanationLength = 1301;
+const _maxItemLength = 351;
+const _maxTermLength = 61;
+const _maxDefinitionLength = 351;
+
 enum HandoutListStyle { bullets, numbered }
 
 class HandoutSubsection {
@@ -103,10 +117,10 @@ class StudyHandout {
     final sections = rawSections.map(_readSection).toList(growable: false);
     final terms = rawTerms.map(_readTerm).toList(growable: false);
 
-    if (sections.length < 3 || sections.length > 8) {
+    if (sections.length < 3 || sections.length > _maxHandoutSections) {
       throw const FormatException('The handout sections were invalid.');
     }
-    if (terms.length < 4 || terms.length > 15) {
+    if (terms.length < 4 || terms.length > _maxHandoutTerms) {
       throw const FormatException('The handout terms were invalid.');
     }
     final takeawaysValue = handout['keyTakeaways'];
@@ -121,8 +135,8 @@ class StudyHandout {
     }
 
     return StudyHandout(
-      title: _readText(handout['title'], 'title', 120),
-      summary: _readText(handout['summary'], 'summary', 700),
+      title: _readText(handout['title'], 'title', _maxTitleLength),
+      summary: _readText(handout['summary'], 'summary', _maxSummaryLength),
       sections: sections,
       terms: terms,
       keyTakeaways: keyTakeaways,
@@ -213,15 +227,15 @@ HandoutSection _readSection(Object? value) {
     json['subsections'],
     'subsections',
   ).map(_readSubsection).toList(growable: false);
-  if (subsections.isEmpty || subsections.length > 4) {
+  if (subsections.isEmpty || subsections.length > _maxHandoutSubsections) {
     throw const FormatException('A handout section was invalid.');
   }
   return HandoutSection(
-    heading: _readText(json['heading'], 'section heading', 100),
+    heading: _readText(json['heading'], 'section heading', _maxHeadingLength),
     overview: _readText(
       json['overview'],
       'section overview',
-      700,
+      _maxOverviewLength,
       allowEmpty: true,
     ),
     subsections: subsections,
@@ -230,30 +244,39 @@ HandoutSection _readSection(Object? value) {
 
 HandoutSubsection _readSubsection(Object? value) {
   final json = _readObject(value, 'subsection');
+  final style = switch (json['style']) {
+    'bullets' => HandoutListStyle.bullets,
+    'numbered' => HandoutListStyle.numbered,
+    _ => throw const FormatException('A handout list style was invalid.'),
+  };
   final rawItems = _readList(json['items'], 'items');
   final items = rawItems
-      .map((item) => _readText(item, 'item', 400))
+      .map((item) => _readText(item, 'item', _maxItemLength))
+      .expand(
+        (item) => style == HandoutListStyle.numbered
+            ? _splitInlineNumberedItems(item)
+            : [item],
+      )
       .toList(growable: false);
   if (items.length > 5) {
     throw const FormatException('A handout subsection was invalid.');
   }
 
-  final heading = _readText(json['heading'], 'subsection heading', 80);
+  final heading = _readText(
+    json['heading'],
+    'subsection heading',
+    _maxHeadingLength,
+  );
   final explanation = _readText(
     json['explanation'],
     'subsection explanation',
-    600,
+    _maxExplanationLength,
     allowEmpty: true,
   );
   if (items.isEmpty && explanation.isEmpty) {
     throw const FormatException('A handout subsection was invalid.');
   }
 
-  final style = switch (json['style']) {
-    'bullets' => HandoutListStyle.bullets,
-    'numbered' => HandoutListStyle.numbered,
-    _ => throw const FormatException('A handout list style was invalid.'),
-  };
   return HandoutSubsection(
     heading: heading,
     explanation: explanation,
@@ -262,11 +285,37 @@ HandoutSubsection _readSubsection(Object? value) {
   );
 }
 
+List<String> _splitInlineNumberedItems(String item) {
+  final markers = RegExp(
+    r'(?:^|;\s*)(\d{1,2})[.)]\s+',
+  ).allMatches(item).toList(growable: false);
+  if (markers.length < 2 ||
+      markers.first.start != 0 ||
+      markers.indexed.any((entry) => int.parse(entry.$2[1]!) != entry.$1 + 1)) {
+    return [item];
+  }
+
+  return [
+    for (var index = 0; index < markers.length; index++)
+      item
+          .substring(
+            markers[index].end,
+            index + 1 < markers.length ? markers[index + 1].start : item.length,
+          )
+          .replaceFirst(RegExp(r';\s*$'), '')
+          .trim(),
+  ];
+}
+
 HandoutTerm _readTerm(Object? value) {
   final json = _readObject(value, 'term');
   return HandoutTerm(
-    term: _readText(json['term'], 'term', 80),
-    definition: _readText(json['definition'], 'definition', 400),
+    term: _readText(json['term'], 'term', _maxTermLength),
+    definition: _readText(
+      json['definition'],
+      'definition',
+      _maxDefinitionLength,
+    ),
   );
 }
 

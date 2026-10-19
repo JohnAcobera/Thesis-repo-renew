@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ============================================================
-// SUPABASE EDGE FUNCTION: STUDY HANDOUT GENERATOR (v1)
+// SUPABASE EDGE FUNCTION: STUDY HANDOUT GENERATOR (v1.1, faster)
 //
 // Input (POST JSON):
 //   sessionToken        string   (required)
@@ -25,9 +25,16 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 //
 // The client renders the PDF from `handout` + `style`.
 //
-// Keys:   GEMINI_API_KEY_1..5, GROQ_API_KEY_1..3
+// Keys:   GEMINI_API_KEY_5..1, GROQ_API_KEY_3..1 (highest number first)
 // Routing: per-isolate health table, in-flight balancing, cooldowns,
 //          hedged parallel attempts, failover across models/keys.
+//
+// Speed changes in this version (output logic unchanged):
+//   - Minimal reasoning/thinking on every route.
+//   - If a route rejects those speed settings (HTTP 400), they are
+//     disabled for that model and the request retries without them.
+//   - Earlier hedge (8s instead of 11s).
+//   - Per-isolate cache of recent topics (colors are applied per request).
 // ============================================================
 
 const corsHeaders = {
@@ -51,19 +58,23 @@ const GROQ_KEY_COUNT = 3;
 
 const MAX_CONTEXT_CHARS = 200; // matches the 0/200 counter in the UI
 
-// Target is a ~3 page handout (about 900-1,200 words).
-const TOTAL_REQUEST_BUDGET_MS = 45_000;
+// Target is a ~3 page handout (about 1,200-1,500 words).
+const TOTAL_REQUEST_BUDGET_MS = 50_000;
 const MIN_ATTEMPT_MS = 4_000;
 const MAX_ATTEMPTS = 8;
 const MAX_KEYS_PER_MODEL = 2;
-const MAX_OUTPUT_TOKENS = 4_096;
-const ATTEMPT_TIMEOUT_MS = 20_000;
+const MAX_OUTPUT_TOKENS = 6_144;
+const ATTEMPT_TIMEOUT_MS = 24_000;
 
 // Hedging
 const MAX_PARALLEL = 2;
 const MAX_HEDGES = 2;
-const HEDGE_DELAY_MS = 9_000;
+const HEDGE_DELAY_MS = 8_000;
 const HEDGE_MAX_GLOBAL_INFLIGHT = 20;
+
+// Repeat-topic cache
+const HANDOUT_CACHE_TTL_MS = 10 * 60_000;
+const HANDOUT_CACHE_MAX = 200;
 
 // Content limits (target: ~3 PDF pages; extra content is trimmed)
 const MIN_SECTIONS = 3;
@@ -74,12 +85,12 @@ const MIN_TERMS = 4;
 const MAX_TERMS = 8;
 const MAX_TITLE_CHARS = 100;
 const MAX_HEADING_CHARS = 80;
-const MAX_ITEM_CHARS = 250;
-const MAX_SUMMARY_CHARS = 450;
-const MAX_OVERVIEW_CHARS = 400;
-const MAX_EXPLANATION_CHARS = 600;
+const MAX_ITEM_CHARS = 350;
+const MAX_SUMMARY_CHARS = 600;
+const MAX_OVERVIEW_CHARS = 600;
+const MAX_EXPLANATION_CHARS = 1_300;
 const MAX_TERM_CHARS = 60;
-const MAX_DEFINITION_CHARS = 250;
+const MAX_DEFINITION_CHARS = 350;
 
 // Default colors (match the preview card in the UI)
 const DEFAULT_COLORS = {
@@ -134,7 +145,10 @@ type ModelRoute = {
   provider: ProviderName;
   model: string;
   priority: number;
-  reasoningEffort?: "low";
+  // Optional speed settings. If the provider rejects them (HTTP 400),
+  // they are disabled for that model at runtime (see tuningDisabled).
+  reasoningEffort?: "low" | "none"; // Groq
+  thinkingLevel?: "minimal"; // Gemini
 };
 
 type KeyEntry = {
@@ -229,10 +243,34 @@ const MODEL_ROUTES: ModelRoute[] = [
     priority: 2,
     reasoningEffort: "low",
   },
-  { provider: "groq", model: "qwen/qwen3.8-27b", priority: 3 },
-  { provider: "gemini", model: "gemini-3.5-flash-lite", priority: 4 },
-  { provider: "gemini", model: "gemini-3.1-flash-lite", priority: 5 },
+  {
+    provider: "groq",
+    model: "qwen/qwen3.8-27b",
+    priority: 3,
+    reasoningEffort: "none",
+  },
+  {
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite",
+    priority: 4,
+    thinkingLevel: "minimal",
+  },
+  {
+    provider: "gemini",
+    model: "gemini-3.1-flash-lite",
+    priority: 5,
+    thinkingLevel: "minimal",
+  },
 ];
+
+// Models whose optional speed settings were rejected with a 400.
+// Once added, requests to that model are sent without those settings.
+const tuningDisabled = new Set<string>();
+
+function hasTuning(route: ModelRoute): boolean {
+  return !tuningDisabled.has(route.model) &&
+    (route.reasoningEffort !== undefined || route.thinkingLevel !== undefined);
+}
 
 // ============================================================
 // KEY POOL + HEALTH TABLE (module scope = once per isolate)
@@ -245,7 +283,8 @@ function loadKeys(
 ): KeyEntry[] {
   const keys: KeyEntry[] = [];
 
-  for (let i = 1; i <= count; i++) {
+  // Highest-numbered key first: Groq 3 -> 1, Gemini 5 -> 1.
+  for (let i = count; i >= 1; i--) {
     const id = `${prefix}${i}`;
     const secret = Deno.env.get(id)?.trim();
 
@@ -445,6 +484,38 @@ async function isSessionValid(
 }
 
 // ============================================================
+// HANDOUT CACHE (per isolate, keyed by normalized topic)
+// ============================================================
+
+const handoutCache = new Map<string, { handout: Handout; expires: number }>();
+
+function getCachedHandout(topic: string): Handout | null {
+  const key = topic.toLowerCase();
+  const entry = handoutCache.get(key);
+
+  if (!entry) return null;
+
+  if (entry.expires <= Date.now()) {
+    handoutCache.delete(key);
+    return null;
+  }
+
+  return entry.handout;
+}
+
+function setCachedHandout(topic: string, handout: Handout): void {
+  if (handoutCache.size >= HANDOUT_CACHE_MAX) {
+    const oldest = handoutCache.keys().next().value;
+    if (oldest !== undefined) handoutCache.delete(oldest);
+  }
+
+  handoutCache.set(topic.toLowerCase(), {
+    handout,
+    expires: Date.now() + HANDOUT_CACHE_TTL_MS,
+  });
+}
+
+// ============================================================
 // COMMON HELPERS
 // ============================================================
 
@@ -529,10 +600,34 @@ function resolveColor(value: unknown, fallback: string): string | null {
 // but requires the minimum structure a handout needs.
 // ============================================================
 
+// Trims whitespace and enforces a max length WITHOUT cutting mid-word or
+// mid-sentence: prefers the last complete sentence that fits, else the last
+// whole word (finished with a period).
 function str(value: unknown, max: number): string {
-  return typeof value === "string"
-    ? value.replace(/\s+/g, " ").trim().slice(0, max)
-    : "";
+  if (typeof value !== "string") return "";
+
+  const text = value.replace(/\s+/g, " ").trim();
+
+  if (text.length <= max) return text;
+
+  const window = text.slice(0, max);
+
+  // Last sentence ending inside the window (keep it if it is a meaningful chunk).
+  let lastEnd = -1;
+  const sentenceEnd = /[.!?](?=\s|$)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = sentenceEnd.exec(window)) !== null) {
+    lastEnd = match.index;
+  }
+
+  if (lastEnd >= max * 0.5) return window.slice(0, lastEnd + 1).trim();
+
+  const lastSpace = window.lastIndexOf(" ");
+  const base = (lastSpace > 0 ? window.slice(0, lastSpace) : window)
+    .replace(/[\s,;:\-]+$/, "");
+
+  return /[.!?]$/.test(base) ? base : base + ".";
 }
 
 function normalizeSubsection(raw: unknown): Subsection | null {
@@ -628,8 +723,20 @@ function buildProviderRequest(
   route: ModelRoute,
   prompt: string,
   apiKey: string,
+  tuned: boolean,
 ): { url: string; headers: Record<string, string>; body: string } {
   if (route.provider === "gemini") {
+    const generationConfig: Record<string, unknown> = {
+      responseMimeType: "application/json",
+      responseSchema,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      temperature: 0.4,
+    };
+
+    if (tuned && route.thinkingLevel) {
+      generationConfig.thinkingConfig = { thinkingLevel: route.thinkingLevel };
+    }
+
     return {
       url: `${GEMINI_ENDPOINT}/${encodeURIComponent(route.model)}:generateContent`,
       headers: {
@@ -638,12 +745,7 @@ function buildProviderRequest(
       },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema,
-          maxOutputTokens: MAX_OUTPUT_TOKENS,
-          temperature: 0.4,
-        },
+        generationConfig,
       }),
     };
   }
@@ -664,7 +766,7 @@ function buildProviderRequest(
     temperature: 0.4,
   };
 
-  if (route.reasoningEffort) {
+  if (tuned && route.reasoningEffort) {
     groqBody.reasoning_effort = route.reasoningEffort;
   }
 
@@ -727,7 +829,13 @@ async function runAttempt(
   timeoutMs: number,
   cancelSignal: AbortSignal, // client disconnect OR hedge winner
 ): Promise<Outcome> {
-  const providerRequest = buildProviderRequest(route, prompt, key.secret);
+  const tuned = hasTuning(route);
+  const providerRequest = buildProviderRequest(
+    route,
+    prompt,
+    key.secret,
+    tuned,
+  );
   const startedAt = Date.now();
 
   key.inflight++;
@@ -773,7 +881,7 @@ async function runAttempt(
       const explicitMs = retryDelayMs ??
         (retryAfterSec !== undefined ? retryAfterSec * 1000 : undefined);
 
-      log("error", "Provider request failed", { status, message });
+      log("error", "Provider request failed", { status, message, tuned });
 
       if (status === 429) {
         coolDown(key, route.model, COOLDOWN_RATE_LIMIT_BASE, explicitMs);
@@ -793,6 +901,15 @@ async function runAttempt(
       if ([408, 409, 500, 502, 503, 504].includes(status)) {
         coolDown(key, route.model, COOLDOWN_OVERLOAD_BASE, explicitMs);
         return { ok: false, kind: "overload", message, retryAfterSec };
+      }
+
+      // A 400 on a tuned request most likely means the speed settings
+      // (reasoning/thinking) are not supported by this model. Disable them
+      // for this model and let the next candidate retry without cooldown.
+      if (status === 400 && tuned) {
+        tuningDisabled.add(route.model);
+        log("error", "Speed settings rejected; disabled for this model");
+        return { ok: false, kind: "bad_request", message };
       }
 
       coolDown(key, route.model, COOLDOWN_BAD_REQUEST, COOLDOWN_BAD_REQUEST);
@@ -847,6 +964,7 @@ async function runAttempt(
     log("log", "Handout generation succeeded", {
       sections: handout.sections.length,
       terms: handout.terms.length,
+      tuned,
     });
 
     return { ok: true, handout };
@@ -986,6 +1104,17 @@ Deno.serve(async (request: Request): Promise<Response> => {
     });
   }
 
+  // ---------- Cache (after session check, before any provider call) ----------
+
+  const cachedHandout = getCachedHandout(topic);
+
+  if (cachedHandout) {
+    return jsonResponse(200, {
+      handout: cachedHandout,
+      style: { titleColor, termsColor, definitionsColor },
+    });
+  }
+
   // ---------- Prompt ----------
 
   const prompt = [
@@ -999,7 +1128,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     "- summary: 2 sentences introducing the subject and what the student will learn.",
     "- section overview: 2 sentences on what the module covers and why it matters.",
     "- subsection explanation: the main content. 4 to 6 plain-language sentences that explain the idea in depth: define it, explain the reason or mechanism behind it, and include a concrete example, analogy, or real-world application. Where relevant, mention how it connects to other ideas in the handout or a common misconception.",
-    '- subsection items: use lists sparingly. Most subsections should have "items": [] and rely on the explanation alone. Give a list (3 to 4 items) to at most one subsection per section, and only for definitions, features, comparisons (X vs Y), or steps. Use style "numbered" only for steps or sequences, otherwise "bullets".',
+    '- subsection items: use lists sparingly. Most subsections should have "items": [] and rely on the explanation alone. Give a list (3 to 4 items) to at most one subsection per section, and only for definitions, features, comparisons (X vs Y), or steps. Use style "numbered" only for steps or sequences, otherwise "bullets". Return each point as a separate string in "items"; do not add numbering to item text or combine points with semicolons.',
     "- Each list item is one sentence (about 25 words max) that explains rather than just names the point.",
     "- terms: 6 to 8 key terms from the handout, each with a one to two sentence definition.",
     "",
@@ -1098,6 +1227,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     if (outcome.ok && outcome.handout) {
       cancelAll(); // free quota/CPU held by the slower attempt
+      setCachedHandout(topic, outcome.handout);
       return jsonResponse(200, {
         handout: outcome.handout,
         style: { titleColor, termsColor, definitionsColor },
