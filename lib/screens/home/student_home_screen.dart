@@ -1034,7 +1034,8 @@ class _WideStudentDashboard extends StatelessWidget {
                 key: _DashboardPanel.greetingPanelKey,
                 icon: null,
                 title: 'Your Stats',
-                description: '',
+                description:
+                    'A snapshot of your quiz performance and study habits.',
                 titleSize: 30,
                 centerContent: true,
                 titleAtTop: true,
@@ -1072,7 +1073,7 @@ class _WideStudentDashboard extends StatelessWidget {
           key: _DashboardPanel.recentActivityPanelKey,
           icon: Icons.history,
           title: 'Recent activity',
-          description: '',
+          description: 'Your latest quizzes and study sessions.',
           content: _RecentActivityContent(
             key: ValueKey<int>(activityRevision),
             user: user,
@@ -1111,7 +1112,7 @@ class _StackedStudentDashboard extends StatelessWidget {
         key: _DashboardPanel.greetingPanelKey,
         icon: null,
         title: 'Your Stats',
-        description: '',
+        description: 'A snapshot of your quiz performance and study habits.',
         titleSize: 28,
         centerContent: true,
         titleAtTop: true,
@@ -1139,7 +1140,7 @@ class _StackedStudentDashboard extends StatelessWidget {
         key: _DashboardPanel.recentActivityPanelKey,
         icon: Icons.history,
         title: 'Recent activity',
-        description: '',
+        description: 'Your latest quizzes and study sessions.',
         content: _RecentActivityContent(
           key: ValueKey<int>(activityRevision),
           user: user,
@@ -1258,7 +1259,8 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
             : const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.zero,
         itemCount: activities.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
+        separatorBuilder: (_, _) =>
+            const Divider(height: 1, color: Color(0xFFE8D7C2)),
         itemBuilder: (context, index) {
           final entry = activities[index];
           if (entry is LearningInventoryItem) {
@@ -1266,7 +1268,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
           }
           final activity = entry as QuizActivity;
           return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 10),
             child: Row(
               children: [
                 Expanded(
@@ -1296,12 +1298,14 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                               children: [
                                 Text(
                                   activity.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: Color(0xFF3B2419),
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                const SizedBox(height: 3),
+                                const SizedBox(height: 5),
                                 Text(
                                   '${activity.sourceFile} · ${_formatActivityDate(activity.createdAt)}',
                                   maxLines: 2,
@@ -1324,12 +1328,23 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                                     ),
                                   ),
                                 ],
-                                const SizedBox(height: 3),
-                                Text(
-                                  '${activity.highestPercentage}% · ${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
-                                  style: const TextStyle(
-                                    color: Color(0xFFF4773C),
-                                    fontWeight: FontWeight.w800,
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF1E5),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '${activity.highestPercentage}% · ${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
+                                    style: const TextStyle(
+                                      color: Color(0xFFB84E25),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1373,7 +1388,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
     final latestAttempt = activity.attempts.first;
     final isFlashcards = activity.type == LearningActivityType.flashcards;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: InkWell(
         onTap: () => widget.onMenuSelected(StudentMenuItem.inventory),
         borderRadius: BorderRadius.circular(12),
@@ -1409,7 +1424,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 5),
                     Text(
                       '${isFlashcards ? 'Flashcards' : 'Matching'} · ${_formatActivityDate(latestAttempt.createdAt)}',
                       style: const TextStyle(
@@ -1417,12 +1432,23 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                         fontSize: 12,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${latestAttempt.percentage.round()}% · ${activity.attemptCount} ${activity.attemptCount == 1 ? 'attempt' : 'attempts'}',
-                      style: const TextStyle(
-                        color: Color(0xFFF4773C),
-                        fontWeight: FontWeight.w800,
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1E5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${latestAttempt.percentage.round()}% · ${activity.attemptCount} ${activity.attemptCount == 1 ? 'attempt' : 'attempts'}',
+                        style: const TextStyle(
+                          color: Color(0xFFB84E25),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
@@ -1808,14 +1834,14 @@ class _DashboardPanel extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(hasAction || content != null ? 16 : 24),
+      padding: EdgeInsets.all(hasAction || content != null ? 18 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE8D7C2)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x12000000),
+            color: Color(0x0A3B2419),
             blurRadius: 18,
             offset: Offset(0, 6),
           ),
@@ -1830,89 +1856,118 @@ class _DashboardPanel extends StatelessWidget {
             ? CrossAxisAlignment.center
             : CrossAxisAlignment.start,
         children: [
-          if (icon != null) ...[
-            Icon(icon, color: const Color(0xFFF4773C), size: 28),
-            SizedBox(
-              height: hasAction
-                  ? 12
-                  : content != null
-                  ? 8
-                  : 16,
-            ),
-          ],
-          if (titleTooltip == null)
-            Text(
-              title,
-              textAlign: centerContent ? TextAlign.center : TextAlign.start,
-              style: TextStyle(
-                fontSize: titleSize,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF3B2419),
-              ),
-            )
-          else
+          if (icon != null && !centerContent)
             Row(
-              mainAxisSize: centerContent ? MainAxisSize.min : MainAxisSize.max,
-              mainAxisAlignment: centerContent
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.start,
               children: [
-                Flexible(
-                  child: Text(
-                    title,
-                    textAlign: centerContent
-                        ? TextAlign.center
-                        : TextAlign.start,
-                    style: TextStyle(
-                      fontSize: titleSize,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF3B2419),
-                    ),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFE9DC),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: const Color(0xFFF4773C), size: 21),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildTitle(TextAlign.start, 17),
+                      if (description.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          description,
+                          style: const TextStyle(
+                            color: Color(0xFF765C4F),
+                            fontSize: 12,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                const SizedBox(width: 6),
-                titleTooltip!,
               ],
+            )
+          else if (icon != null) ...[
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE9DC),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: const Color(0xFFF4773C), size: 21),
             ),
-          if (description.isNotEmpty) ...[
+            SizedBox(height: hasAction ? 8 : 12),
+            _buildTitle(
+              centerContent ? TextAlign.center : TextAlign.start,
+              titleSize,
+            ),
+          ] else
+            _buildTitle(
+              centerContent ? TextAlign.center : TextAlign.start,
+              titleSize,
+            ),
+          if (description.isNotEmpty && !(icon != null && !centerContent)) ...[
             SizedBox(
               height: hasAction
-                  ? 8
-                  : content != null
                   ? 6
+                  : content != null
+                  ? 8
                   : 10,
             ),
             Text(
               description,
               textAlign: centerContent ? TextAlign.center : TextAlign.start,
+              style: const TextStyle(
+                color: Color(0xFF765C4F),
+                fontSize: 13,
+                height: 1.45,
+              ),
             ),
           ],
           if (content != null) ...[
-            const SizedBox(height: 4),
+            if (icon != null && !centerContent)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Divider(height: 1, color: Color(0xFFE8D7C2)),
+              ),
+            if (titleAtTop && description.isEmpty) const SizedBox(height: 8),
+            if (!titleAtTop) const SizedBox(height: 8),
             if (expandContent) Expanded(child: content!) else content!,
           ],
           if (hasAction) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             LayoutBuilder(
               builder: (context, constraints) {
                 final primaryButton = FilledButton.icon(
                   onPressed: onAction,
                   style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFF4773C),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  icon: const Icon(Icons.upload_file_outlined),
+                  icon: const Icon(Icons.upload_file_outlined, size: 18),
                   label: Text(actionLabel ?? ''),
                 );
                 final secondaryButton = OutlinedButton.icon(
                   onPressed: onSecondaryAction,
                   style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFF4773C),
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    side: const BorderSide(color: Color(0xFFF4773C)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  icon: const Icon(Icons.auto_awesome_outlined),
+                  icon: const Icon(Icons.auto_awesome_outlined, size: 18),
                   label: Text(secondaryActionLabel ?? ''),
                 );
 
@@ -1933,33 +1988,47 @@ class _DashboardPanel extends StatelessWidget {
                             secondaryButton,
                           ],
                         );
-                  return Align(
-                    alignment: centerContent
-                        ? Alignment.center
-                        : Alignment.centerLeft,
-                    child: SizedBox(
-                      width: constraints.maxWidth,
-                      child: buttons,
-                    ),
-                  );
+                  return SizedBox(width: constraints.maxWidth, child: buttons);
                 }
 
                 final isPrimary = hasPrimaryAction;
-                return Align(
-                  alignment: centerContent
-                      ? Alignment.center
-                      : Alignment.centerLeft,
-                  child: SizedBox(
-                    width: constraints.maxWidth * 0.6,
-                    height: 48,
-                    child: isPrimary ? primaryButton : secondaryButton,
-                  ),
+                return SizedBox(
+                  width: constraints.maxWidth * 0.6,
+                  height: 44,
+                  child: isPrimary ? primaryButton : secondaryButton,
                 );
               },
             ),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildTitle(TextAlign alignment, double size) {
+    final text = Text(
+      title,
+      textAlign: alignment,
+      style: TextStyle(
+        fontSize: size,
+        fontWeight: FontWeight.w700,
+        color: const Color(0xFF3B2419),
+        letterSpacing: -0.2,
+      ),
+    );
+    if (titleTooltip == null) return text;
+    return Row(
+      mainAxisSize: alignment == TextAlign.center
+          ? MainAxisSize.min
+          : MainAxisSize.max,
+      mainAxisAlignment: alignment == TextAlign.center
+          ? MainAxisAlignment.center
+          : MainAxisAlignment.start,
+      children: [
+        Flexible(child: text),
+        const SizedBox(width: 6),
+        titleTooltip!,
+      ],
     );
   }
 }
