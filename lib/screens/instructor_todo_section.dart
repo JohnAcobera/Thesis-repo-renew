@@ -36,7 +36,7 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
   late final InstructorTodoRepository _repository =
       widget.repository ?? const InstructorTodoService();
   late Future<List<InstructorTodoTask>> _tasks;
-  _TodoFilter _filter = _TodoFilter.all;
+  _TodoFilter _filter = _TodoFilter.open;
   bool _isSaving = false;
 
   @override
@@ -61,7 +61,7 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
       priority: draft.priority,
     );
     await _saveTasks([task, ...currentTasks]);
-    if (mounted) setState(() => _filter = _TodoFilter.all);
+    if (mounted) setState(() => _filter = _TodoFilter.open);
   }
 
   Future<void> _toggleTask(

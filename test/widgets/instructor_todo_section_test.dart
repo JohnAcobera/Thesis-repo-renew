@@ -38,15 +38,18 @@ void main() {
     expect(find.text('My tasks'), findsOneWidget);
     expect(find.text('1 task due today or tomorrow'), findsOneWidget);
     expect(find.text('Prepare biology quiz'), findsOneWidget);
+    expect(find.text('To do 1'), findsOneWidget);
     expect(repository.lastInstructorId, 17);
 
     await tester.tap(find.byKey(const ValueKey('task-check-tomorrow')));
     await tester.pumpAndSettle();
     expect(find.text('1 of 1 done'), findsOneWidget);
     expect(find.text('1 task due today or tomorrow'), findsNothing);
+    expect(find.text('Prepare biology quiz'), findsNothing);
 
     await tester.tap(find.text('Done 1'));
     await tester.pumpAndSettle();
+    expect(find.text('Prepare biology quiz'), findsOneWidget);
     await tester.tap(find.byTooltip('Remove Prepare biology quiz'));
     await tester.pumpAndSettle();
     expect(find.text('Prepare biology quiz'), findsNothing);
