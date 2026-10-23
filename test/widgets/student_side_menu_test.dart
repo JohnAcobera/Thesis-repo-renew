@@ -466,65 +466,58 @@ void main() {
     );
   });
 
-  testWidgets(
-    'profile shows an empty achievements section below the calendar',
-    (tester) async {
-      tester.view.physicalSize = const Size(420, 1000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets('profile omits the achievements section', (tester) async {
+    tester.view.physicalSize = const Size(420, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ProfileScreen(
-            username: 'Student Name',
-            email: 'student@example.com',
-            authService: _LearnerPointsAuthService(0, ranking: 2),
-            streakDays: {},
-          ),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProfileScreen(
+          username: 'Student Name',
+          email: 'student@example.com',
+          authService: _LearnerPointsAuthService(0, ranking: 2),
+          streakDays: {},
         ),
-      );
-      await tester.pump();
+      ),
+    );
+    await tester.pump();
 
-      final calendar = find.text('Learning streak');
-      final achievements = find.text('Your Achievements');
-      expect(calendar, findsOneWidget);
-      expect(achievements, findsOneWidget);
-      expect(find.text('LP'), findsOneWidget);
-      expect(find.text('0'), findsOneWidget);
-      expect(find.text('Weekly ranking #2'), findsOneWidget);
-      expect(find.byIcon(Icons.diamond_outlined), findsOneWidget);
-      final learnerPointsTooltip = tester.widget<Tooltip>(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Tooltip &&
-              widget.richMessage?.toPlainText().contains(
-                    'HOW TO EARN LEARNER POINTS',
-                  ) ==
-                  true,
-        ),
-      );
-      final tooltipText = learnerPointsTooltip.richMessage!.toPlainText();
-      expect(tooltipText, contains('up to 700 LP per day'));
-      expect(tooltipText, contains('first attempt on a quiz adds 50 LP'));
-      expect(tooltipText, contains('the second adds 25 LP'));
-      expect(tooltipText, contains('one-time 150 LP bonus'));
-      expect(
-        find.bySemanticsLabel('Show how to earn Learner Points'),
-        findsOneWidget,
-      );
-      expect(
-        tester.getTopLeft(achievements).dy,
-        greaterThan(tester.getTopLeft(calendar).dy),
-      );
-      expect(find.text('No achievements yet'), findsOneWidget);
-      expect(find.text('Your achievements will appear here.'), findsOneWidget);
-      expect(
-        tester.widget<Text>(find.text('Weekly ranking #2')).style?.color,
-        const Color(0xFF9EA7B3),
-      );
-    },
-  );
+    final calendar = find.text('Learning streak');
+    final achievements = find.text('Your Achievements');
+    expect(calendar, findsOneWidget);
+    expect(achievements, findsNothing);
+    expect(find.text('LP'), findsOneWidget);
+    expect(find.text('0'), findsOneWidget);
+    expect(find.text('Weekly ranking #2'), findsOneWidget);
+    expect(find.byIcon(Icons.diamond_outlined), findsOneWidget);
+    final learnerPointsTooltip = tester.widget<Tooltip>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip &&
+            widget.richMessage?.toPlainText().contains(
+                  'HOW TO EARN LEARNER POINTS',
+                ) ==
+                true,
+      ),
+    );
+    final tooltipText = learnerPointsTooltip.richMessage!.toPlainText();
+    expect(tooltipText, contains('up to 700 LP per day'));
+    expect(tooltipText, contains('first attempt on a quiz adds 50 LP'));
+    expect(tooltipText, contains('the second adds 25 LP'));
+    expect(tooltipText, contains('one-time 150 LP bonus'));
+    expect(
+      find.bySemanticsLabel('Show how to earn Learner Points'),
+      findsOneWidget,
+    );
+    expect(find.text('No achievements yet'), findsNothing);
+    expect(find.text('Your achievements will appear here.'), findsNothing);
+    expect(
+      tester.widget<Text>(find.text('Weekly ranking #2')).style?.color,
+      const Color(0xFF9EA7B3),
+    );
+  });
 
   testWidgets('profile displays the loaded learner point balance with commas', (
     tester,

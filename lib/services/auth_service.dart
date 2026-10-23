@@ -26,15 +26,20 @@ abstract interface class ProfileDataService {
 }
 
 class AuthService implements ProfileDataService {
-  AuthService({SupabaseClient? client, FlutterSecureStorage? storage})
-    : _client = client ?? Supabase.instance.client,
-      _storage = storage ?? const FlutterSecureStorage();
+  AuthService({
+    SupabaseClient? client,
+    FlutterSecureStorage? storage,
+    String sessionStorageKey = _sessionKey,
+  }) : _client = client ?? Supabase.instance.client,
+       _storage = storage ?? const FlutterSecureStorage(),
+       _sessionStorageKey = sessionStorageKey;
 
   static const _sessionKey = 'custom_session_token';
   final SupabaseClient _client;
   final FlutterSecureStorage _storage;
+  final String _sessionStorageKey;
 
-  Future<String?> getSessionToken() => _storage.read(key: _sessionKey);
+  Future<String?> getSessionToken() => _storage.read(key: _sessionStorageKey);
 
   Future<void> register({
     required String fullName,
@@ -72,7 +77,7 @@ class AuthService implements ProfileDataService {
         user: UserModel.fromJson(response['user'] as Map<String, dynamic>),
         sessionToken: response['session_token'] as String,
       );
-      await _storage.write(key: _sessionKey, value: result.sessionToken);
+      await _storage.write(key: _sessionStorageKey, value: result.sessionToken);
       return result;
     } on PostgrestException catch (error) {
       throw AuthException(_messageFor(error));
@@ -84,7 +89,7 @@ class AuthService implements ProfileDataService {
   }
 
   Future<UserModel?> restoreSession() async {
-    final token = await _storage.read(key: _sessionKey);
+    final token = await _storage.read(key: _sessionStorageKey);
     if (token == null || token.isEmpty) return null;
 
     try {
@@ -94,7 +99,7 @@ class AuthService implements ProfileDataService {
       );
       return UserModel.fromJson(response);
     } on PostgrestException {
-      await _storage.delete(key: _sessionKey);
+      await _storage.delete(key: _sessionStorageKey);
       return null;
     } on Exception {
       rethrow;
@@ -103,7 +108,7 @@ class AuthService implements ProfileDataService {
 
   @override
   Future<Set<DateTime>> loginDates() async {
-    final token = await _storage.read(key: _sessionKey);
+    final token = await _storage.read(key: _sessionStorageKey);
     if (token == null || token.isEmpty) {
       throw const AuthException('Please sign in again to view your streak.');
     }
@@ -124,7 +129,7 @@ class AuthService implements ProfileDataService {
 
   @override
   Future<int> learnerPoints() async {
-    final token = await _storage.read(key: _sessionKey);
+    final token = await _storage.read(key: _sessionStorageKey);
     if (token == null || token.isEmpty) {
       throw const AuthException(
         'Please sign in again to view your learner points.',
@@ -145,7 +150,7 @@ class AuthService implements ProfileDataService {
 
   @override
   Future<int?> weeklyRanking() async {
-    final token = await _storage.read(key: _sessionKey);
+    final token = await _storage.read(key: _sessionStorageKey);
     if (token == null || token.isEmpty) {
       throw const AuthException(
         'Please sign in again to view your weekly ranking.',
@@ -165,7 +170,7 @@ class AuthService implements ProfileDataService {
   }
 
   Future<void> logout() async {
-    final token = await _storage.read(key: _sessionKey);
+    final token = await _storage.read(key: _sessionStorageKey);
     try {
       if (token != null && token.isNotEmpty) {
         await _client.rpc<void>(
@@ -174,7 +179,7 @@ class AuthService implements ProfileDataService {
         );
       }
     } finally {
-      await _storage.delete(key: _sessionKey);
+      await _storage.delete(key: _sessionStorageKey);
     }
   }
 

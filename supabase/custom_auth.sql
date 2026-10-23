@@ -13,7 +13,7 @@ create unique index if not exists users_email_unique_idx
 
 alter table public.users drop constraint if exists users_role_check;
 alter table public.users add constraint users_role_check
-  check (role in ('student', 'instructor'));
+  check (role in ('student', 'instructor', 'admin'));
 
 create table if not exists public.user_sessions (
   id uuid primary key default gen_random_uuid(),

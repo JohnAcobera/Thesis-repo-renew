@@ -226,8 +226,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 24),
                 _buildStreakCalendar(),
-                const SizedBox(height: 24),
-                const _AchievementsSection(),
               ],
             ),
           ),
@@ -589,72 +587,6 @@ class _CalendarDay extends StatelessWidget {
       ),
     );
   }
-}
-
-class _AchievementsSection extends StatelessWidget {
-  const _AchievementsSection();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: const Color(0xFFE8D7C2)),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x12000000),
-          blurRadius: 18,
-          offset: Offset(0, 6),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Your Achievements',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: const Color(0xFF3B2419),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 20),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF8EE),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE8D7C2)),
-          ),
-          child: const Column(
-            children: [
-              Icon(
-                Icons.emoji_events_outlined,
-                size: 40,
-                color: Color(0xFFF4773C),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'No achievements yet',
-                style: TextStyle(
-                  color: Color(0xFF3B2419),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'Your achievements will appear here.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF765C4F)),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 class _LearnerPointsBadge extends StatelessWidget {

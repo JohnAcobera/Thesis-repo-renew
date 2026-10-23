@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'screens/admin/admin_login_screen.dart';
 import 'screens/landing/landing_screen.dart';
 
 const _buttonColor = Color(0xFFFF7434);
@@ -91,9 +92,19 @@ class MainApp extends StatelessWidget {
           ),
         ),
       ),
-      home: isConfigured ? const LandingScreen() : const _ConfigurationScreen(),
+      home: isConfigured
+          ? _isAdminRoute(Uri.base)
+                ? const AdminLoginScreen()
+                : const LandingScreen()
+          : const _ConfigurationScreen(),
     );
   }
+}
+
+bool _isAdminRoute(Uri uri) {
+  final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+  final fragment = uri.fragment.split('?').first;
+  return path == '/admin' || fragment == '/admin';
 }
 
 class _ConfigurationScreen extends StatelessWidget {

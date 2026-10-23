@@ -36,7 +36,20 @@ If the profile shows "Joined: Not available", re-run
 restored-session RPCs return `users.created_at`, which the profile displays as
 the account's join date. Re-run this migration to restrict public
 self-registration to student accounts; instructor accounts must be created
-through the admin workflow once it is available.
+through the admin workflow once it is available. The migration allows the
+`admin` role for accounts created directly in the database. Set
+`password_hash` to `crypt('your-strong-password', gen_salt('bf', 12))` when
+creating an admin; do not store the password as plain text.
+
+## Admin panel
+
+The admin login is available directly at `/admin` in a Flutter web build, or
+at `/#/admin` when using Flutter's default hash-based web URL. It is not linked
+from the main app. Re-run `supabase/custom_auth.sql` before creating an admin
+account with the `admin` role. Public self-registration remains student-only.
+Run the web app locally with
+`flutter run -d chrome --dart-define-from-file=.env`. When deploying with
+path-based URLs, configure the web host to serve `index.html` for `/admin`.
 
 ## Generative quizzes
 
