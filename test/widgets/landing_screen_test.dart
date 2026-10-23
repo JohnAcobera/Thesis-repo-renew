@@ -24,6 +24,7 @@ void main() {
       expect(find.text('EduSmart'), findsNothing);
       expect(find.text('Study tools'), findsNothing);
       expect(find.text('Create'), findsNothing);
+      expect(find.text("I'm a teacher"), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

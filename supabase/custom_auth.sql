@@ -42,7 +42,7 @@ as $$
 begin
   if length(trim(p_full_name)) < 2
      or length(p_password) < 8
-     or p_role not in ('student', 'instructor')
+     or p_role is distinct from 'student'
      or p_email !~* '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
     raise exception 'Invalid registration details';
   end if;

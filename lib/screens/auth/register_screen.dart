@@ -4,9 +4,7 @@ import '../../services/auth_service.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({this.initialRole = 'student', super.key});
-
-  final String initialRole;
+  const RegisterScreen({super.key});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -19,17 +17,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   final _service = AuthService();
-  late String _role;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
   String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _role = widget.initialRole;
-  }
 
   Future<void> _register() async {
     if (_isLoading) return;
@@ -43,7 +34,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         fullName: _nameController.text,
         email: _emailController.text,
         password: _passwordController.text,
-        role: _role,
+        role: 'student',
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -95,26 +86,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     const Text('Join the community', style: _headingStyle),
                     const SizedBox(height: 8),
-                    const Text('Choose your account type to get started.'),
-                    const SizedBox(height: 24),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(
-                          value: 'student',
-                          label: Text('Student'),
-                          icon: Icon(Icons.school_outlined),
-                        ),
-                        ButtonSegment(
-                          value: 'instructor',
-                          label: Text('Instructor'),
-                          icon: Icon(Icons.co_present_outlined),
-                        ),
-                      ],
-                      selected: {_role},
-                      onSelectionChanged: _isLoading
-                          ? null
-                          : (value) => setState(() => _role = value.first),
-                    ),
+                    const Text('Create your student account to get started.'),
                     const SizedBox(height: 24),
                     TextFormField(
                       controller: _nameController,

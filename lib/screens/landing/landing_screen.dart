@@ -68,14 +68,6 @@ class _LandingScreenState extends State<LandingScreen> {
     ).push(MaterialPageRoute<void>(builder: (_) => const RegisterScreen()));
   }
 
-  void _openTeacherRegister() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const RegisterScreen(initialRole: 'instructor'),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -101,10 +93,7 @@ class _LandingScreenState extends State<LandingScreen> {
                       ),
                     ],
                     LandingTopNav(onLogin: _openLogin),
-                    _HeroSection(
-                      onSignUp: _openRegister,
-                      onTeacher: _openTeacherRegister,
-                    ),
+                    _HeroSection(onSignUp: _openRegister),
                     const _FeatureCarousel(),
                     const _WhyQuizForgeSection(),
                     const SizedBox(height: 40),
@@ -204,10 +193,9 @@ class _Brand extends StatelessWidget {
 }
 
 class _HeroSection extends StatelessWidget {
-  const _HeroSection({required this.onSignUp, required this.onTeacher});
+  const _HeroSection({required this.onSignUp});
 
   final VoidCallback onSignUp;
-  final VoidCallback onTeacher;
 
   @override
   Widget build(BuildContext context) {
@@ -224,11 +212,7 @@ class _HeroSection extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 720;
-            final copy = _HeroCopy(
-              compact: compact,
-              onSignUp: onSignUp,
-              onTeacher: onTeacher,
-            );
+            final copy = _HeroCopy(compact: compact, onSignUp: onSignUp);
             if (compact) {
               return Column(
                 children: [
@@ -253,15 +237,10 @@ class _HeroSection extends StatelessWidget {
 }
 
 class _HeroCopy extends StatelessWidget {
-  const _HeroCopy({
-    required this.compact,
-    required this.onSignUp,
-    required this.onTeacher,
-  });
+  const _HeroCopy({required this.compact, required this.onSignUp});
 
   final bool compact;
   final VoidCallback onSignUp;
-  final VoidCallback onTeacher;
 
   @override
   Widget build(BuildContext context) {
@@ -330,7 +309,6 @@ class _HeroCopy extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
-            _HeroLink(label: "I'm a teacher", onPressed: onTeacher),
           ],
         ),
       ],
@@ -384,25 +362,6 @@ class _StudyIllustration extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _HeroLink extends StatelessWidget {
-  const _HeroLink({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton.icon(
-      onPressed: onPressed,
-      label: Text(label),
-      style: TextButton.styleFrom(
-        foregroundColor: _heading,
-        textStyle: const TextStyle(fontWeight: FontWeight.w600),
       ),
     );
   }

@@ -34,7 +34,9 @@ flutter build web --dart-define-from-file=.env --no-wasm-dry-run --base-href=/yo
 If the profile shows "Joined: Not available", re-run
 `supabase/custom_auth.sql` in the Supabase SQL Editor. Its login and
 restored-session RPCs return `users.created_at`, which the profile displays as
-the account's join date.
+the account's join date. Re-run this migration to restrict public
+self-registration to student accounts; instructor accounts must be created
+through the admin workflow once it is available.
 
 ## Generative quizzes
 
