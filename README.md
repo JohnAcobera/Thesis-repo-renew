@@ -50,6 +50,10 @@ account with the `admin` role. Public self-registration remains student-only.
 Run the web app locally with
 `flutter run -d chrome --dart-define-from-file=.env`. When deploying with
 path-based URLs, configure the web host to serve `index.html` for `/admin`.
+Run `supabase/admin_overview.sql` after `custom_auth.sql`, `classrooms.sql`,
+`quiz_attempts.sql`, and `classroom_activities.sql` to enable the admin
+overview. It reports student, instructor, and classroom totals plus the eight
+most recent account, classroom, enrollment, and posted-activity updates.
 
 ## Generative quizzes
 
