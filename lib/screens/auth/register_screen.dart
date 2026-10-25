@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
+import '../landing/landing_screen.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -67,10 +68,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         automaticallyImplyLeading: false,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+            MaterialPageRoute<void>(builder: (_) => const LandingScreen()),
           ),
           icon: const Icon(Icons.arrow_back),
-          tooltip: 'Back to login',
+          tooltip: 'Back to landing page',
         ),
       ),
       body: SafeArea(

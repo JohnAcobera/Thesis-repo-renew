@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:flutter_dropzone/flutter_dropzone.dart';
 
 import 'profile_screen.dart';
 import 'quiz_screen.dart';
@@ -44,10 +47,14 @@ class _ImportScreenState extends State<ImportScreen> {
   PlatformFile? _selectedFile;
   final TextEditingController _quizNameController = TextEditingController();
   _LearningMode _selectedMode = _LearningMode.quiz;
-  QuizQuestionType _selectedType = QuizQuestionType.multipleChoice;
+  final Set<QuizQuestionType> _selectedTypes = {
+    QuizQuestionType.multipleChoice,
+  };
   int _selectedItemCount = 10;
   bool _isGenerating = false;
+  bool _isDragHovered = false;
   String? _generationStatus;
+  DropzoneViewController? _dropzoneController;
 
   bool get _isInstructor => widget.role.toLowerCase() == 'instructor';
 
@@ -72,23 +79,116 @@ class _ImportScreenState extends State<ImportScreen> {
         allowMultiple: false,
       );
       if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        if (file.size > 3 * 1024 * 1024) {
-          _showMessage('Choose a file that is 3 MB or smaller.');
-          return;
-        }
-        if (mounted) {
-          setState(() {
-            _selectedFile = file;
-            _quizNameController.clear();
-          });
-        }
+        _acceptFile(result.files.first);
       }
     } on Exception catch (e) {
       if (mounted) {
         _showMessage('Failed to pick file: $e', isError: true);
       }
     }
+  }
+
+  void _acceptFile(PlatformFile file) {
+    final extension = file.extension?.toLowerCase();
+    if (!const {'pdf', 'docx', 'txt'}.contains(extension)) {
+      _showMessage('Choose a PDF, DOCX, or TXT file.', isError: true);
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      _showMessage('Choose a file that is 3 MB or smaller.', isError: true);
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _selectedFile = file;
+      _quizNameController.clear();
+      _isDragHovered = false;
+    });
+  }
+
+  Future<void> _handleWebDroppedFile(DropzoneFileInterface file) async {
+    final controller = _dropzoneController;
+    if (controller == null) {
+      _showMessage('The drop area is still loading. Please try again.');
+      return;
+    }
+
+    try {
+      final name = await controller.getFilename(file);
+      final size = await controller.getFileSize(file);
+      if (!mounted) return;
+      final extension = name.contains('.')
+          ? name.split('.').last.toLowerCase()
+          : null;
+      if (!const {'pdf', 'docx', 'txt'}.contains(extension)) {
+        _showMessage('Choose a PDF, DOCX, or TXT file.', isError: true);
+        return;
+      }
+      if (size > 3 * 1024 * 1024) {
+        _showMessage('Choose a file that is 3 MB or smaller.', isError: true);
+        return;
+      }
+
+      final bytes = await controller.getFileData(file);
+      if (!mounted) return;
+      _acceptFile(PlatformFile(name: name, size: size, bytes: bytes));
+    } on Exception catch (error) {
+      if (mounted) {
+        _showMessage(
+          'The dropped file could not be read: $error',
+          isError: true,
+        );
+      }
+    } finally {
+      _setDragHovered(false);
+    }
+  }
+
+  Future<void> _handleDroppedFiles(DropDoneDetails details) async {
+    if (details.files.isEmpty) return;
+    if (details.files.length > 1) {
+      _showMessage('Drop one file at a time.', isError: true);
+      return;
+    }
+    final file = details.files.first;
+    if (file is DropItemDirectory) {
+      _showMessage('Choose a file, not a folder.', isError: true);
+      return;
+    }
+
+    try {
+      final name = file.name;
+      final size = await file.length();
+      if (!mounted) return;
+      final extension = name.contains('.')
+          ? name.split('.').last.toLowerCase()
+          : null;
+      if (!const {'pdf', 'docx', 'txt'}.contains(extension)) {
+        _showMessage('Choose a PDF, DOCX, or TXT file.', isError: true);
+        return;
+      }
+      if (size > 3 * 1024 * 1024) {
+        _showMessage('Choose a file that is 3 MB or smaller.', isError: true);
+        return;
+      }
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      _acceptFile(PlatformFile(name: name, size: size, bytes: bytes));
+    } on Exception {
+      if (mounted) {
+        _showMessage(
+          'The dropped file could not be read. Please try browsing for it.',
+          isError: true,
+        );
+      }
+    } finally {
+      _setDragHovered(false);
+    }
+  }
+
+  void _setDragHovered(bool hovered) {
+    if (!mounted || _isDragHovered == hovered) return;
+    setState(() => _isDragHovered = hovered);
   }
 
   void _clearFile() {
@@ -102,7 +202,7 @@ class _ImportScreenState extends State<ImportScreen> {
     if (_selectedFile == null) return;
     final quizName = _quizNameController.text.trim();
     final selectedMode = _selectedMode;
-    final selectedType = _selectedType;
+    final selectedTypes = Set<QuizQuestionType>.of(_selectedTypes);
     final selectedItemCount = _selectedItemCount;
     if (quizName.isEmpty) {
       _showMessage('Enter a name for your $_activityName.', isError: true);
@@ -164,7 +264,7 @@ class _ImportScreenState extends State<ImportScreen> {
           questionCount: selectedItemCount,
           fileName: file.name,
           sourceText: sourceText,
-          questionType: selectedType,
+          questionTypes: selectedTypes,
         );
         if (!mounted) return;
         setState(() => _isGenerating = false);
@@ -539,14 +639,30 @@ class _ImportScreenState extends State<ImportScreen> {
                     selectedFile: _selectedFile,
                     quizNameController: _quizNameController,
                     activityName: _activityName,
+                    isDragHovered: _isDragHovered,
+                    useWebDropzone: kIsWeb,
                     onPick: _pickFile,
                     onClear: _clearFile,
+                    onDragHover: () => _setDragHovered(true),
+                    onDragLeave: () => _setDragHovered(false),
+                    onDropFiles: _handleDroppedFiles,
+                    onDropzoneCreated: (controller) =>
+                        _dropzoneController = controller,
+                    onWebDropFile: _handleWebDroppedFile,
                   ),
                   if (_selectedMode == _LearningMode.quiz) ...[
                     const SizedBox(height: 16),
                     _QuestionTypesPanel(
-                      selectedType: _selectedType,
-                      onChanged: (type) => setState(() => _selectedType = type),
+                      selectedTypes: _selectedTypes,
+                      onChanged: (type) => setState(() {
+                        if (_selectedTypes.contains(type)) {
+                          if (_selectedTypes.length > 1) {
+                            _selectedTypes.remove(type);
+                          }
+                        } else {
+                          _selectedTypes.add(type);
+                        }
+                      }),
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -641,15 +757,29 @@ class _FilePickerPanel extends StatelessWidget {
     required this.selectedFile,
     required this.quizNameController,
     required this.activityName,
+    required this.isDragHovered,
+    required this.useWebDropzone,
     required this.onPick,
     required this.onClear,
+    required this.onDragHover,
+    required this.onDragLeave,
+    required this.onDropFiles,
+    required this.onDropzoneCreated,
+    required this.onWebDropFile,
   });
 
   final PlatformFile? selectedFile;
   final TextEditingController quizNameController;
   final String activityName;
+  final bool isDragHovered;
+  final bool useWebDropzone;
   final VoidCallback onPick;
   final VoidCallback onClear;
+  final VoidCallback onDragHover;
+  final VoidCallback onDragLeave;
+  final ValueChanged<DropDoneDetails> onDropFiles;
+  final ValueChanged<DropzoneViewController> onDropzoneCreated;
+  final ValueChanged<DropzoneFileInterface> onWebDropFile;
 
   @override
   Widget build(BuildContext context) {
@@ -698,58 +828,101 @@ class _FilePickerPanel extends StatelessWidget {
   }
 
   Widget _buildDropZone() {
-    return InkWell(
-      onTap: onPick,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-        decoration: BoxDecoration(
-          color: _inputFill,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _border, width: 2),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: _primary.withValues(alpha: 0.15),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.cloud_upload_outlined,
-                color: _primary,
-                size: 28,
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Drag & drop a file here, or click to browse',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: _heading,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Supported: PDF, DOCX, TXT (max 3 MB)',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: _subtle),
-            ),
-          ],
+    final contents = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+      decoration: BoxDecoration(
+        color: isDragHovered ? const Color(0xFFFFE3D4) : _inputFill,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDragHovered ? _primary : _border,
+          width: isDragHovered ? 2.5 : 2,
         ),
       ),
+      child: Column(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: _primary.withValues(alpha: 0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.cloud_upload_outlined,
+              color: _primary,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            isDragHovered
+                ? 'Drop your file to upload'
+                : 'Drag & drop a file here',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: _heading,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Supported: PDF, DOCX, TXT (max 3 MB)',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: _subtle),
+          ),
+        ],
+      ),
+    );
+
+    return Column(
+      children: [
+        if (useWebDropzone)
+          SizedBox(
+            height: 172,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  DropzoneView(
+                    operation: DragOperation.copy,
+                    onCreated: onDropzoneCreated,
+                    onHover: onDragHover,
+                    onLeave: onDragLeave,
+                    onDropFile: onWebDropFile,
+                    onDropInvalid: (_) => onDragLeave(),
+                  ),
+                  IgnorePointer(child: contents),
+                ],
+              ),
+            ),
+          )
+        else
+          DropTarget(
+            onDragEntered: (_) => onDragHover(),
+            onDragExited: (_) => onDragLeave(),
+            onDragDone: onDropFiles,
+            child: contents,
+          ),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: onPick,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: _primary,
+            backgroundColor: Colors.white,
+          ),
+          child: const Text('Browse files'),
+        ),
+      ],
     );
   }
 
@@ -905,6 +1078,7 @@ class _LearningModePanel extends StatelessWidget {
               .toList(growable: false);
           if (constraints.maxWidth < 580) {
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (var index = 0; index < choices.length; index++) ...[
                   if (index > 0) const SizedBox(height: 10),
@@ -961,6 +1135,7 @@ class _LearningModeChoice extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
+        key: ValueKey('learning-mode-${mode.name}'),
         duration: const Duration(milliseconds: 220),
         constraints: const BoxConstraints(minHeight: 104),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
@@ -1009,11 +1184,11 @@ class _LearningModeChoice extends StatelessWidget {
 
 class _QuestionTypesPanel extends StatelessWidget {
   const _QuestionTypesPanel({
-    required this.selectedType,
+    required this.selectedTypes,
     required this.onChanged,
   });
 
-  final QuizQuestionType selectedType;
+  final Set<QuizQuestionType> selectedTypes;
   final ValueChanged<QuizQuestionType> onChanged;
 
   @override
@@ -1021,12 +1196,12 @@ class _QuestionTypesPanel extends StatelessWidget {
     return _SettingsPanel(
       icon: Icons.quiz_outlined,
       title: 'Question Types',
-      description: 'Choose one question format for your quiz',
+      description: 'Choose one or both question formats for your quiz',
       child: Wrap(
         spacing: 12,
         runSpacing: 12,
         children: QuizQuestionType.values.map((type) {
-          final isSelected = selectedType == type;
+          final isSelected = selectedTypes.contains(type);
           return _QuestionTypeChip(
             type: type,
             isSelected: isSelected,

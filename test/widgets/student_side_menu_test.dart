@@ -228,6 +228,32 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('learning mode choices fill the narrow screen content width', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ImportScreen(
+          username: 'Student Name',
+          email: 'student@example.com',
+        ),
+      ),
+    );
+
+    final tileSizes = ['quiz', 'flashcards', 'matching'].map((mode) {
+      final tile = tester.getSize(find.byKey(ValueKey('learning-mode-$mode')));
+      expect(tile.width, greaterThan(280));
+      return tile;
+    }).toList();
+    expect(tileSizes.map((size) => size.width).toSet(), hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('dashboard Profile menu opens the profile screen', (
     tester,
   ) async {

@@ -23,6 +23,7 @@ class QuizScreen extends StatefulWidget {
     this.role = 'student',
     this.createdAt,
     this.onMenuSelected,
+    this.quizService,
     super.key,
   });
 
@@ -37,15 +38,18 @@ class QuizScreen extends StatefulWidget {
   final String role;
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
+  final QuizService? quizService;
 
   @override
   State<QuizScreen> createState() => _QuizScreenState();
 }
 
 class _QuizScreenState extends State<QuizScreen> {
-  late final List<QuizQuestion> _questions = widget.quizId == null
-      ? List<QuizQuestion>.of(widget.questions)
-      : shuffledQuizQuestions(widget.questions);
+  late final List<QuizQuestion> _questions = randomizedQuizAnswers(
+    widget.quizId == null
+        ? widget.questions
+        : shuffledQuizQuestions(widget.questions),
+  );
   late final List<int?> _answers = List<int?>.filled(_questions.length, null);
   int _questionIndex = 0;
   bool _showResults = false;
@@ -73,7 +77,7 @@ class _QuizScreenState extends State<QuizScreen> {
     });
 
     try {
-      final service = QuizService();
+      final service = widget.quizService ?? QuizService();
       _savedQuizId = widget.classroomActivityId == null
           ? await service.saveAttempt(
               title: widget.title,
@@ -438,6 +442,8 @@ class _QuizScreenState extends State<QuizScreen> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              const SizedBox(height: 24),
+              _buildQuestionReview(),
               if (widget.previousAttempts.isNotEmpty) ...[
                 const SizedBox(height: 24),
                 _buildPreviousAttempts(),
@@ -498,6 +504,29 @@ class _QuizScreenState extends State<QuizScreen> {
       ],
     );
   }
+
+  Widget _buildQuestionReview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text(
+        'Review your answers',
+        style: TextStyle(
+          color: _heading,
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      const SizedBox(height: 12),
+      for (var index = 0; index < _questions.length; index++) ...[
+        if (index > 0) const SizedBox(height: 10),
+        _QuestionReviewCard(
+          index: index,
+          question: _questions[index],
+          selectedAnswer: _answers[index]!,
+        ),
+      ],
+    ],
+  );
 
   Widget _buildPointsAward() => Container(
     width: double.infinity,
@@ -615,6 +644,79 @@ class _QuizScreenState extends State<QuizScreen> {
     ];
     final localDate = date.toLocal();
     return '${months[localDate.month - 1]} ${localDate.day}';
+  }
+}
+
+class _QuestionReviewCard extends StatelessWidget {
+  const _QuestionReviewCard({
+    required this.index,
+    required this.question,
+    required this.selectedAnswer,
+  });
+
+  final int index;
+  final QuizQuestion question;
+  final int selectedAnswer;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCorrect = selectedAnswer == question.answerIndex;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isCorrect ? const Color(0xFFF0F7F0) : const Color(0xFFFFF3F1),
+        border: Border.all(
+          color: isCorrect ? const Color(0xFFC8DEC8) : const Color(0xFFEBC9C4),
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Question ${index + 1}',
+            style: const TextStyle(
+              color: _subtle,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            question.question,
+            style: const TextStyle(
+              color: _heading,
+              fontWeight: FontWeight.w700,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your answer: ${question.options[selectedAnswer]}',
+            style: TextStyle(
+              color: isCorrect ? const Color(0xFF2E7D32) : _subtle,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (!isCorrect) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Correct answer: ${question.options[question.answerIndex]}',
+              style: const TextStyle(
+                color: Color(0xFF2E7D32),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            question.explanation,
+            style: const TextStyle(color: _subtle, height: 1.35),
+          ),
+        ],
+      ),
+    );
   }
 }
 

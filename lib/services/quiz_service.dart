@@ -30,6 +30,55 @@ List<QuizQuestion> shuffledQuizQuestions(
   return shuffled;
 }
 
+List<QuizQuestion> randomizedQuizAnswers(
+  List<QuizQuestion> questions, {
+  Random? random,
+}) {
+  final randomizer = random ?? Random();
+  final correctAnswerPositions = <int>[];
+  final correctPositionCounts = List<int>.filled(4, 0);
+  var previousCorrectPosition = -1;
+
+  for (final question in questions) {
+    if (question.options.length != 4) continue;
+
+    final lowestCount = correctPositionCounts.reduce(
+      (current, next) => current < next ? current : next,
+    );
+    var candidates = List<int>.generate(
+      4,
+      (index) => index,
+    ).where((index) => correctPositionCounts[index] == lowestCount).toList();
+    if (candidates.length > 1) {
+      candidates.remove(previousCorrectPosition);
+    }
+    final position = candidates[randomizer.nextInt(candidates.length)];
+    correctPositionCounts[position]++;
+    correctAnswerPositions.add(position);
+    previousCorrectPosition = position;
+  }
+
+  var multipleChoiceIndex = 0;
+  return questions
+      .map((question) {
+        if (question.options.length != 4) return question;
+
+        final correctPosition = correctAnswerPositions[multipleChoiceIndex++];
+        final correctAnswer = question.options[question.answerIndex];
+        final distractors = List<String>.of(question.options)
+          ..removeAt(question.answerIndex)
+          ..shuffle(randomizer);
+        final options = distractors..insert(correctPosition, correctAnswer);
+        return QuizQuestion(
+          question: question.question,
+          options: options,
+          answerIndex: correctPosition,
+          explanation: question.explanation,
+        );
+      })
+      .toList(growable: false);
+}
+
 class QuizQuestion {
   const QuizQuestion({
     required this.question,
@@ -520,14 +569,22 @@ class QuizService {
     required int questionCount,
     required String fileName,
     required String sourceText,
-    QuizQuestionType questionType = QuizQuestionType.multipleChoice,
+    Set<QuizQuestionType> questionTypes = const {
+      QuizQuestionType.multipleChoice,
+    },
   }) async {
     if (questionCount < 1 || questionCount > 30) {
       throw const QuizServiceException('Choose between 1 and 30 questions.');
     }
+    if (questionTypes.isEmpty) {
+      throw const QuizServiceException('Choose at least one question type.');
+    }
 
     final token = await _requireSessionToken();
-    final response = await _invokeFunction(questionType.functionName, {
+    final functionName = questionTypes.length > 1
+        ? 'generate-mixed-quiz'
+        : questionTypes.single.functionName;
+    final response = await _invokeFunction(functionName, {
       'sessionToken': token,
       'questionCount': questionCount,
       'sourceFileName': fileName,

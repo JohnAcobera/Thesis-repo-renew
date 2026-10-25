@@ -39,6 +39,55 @@ void main() {
     await client.dispose();
   });
 
+  test(
+    'uses the mixed quiz function when both question types are selected',
+    () async {
+      String? invokedPath;
+      final client = _supabaseClient((request) async {
+        invokedPath = request.url.path;
+        return http.Response(
+          jsonEncode({
+            'questions': [
+              {
+                'question': 'Which planet is known as the Red Planet?',
+                'options': ['Venus', 'Mars', 'Jupiter', 'Mercury'],
+                'answerIndex': 1,
+                'explanation': 'Mars appears red due to iron oxide.',
+              },
+              {
+                'question': 'Mars is the closest planet to the Sun.',
+                'options': ['True', 'False'],
+                'answerIndex': 1,
+                'explanation': 'Mercury is the closest planet to the Sun.',
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final service = QuizService(
+        client: client,
+        authService: _TestAuthService(client),
+      );
+
+      final questions = await service.generateQuiz(
+        questionCount: 2,
+        fileName: 'astronomy.pdf',
+        sourceText: 'Mercury is closest to the Sun. Mars appears red.',
+        questionTypes: {
+          QuizQuestionType.multipleChoice,
+          QuizQuestionType.trueOrFalse,
+        },
+      );
+
+      expect(invokedPath, endsWith('/generate-mixed-quiz'));
+      expect(questions, hasLength(2));
+      expect(questions.map((question) => question.options.length), [4, 2]);
+      await client.dispose();
+    },
+  );
+
   group('QuizQuestion.fromJson', () {
     test('parses a valid four-option multiple-choice question', () {
       final question = QuizQuestion.fromJson({
@@ -436,6 +485,85 @@ void main() {
       expect(question.answerIndex, original.answerIndex);
       expect(question.explanation, original.explanation);
     }
+  });
+
+  test('randomizes correct answer positions evenly and preserves answers', () {
+    final questions = [
+      for (var index = 0; index < 12; index++)
+        QuizQuestion(
+          question: 'Question $index',
+          options: ['Wrong 1', 'Correct $index', 'Wrong 2', 'Wrong 3'],
+          answerIndex: 1,
+          explanation: 'Explanation $index',
+        ),
+      const QuizQuestion(
+        question: 'True or false',
+        options: ['True', 'False'],
+        answerIndex: 1,
+        explanation: 'True/false explanation',
+      ),
+    ];
+
+    final randomized = randomizedQuizAnswers(questions, random: Random(1));
+    final correctPositions = randomized
+        .take(12)
+        .map((question) => question.answerIndex)
+        .toList();
+    final positionCounts = List<int>.generate(
+      4,
+      (position) => correctPositions.where((item) => item == position).length,
+    );
+
+    expect(positionCounts, everyElement(3));
+    for (var index = 0; index < 12; index++) {
+      final question = randomized[index];
+      expect(question.options[question.answerIndex], 'Correct $index');
+      expect(question.options.toSet(), questions[index].options.toSet());
+      if (index > 0) {
+        expect(question.answerIndex, isNot(correctPositions[index - 1]));
+      }
+    }
+    expect(randomized.last.options, ['True', 'False']);
+    expect(randomized.last.answerIndex, 1);
+  });
+
+  test('randomizes mixed questions without changing true-or-false answers', () {
+    final questions = [
+      const QuizQuestion(
+        question: 'The Earth orbits the Sun.',
+        options: ['True', 'False'],
+        answerIndex: 0,
+        explanation: 'The Earth orbits the Sun.',
+      ),
+      const QuizQuestion(
+        question: 'Which planet is known as the Red Planet?',
+        options: ['Venus', 'Mars', 'Jupiter', 'Mercury'],
+        answerIndex: 1,
+        explanation: 'Mars appears red due to iron oxide.',
+      ),
+      const QuizQuestion(
+        question: 'The Sun is a star.',
+        options: ['True', 'False'],
+        answerIndex: 0,
+        explanation: 'The Sun is a star.',
+      ),
+      const QuizQuestion(
+        question: 'Which is closest to the Sun?',
+        options: ['Earth', 'Venus', 'Mercury', 'Mars'],
+        answerIndex: 2,
+        explanation: 'Mercury is closest to the Sun.',
+      ),
+    ];
+
+    final randomized = randomizedQuizAnswers(questions, random: Random(1));
+
+    expect(randomized, hasLength(questions.length));
+    expect(randomized[0].options, ['True', 'False']);
+    expect(randomized[0].answerIndex, 0);
+    expect(randomized[2].options, ['True', 'False']);
+    expect(randomized[2].answerIndex, 0);
+    expect(randomized[1].options[randomized[1].answerIndex], 'Mars');
+    expect(randomized[3].options[randomized[3].answerIndex], 'Mercury');
   });
 }
 

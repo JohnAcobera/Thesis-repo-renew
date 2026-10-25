@@ -4,6 +4,9 @@ verify_jwt = false
 [functions.generate-true-or-false]
 verify_jwt = false
 
+[functions.generate-mixed-quiz]
+verify_jwt = false
+
 [functions.generate-flashcards]
 verify_jwt = false
 

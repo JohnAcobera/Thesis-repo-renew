@@ -29,6 +29,31 @@ void main() {
     },
   );
 
+  testWidgets('register back arrow returns to the landing page', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(home: LandingScreen(sessionRestorer: () async => null)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Get started'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create account'), findsOneWidget);
+    await tester.tap(find.byTooltip('Back to landing page'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('How do you want to study?'), findsOneWidget);
+    expect(find.text('Get started'), findsOneWidget);
+    expect(find.text('Create account'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('landing page explains study features in plain language', (
     tester,
   ) async {

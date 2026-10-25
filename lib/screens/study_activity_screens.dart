@@ -453,6 +453,7 @@ class MatchingScreen extends StatefulWidget {
     this.role = 'student',
     this.createdAt,
     this.onMenuSelected,
+    this.learningModeService,
     super.key,
   });
 
@@ -465,6 +466,7 @@ class MatchingScreen extends StatefulWidget {
   final String role;
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
+  final LearningModeService? learningModeService;
 
   @override
   State<MatchingScreen> createState() => _MatchingScreenState();
@@ -483,6 +485,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
     },
   );
   final Map<int, int> _selections = {};
+  final Map<int, int> _submittedAnswers = {};
   int? _selectedAnswer;
   int _batchIndex = 0;
   int _score = 0;
@@ -500,36 +503,29 @@ class _MatchingScreenState extends State<MatchingScreen> {
       (_batchStart + _selections.length) / widget.pairs.length;
 
   void _selectAnswer(int answerIndex) {
+    if (_selections.values.contains(answerIndex)) return;
     setState(() {
-      final previousTarget = _selections.entries
-          .where((entry) => entry.value == answerIndex)
-          .map((entry) => entry.key)
-          .firstOrNull;
-      if (previousTarget != null) _selections.remove(previousTarget);
-      _selectedAnswer = answerIndex;
+      _selectedAnswer = _selectedAnswer == answerIndex ? null : answerIndex;
     });
   }
 
   void _placeSelectedAnswer(int promptIndex) {
     final answerIndex = _selectedAnswer;
-    if (answerIndex == null) {
-      final placedAnswer = _selections.remove(promptIndex);
-      if (placedAnswer != null) _selectedAnswer = placedAnswer;
-      setState(() {});
+    if (_selections.containsKey(promptIndex)) {
+      setState(() => _selections.remove(promptIndex));
       return;
     }
+    if (answerIndex == null) return;
     _placeAnswer(promptIndex, answerIndex);
   }
 
   void _placeAnswer(int promptIndex, int answerIndex) {
+    if (_selections.containsKey(promptIndex) &&
+        _selections[promptIndex] != answerIndex) {
+      return;
+    }
+    if (_selections.values.contains(answerIndex)) return;
     setState(() {
-      final previousTarget = _selections.entries
-          .where(
-            (entry) => entry.value == answerIndex && entry.key != promptIndex,
-          )
-          .map((entry) => entry.key)
-          .firstOrNull;
-      if (previousTarget != null) _selections.remove(previousTarget);
       _selections[promptIndex] = answerIndex;
       if (_selectedAnswer == answerIndex) _selectedAnswer = null;
     });
@@ -539,8 +535,11 @@ class _MatchingScreenState extends State<MatchingScreen> {
     if (_selections.length != _currentPairs.length) return;
     final batchSelections = Map<int, int>.of(_selections);
     final correctInBatch = batchSelections.entries
-        .where((entry) => entry.key == entry.value)
+        .where((entry) => _batchStart + entry.key == entry.value)
         .length;
+    for (final entry in batchSelections.entries) {
+      _submittedAnswers[_batchStart + entry.key] = entry.value;
+    }
     if (_batchStart + _currentPairs.length == widget.pairs.length) {
       _score += correctInBatch;
       setState(() => _isFinished = true);
@@ -562,7 +561,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
       _saveError = null;
     });
     try {
-      await LearningModeService().saveAttempt(
+      await (widget.learningModeService ?? LearningModeService()).saveAttempt(
         itemId: widget.activityId,
         score: _score,
         totalItems: widget.pairs.length,
@@ -604,15 +603,25 @@ class _MatchingScreenState extends State<MatchingScreen> {
       onMenuSelected: widget.onMenuSelected,
     ),
     body: SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 850),
-            child: _isFinished ? _buildResult() : _buildMatchingSet(),
-          ),
-        ),
-      ),
+      child: _isFinished
+          ? SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 850),
+                  child: _buildResult(),
+                ),
+              ),
+            )
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 850),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildMatchingSet(),
+                ),
+              ),
+            ),
     ),
   );
 
@@ -623,27 +632,34 @@ class _MatchingScreenState extends State<MatchingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _StudyHeading(
-          eyebrow: 'MATCHING GAME',
-          title: widget.title,
-          subtitle: '${widget.pairs.length} pairs · ${widget.sourceFile}',
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 12),
+            children: [
+              _StudyHeading(
+                eyebrow: 'MATCHING GAME',
+                title: widget.title,
+                subtitle: '${widget.pairs.length} pairs · ${widget.sourceFile}',
+              ),
+              const SizedBox(height: 16),
+              _ProgressSummary(
+                label: 'Set $batchNumber of $totalBatches',
+                detail:
+                    '${_selections.length} of ${_currentPairs.length} paired',
+                progress: _progress,
+              ),
+              const SizedBox(height: 12),
+              _matchingGuide(),
+              const SizedBox(height: 16),
+              for (var index = 0; index < _currentPairs.length; index++) ...[
+                if (index > 0) const SizedBox(height: 10),
+                _buildPairRow(index),
+              ],
+            ],
+          ),
         ),
-        const SizedBox(height: 22),
-        _ProgressSummary(
-          label: 'Set $batchNumber of $totalBatches',
-          detail: '${_selections.length} of ${_currentPairs.length} paired',
-          progress: _progress,
-        ),
-        const SizedBox(height: 12),
-        _matchingGuide(),
-        const SizedBox(height: 16),
         _buildAnswerBank(order),
-        const SizedBox(height: 16),
-        for (var index = 0; index < _currentPairs.length; index++) ...[
-          if (index > 0) const SizedBox(height: 10),
-          _buildPairRow(index),
-        ],
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
         FilledButton.icon(
           onPressed: _selections.length == _currentPairs.length
               ? _advance
@@ -679,7 +695,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
         SizedBox(width: 10),
         Expanded(
           child: Text(
-            'Drag an answer onto its prompt, or tap an answer and then tap the matching box. You can move answers before continuing. The set is checked when you finish.',
+            'Drag an answer onto a prompt, or tap an answer and then its prompt. Tap a filled prompt to return its answer to the bank; remove an answer before replacing it.',
             style: TextStyle(color: _studySubtle, height: 1.4, fontSize: 13),
           ),
         ),
@@ -689,62 +705,65 @@ class _MatchingScreenState extends State<MatchingScreen> {
 
   Widget _buildAnswerBank(List<int> order) {
     final usedAnswers = _selections.values.toSet();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: _studyBorder),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 180),
+      child: SingleChildScrollView(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: _studyBorder),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.widgets_outlined,
-                color: _studyPrimary,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Answer bank',
-                  style: TextStyle(
-                    color: _studyHeading,
-                    fontWeight: FontWeight.w800,
+              Row(
+                children: [
+                  const Icon(
+                    Icons.widgets_outlined,
+                    color: _studyPrimary,
+                    size: 20,
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Answer bank',
+                      style: TextStyle(
+                        color: _studyHeading,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${order.length - usedAnswers.length} left',
+                    style: const TextStyle(
+                      color: _studySubtle,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                '${order.length - usedAnswers.length} left',
-                style: const TextStyle(
-                  color: _studySubtle,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final answerIndex in order)
+                    if (!usedAnswers.contains(answerIndex))
+                      _buildAnswerTile(answerIndex),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final answerIndex in order)
-                _buildAnswerTile(
-                  answerIndex,
-                  used: usedAnswers.contains(answerIndex),
-                ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildAnswerTile(int answerIndex, {required bool used}) {
+  Widget _buildAnswerTile(int answerIndex) {
     final selected = _selectedAnswer == answerIndex;
     final tile = InkWell(
       onTap: () => _selectAnswer(answerIndex),
@@ -754,11 +773,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
         constraints: const BoxConstraints(minHeight: 44),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: selected
-              ? _studyPrimary
-              : used
-              ? const Color(0xFFF1F0ED)
-              : _studyFill,
+          color: selected ? _studyPrimary : _studyFill,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: selected ? _studyPrimary : _studyBorder,
@@ -768,10 +783,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (used && !selected) ...[
-              const Icon(Icons.check_rounded, size: 16, color: _studySubtle),
-              const SizedBox(width: 5),
-            ] else if (selected) ...[
+            if (selected) ...[
               const Icon(
                 Icons.pan_tool_alt_rounded,
                 size: 16,
@@ -785,9 +797,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
                 style: TextStyle(
                   color: selected ? Colors.white : _studyHeading,
                   fontSize: 13,
-                  fontWeight: selected || used
-                      ? FontWeight.w700
-                      : FontWeight.w500,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ),
@@ -918,7 +928,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
                         ),
                         if (selectedAnswer != null)
                           const Icon(
-                            Icons.edit_outlined,
+                            Icons.close_rounded,
                             color: _studySubtle,
                             size: 18,
                           ),
@@ -940,12 +950,101 @@ class _MatchingScreenState extends State<MatchingScreen> {
     subtitle:
         'You finished every set. Review your score and try again whenever you like.',
     score: '$_score / ${widget.pairs.length}',
+    review: _buildMatchingReview(),
     isSaving: _isSaving,
     isSaved: _isSaved,
     saveError: _saveError,
     onRetrySave: _saveResult,
     onDone: () => Navigator.of(context).pop(true),
   );
+
+  Widget _buildMatchingReview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text(
+        'Review your matches',
+        style: TextStyle(
+          color: _studyHeading,
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      const SizedBox(height: 12),
+      for (var index = 0; index < widget.pairs.length; index++) ...[
+        if (index > 0) const SizedBox(height: 10),
+        _MatchingReviewCard(
+          index: index,
+          pair: widget.pairs[index],
+          selectedAnswer: widget.pairs[_submittedAnswers[index]!].right,
+          isCorrect: _submittedAnswers[index] == index,
+        ),
+      ],
+    ],
+  );
+}
+
+class _MatchingReviewCard extends StatelessWidget {
+  const _MatchingReviewCard({
+    required this.index,
+    required this.pair,
+    required this.selectedAnswer,
+    required this.isCorrect,
+  });
+
+  final int index;
+  final MatchingPair pair;
+  final String selectedAnswer;
+  final bool isCorrect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isCorrect ? const Color(0xFFF0F7F0) : const Color(0xFFFFF3F1),
+        border: Border.all(
+          color: isCorrect ? const Color(0xFFC8DEC8) : const Color(0xFFEBC9C4),
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Pair ${index + 1}: ${pair.left}',
+            style: const TextStyle(
+              color: _studyHeading,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Your answer: $selectedAnswer',
+            style: TextStyle(
+              color: isCorrect ? const Color(0xFF2E7D32) : _studySubtle,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (!isCorrect) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Correct answer: ${pair.right}',
+              style: const TextStyle(
+                color: Color(0xFF2E7D32),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            pair.explanation,
+            style: const TextStyle(color: _studySubtle, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _StudyHeading extends StatelessWidget {
@@ -1035,6 +1134,7 @@ class _ActivityResult extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.score,
+    this.review,
     required this.isSaving,
     required this.isSaved,
     required this.saveError,
@@ -1046,6 +1146,7 @@ class _ActivityResult extends StatelessWidget {
   final String title;
   final String subtitle;
   final String score;
+  final Widget? review;
   final bool isSaving;
   final bool isSaved;
   final String? saveError;
@@ -1096,6 +1197,7 @@ class _ActivityResult extends StatelessWidget {
             fontWeight: FontWeight.w900,
           ),
         ),
+        if (review != null) ...[const SizedBox(height: 24), review!],
         if (saveError != null) ...[
           const SizedBox(height: 12),
           Text(
