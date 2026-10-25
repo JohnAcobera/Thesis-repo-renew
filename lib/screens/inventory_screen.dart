@@ -180,7 +180,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Revisit generated quizzes, flashcards, and matching games.',
+                        'Revisit generated quizzes, flashcards, and matching activities.',
                         style: TextStyle(color: _inventorySubtle, height: 1.4),
                       ),
                       const SizedBox(height: 20),
@@ -227,7 +227,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               title: switch (type) {
                                 'quiz' => 'Quizzes',
                                 'flashcards' => 'Flashcards',
-                                _ => 'Matching games',
+                                _ => 'Matching activities',
                               },
                               count: groups[type]!.length,
                             ),

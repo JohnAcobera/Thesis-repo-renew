@@ -22,11 +22,13 @@ class InstructorTodoSection extends StatefulWidget {
   const InstructorTodoSection({
     required this.instructorId,
     this.repository,
+    this.studentMode = false,
     super.key,
   });
 
   final int instructorId;
   final InstructorTodoRepository? repository;
+  final bool studentMode;
 
   @override
   State<InstructorTodoSection> createState() => _InstructorTodoSectionState();
@@ -48,7 +50,7 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
   Future<void> _addTask() async {
     final draft = await showDialog<_TodoDraft>(
       context: context,
-      builder: (_) => const _TodoDraftDialog(),
+      builder: (_) => _TodoDraftDialog(studentMode: widget.studentMode),
     );
     if (draft == null || !mounted) return;
     final currentTasks = await _tasks;
@@ -335,7 +337,9 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
                           const SizedBox(height: 6),
                           Text(
                             tasks.isEmpty
-                                ? 'Plan your next teaching task'
+                                ? widget.studentMode
+                                      ? 'Plan a future study session'
+                                      : 'Plan your next teaching task'
                                 : 'Nothing in this view',
                             style: const TextStyle(
                               color: _todoInk,
@@ -494,6 +498,24 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
   );
 }
 
+class StudentTodoSection extends StatelessWidget {
+  const StudentTodoSection({
+    required this.studentId,
+    this.repository,
+    super.key,
+  });
+
+  final int studentId;
+  final InstructorTodoRepository? repository;
+
+  @override
+  Widget build(BuildContext context) => InstructorTodoSection(
+    instructorId: studentId,
+    repository: repository ?? const StudentTodoService(),
+    studentMode: true,
+  );
+}
+
 class _TodoFilterChip extends StatelessWidget {
   const _TodoFilterChip({
     required this.label,
@@ -561,7 +583,9 @@ class _TodoDraft {
 }
 
 class _TodoDraftDialog extends StatefulWidget {
-  const _TodoDraftDialog();
+  const _TodoDraftDialog({required this.studentMode});
+
+  final bool studentMode;
 
   @override
   State<_TodoDraftDialog> createState() => _TodoDraftDialogState();
@@ -618,8 +642,8 @@ class _TodoDraftDialogState extends State<_TodoDraftDialog> {
   Widget build(BuildContext context) => AlertDialog(
     backgroundColor: const Color(0xFFFFFCF8),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    title: const Text(
-      'Add teaching task',
+    title: Text(
+      widget.studentMode ? 'Add study task' : 'Add teaching task',
       style: TextStyle(color: _todoInk, fontWeight: FontWeight.w700),
     ),
     content: Form(
@@ -634,9 +658,11 @@ class _TodoDraftDialogState extends State<_TodoDraftDialog> {
               controller: _titleController,
               autofocus: true,
               maxLength: 100,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Task',
-                hintText: 'e.g., Review next week’s quiz',
+                hintText: widget.studentMode
+                    ? 'e.g., Review a topic'
+                    : 'e.g., Review next week’s quiz',
                 border: OutlineInputBorder(),
               ),
               validator: (value) =>

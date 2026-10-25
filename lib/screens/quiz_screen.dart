@@ -443,7 +443,15 @@ class _QuizScreenState extends State<QuizScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              _buildQuestionReview(),
+              SizedBox(
+                height: (MediaQuery.sizeOf(context).height * 0.42)
+                    .clamp(220.0, 420.0)
+                    .toDouble(),
+                child: SingleChildScrollView(
+                  key: const ValueKey('quiz-result-review-scroll'),
+                  child: _buildQuestionReview(),
+                ),
+              ),
               if (widget.previousAttempts.isNotEmpty) ...[
                 const SizedBox(height: 24),
                 _buildPreviousAttempts(),

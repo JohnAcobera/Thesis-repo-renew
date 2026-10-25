@@ -66,6 +66,70 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('matching answer review scrolls through 11 pairs', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final pairs = List<MatchingPair>.generate(
+      11,
+      (index) => MatchingPair(
+        left: 'Prompt $index',
+        right: 'Answer $index',
+        explanation: 'Explanation $index',
+      ),
+    );
+    final client = SupabaseClient(
+      'https://example.supabase.co',
+      'test-key',
+      authOptions: const AuthClientOptions(autoRefreshToken: false),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MatchingScreen(
+          activityId: 'activity-id',
+          username: 'Student',
+          email: 'student@example.com',
+          title: 'Cell biology',
+          sourceFile: 'biology.txt',
+          pairs: pairs,
+          learningModeService: _TestLearningModeService(client),
+        ),
+      ),
+    );
+
+    for (var index = 0; index < pairs.length; index++) {
+      await tester.tap(find.text('Answer $index'));
+      await tester.pump();
+      final prompt = find.text('Tap to place selected answer').first;
+      await tester.ensureVisible(prompt);
+      await tester.tap(prompt);
+      await tester.pump();
+      if (index == 9) {
+        await tester.tap(find.text('Next set'));
+        await tester.pump();
+      }
+    }
+    await tester.tap(find.text('Finish matching'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+
+    final reviewScroll = find.descendant(
+      of: find.byKey(const ValueKey('matching-result-review-scroll')),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.text('Pair 11: Prompt 10'),
+      250,
+      scrollable: reviewScroll,
+    );
+    expect(find.text('Your answer: Answer 10'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('flashcard flips smoothly to its answer and explanation', (
     tester,
   ) async {

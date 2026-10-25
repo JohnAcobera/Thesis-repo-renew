@@ -61,7 +61,7 @@ class _ImportScreenState extends State<ImportScreen> {
   String get _activityName => switch (_selectedMode) {
     _LearningMode.quiz => 'quiz',
     _LearningMode.flashcards => 'flashcard set',
-    _LearningMode.matching => 'matching game',
+    _LearningMode.matching => 'matching activity',
   };
 
   String _displayRole(String role) => role.isEmpty

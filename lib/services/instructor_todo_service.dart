@@ -11,9 +11,12 @@ abstract interface class InstructorTodoRepository {
 }
 
 class InstructorTodoService implements InstructorTodoRepository {
-  const InstructorTodoService();
+  const InstructorTodoService({this.storageNamespace = 'instructor'});
 
-  String _storageKey(int instructorId) => 'instructor_todos_$instructorId';
+  final String storageNamespace;
+
+  String _storageKey(int instructorId) =>
+      '${storageNamespace}_todos_$instructorId';
 
   @override
   Future<List<InstructorTodoTask>> listTasks(int instructorId) async {
@@ -41,7 +44,12 @@ class InstructorTodoService implements InstructorTodoRepository {
       jsonEncode(tasks.map((task) => task.toJson()).toList()),
     );
     if (!saved) {
-      throw Exception('Instructor tasks could not be saved on this device.');
+      final owner = storageNamespace == 'student' ? 'Student' : 'Instructor';
+      throw Exception('$owner tasks could not be saved on this device.');
     }
   }
+}
+
+class StudentTodoService extends InstructorTodoService {
+  const StudentTodoService() : super(storageNamespace: 'student');
 }

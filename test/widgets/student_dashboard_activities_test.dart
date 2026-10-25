@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:thesis_repo_renew/models/classroom_model.dart';
+import 'package:thesis_repo_renew/models/instructor_todo_task.dart';
 import 'package:thesis_repo_renew/models/user_model.dart';
 import 'package:thesis_repo_renew/screens/home/student_home_screen.dart';
-import 'package:thesis_repo_renew/services/classroom_service.dart';
+import 'package:thesis_repo_renew/services/auth_service.dart';
+import 'package:thesis_repo_renew/services/instructor_todo_service.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
 
 void main() {
-  testWidgets('dashboard stacks calendar and pending activities on mobile', (
-    tester,
-  ) async {
+  testWidgets('dashboard shows self-paced practice on mobile', (tester) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     tester.view.physicalSize = const Size(400, 800);
@@ -18,30 +17,23 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: StudentHomeScreen(
-          user: const UserModel(
-            id: 1,
-            fullName: 'Student Name',
-            email: 'student@example.com',
-            role: 'student',
-          ),
-          classroomService: _FakeClassroomRepository(),
+          user: _student,
+          quizRepository: _FakeQuizRepository(),
+          profileDataService: _FakeProfileDataService(),
+          todoRepository: _FakeTodoRepository(),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
     await tester.drag(
       find.byType(SingleChildScrollView).first,
       const Offset(0, -1800),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Classroom deadlines'), findsOneWidget);
-    expect(find.text('Pending activities'), findsOneWidget);
-    expect(
-      tester.getTopLeft(find.text('Classroom deadlines')).dy,
-      lessThan(tester.getTopLeft(find.text('Pending activities')).dy),
-    );
+    expect(find.text('Come back and practice'), findsOneWidget);
+    expect(find.text('Pending activities'), findsNothing);
+    expect(find.text('Classroom deadlines'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -56,13 +48,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: StudentHomeScreen(
-          user: const UserModel(
-            id: 1,
-            fullName: 'Student Name',
-            email: 'student@example.com',
-            role: 'student',
-          ),
-          classroomService: _FakeClassroomRepository(),
+          user: _student,
+          quizRepository: _FakeQuizRepository(),
+          profileDataService: _FakeProfileDataService(),
+          todoRepository: _FakeTodoRepository(),
         ),
       ),
     );
@@ -71,7 +60,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('dashboard shows classroom deadlines and launches an activity', (
+  testWidgets('dashboard recommends generated quizzes for practice', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -79,231 +68,219 @@ void main() {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
 
-    final now = DateTime.now();
-    final deadline = now.add(const Duration(days: 2));
-    final repository = _FakeClassroomRepository()
-      ..activities.add(
-        ClassroomActivity(
-          id: 'activity-id',
-          classroomId: 'classroom-id',
-          classroomName: 'Biology',
-          quizId: 'quiz-id',
-          title: 'Cell Structure',
-          sourceFile: 'biology.pdf',
-          questions: const [
-            QuizQuestion(
-              question: 'Which organelle stores DNA?',
-              options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
-              answerIndex: 0,
-              explanation: 'The nucleus contains the cell DNA.',
-            ),
-          ],
-          startsAt: now.subtract(const Duration(minutes: 1)),
-          deadlineAt: deadline,
-        ),
-      )
-      ..activities.add(
-        ClassroomActivity(
-          id: 'upcoming-activity-id',
-          classroomId: 'classroom-id',
-          classroomName: 'Biology',
-          quizId: 'upcoming-quiz-id',
-          title: 'Cell Review',
-          sourceFile: 'review.pdf',
-          questions: const [
-            QuizQuestion(
-              question: 'What is a cell?',
-              options: [
-                'Basic unit of life',
-                'A tissue',
-                'An organ',
-                'A molecule',
-              ],
-              answerIndex: 0,
-              explanation: 'Cells are the basic unit of life.',
-            ),
-          ],
-          startsAt: now.add(const Duration(hours: 1)),
-          deadlineAt: deadline,
-        ),
-      );
+    final repository = _FakeQuizRepository([
+      _quiz(
+        id: 'personal-quiz',
+        title: 'Cell Structure',
+        lastPracticed: DateTime.utc(2025),
+      ),
+      _quiz(
+        id: 'recent-personal-quiz',
+        title: 'Cell Review',
+        lastPracticed: DateTime.utc(2026),
+      ),
+      _quiz(
+        id: 'classroom-quiz',
+        title: 'Classroom quiz',
+        classroomActivityId: 'activity-id',
+      ),
+    ]);
 
     await tester.pumpWidget(
       MaterialApp(
         home: StudentHomeScreen(
-          user: const UserModel(
-            id: 1,
-            fullName: 'Student Name',
-            email: 'student@example.com',
-            role: 'student',
-          ),
-          classroomService: repository,
+          user: _student,
+          quizRepository: repository,
+          profileDataService: _FakeProfileDataService(),
+          todoRepository: _FakeTodoRepository(),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.byType(GridView), findsNothing);
-
-    final panelOneHeight = tester
-        .getSize(find.byKey(const ValueKey<String>('dashboard_panel_1')))
-        .height;
-    final panelTwoHeight = tester
-        .getSize(find.byKey(const ValueKey<String>('dashboard_panel_2')))
-        .height;
-    final panelThreeHeight = tester
-        .getSize(find.byKey(const ValueKey<String>('dashboard_panel_3')))
-        .height;
-    expect(panelOneHeight / (panelThreeHeight - 20), closeTo(0.6, 0.01));
-    expect(panelTwoHeight / (panelThreeHeight - 20), closeTo(0.4, 0.01));
-
     await tester.drag(
       find.byType(SingleChildScrollView).first,
       const Offset(0, -1200),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Classroom deadlines'), findsOneWidget);
-    expect(find.text('Pending activities'), findsOneWidget);
+    expect(find.text('Come back and practice'), findsOneWidget);
     expect(find.text('Cell Structure'), findsOneWidget);
-    expect(find.text('Classroom: Biology'), findsNWidgets(2));
-    expect(
-      find.text('biology.pdf · 1 questions · 2 attempts left'),
-      findsOneWidget,
-    );
     expect(find.text('Cell Review'), findsOneWidget);
-    expect(find.text('Available soon'), findsOneWidget);
+    expect(find.text('Classroom quiz'), findsNothing);
+    expect(find.text('biology.pdf | 1 questions'), findsNWidgets(2));
+    expect(find.text('Practice quiz'), findsNWidgets(2));
+    expect(find.textContaining('Due'), findsNothing);
+    expect(find.textContaining('attempts left'), findsNothing);
     expect(
-      tester
-          .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Available soon'),
-          )
-          .onPressed,
-      isNull,
-    );
-    expect(find.text('Take activity'), findsOneWidget);
-    expect(
-      tester.getTopLeft(find.text('Classroom deadlines')).dx,
-      lessThan(tester.getTopLeft(find.text('Pending activities')).dx),
+      tester.getTopLeft(find.text('Cell Structure')).dy,
+      lessThan(tester.getTopLeft(find.text('Cell Review')).dy),
     );
 
-    await tester.tap(find.bySemanticsLabel('${deadline.day}, 2 deadlines'));
-    await tester.pumpAndSettle();
-
-    final activitiesDialog = find.byType(AlertDialog);
-    expect(
-      find.descendant(
-        of: activitiesDialog,
-        matching: find.text('Cell Structure'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: activitiesDialog, matching: find.text('Cell Review')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: activitiesDialog,
-        matching: find.textContaining('Available from'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: activitiesDialog,
-        matching: find.text(
-          MaterialLocalizations.of(
-            tester.element(find.text('Classroom deadlines')),
-          ).formatFullDate(deadline.toLocal()),
-        ),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: activitiesDialog,
-        matching: find.text('Take activity'),
-      ),
-      findsNothing,
-    );
-    expect(
-      find.descendant(
-        of: activitiesDialog,
-        matching: find.byType(FilledButton),
-      ),
-      findsNothing,
-    );
-
-    await tester.tap(
-      find.descendant(of: activitiesDialog, matching: find.text('Close')),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byType(AlertDialog), findsNothing);
-
-    await tester.tap(find.text('Take activity'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Practice quiz').first);
     await tester.pumpAndSettle();
 
     expect(find.text('Take your quiz'), findsOneWidget);
     expect(find.text('Which organelle stores DNA?'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('streak calendar and todo list appear before practice', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+
+    final todoRepository = _FakeTodoRepository([
+      InstructorTodoTask(
+        id: 'review',
+        title: 'Review a topic',
+        dueDate: DateTime.now().add(const Duration(days: 5)),
+        priority: InstructorTodoPriority.normal,
+      ),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudentHomeScreen(
+          user: _student,
+          quizRepository: _FakeQuizRepository(),
+          profileDataService: _FakeProfileDataService(),
+          todoRepository: todoRepository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byType(SingleChildScrollView).first,
+      const Offset(0, -1200),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your learning streak'), findsOneWidget);
+    expect(find.text('2 days in a row'), findsOneWidget);
+    expect(find.byKey(const ValueKey('streak-calendar-grid')), findsOneWidget);
+    final lastDayOfMonth = DateTime(
+      DateTime.now().year,
+      DateTime.now().month + 1,
+      0,
+    ).day;
+    expect(
+      find.byKey(ValueKey<String>('streak-day-$lastDayOfMonth')),
+      findsOneWidget,
+    );
+    final localizations = MaterialLocalizations.of(
+      tester.element(find.text('Your learning streak')),
+    );
+    await tester.tap(find.byTooltip('Previous month'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        localizations.formatMonthYear(
+          DateTime(DateTime.now().year, DateTime.now().month - 1),
+        ),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('Next month'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        localizations.formatMonthYear(
+          DateTime(DateTime.now().year, DateTime.now().month),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Learning day'), findsOneWidget);
+    expect(find.text('Today'), findsOneWidget);
+    expect(find.text('My tasks'), findsOneWidget);
+    expect(find.text('Review a topic'), findsOneWidget);
+    expect(find.text('Come back and practice'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('My tasks')).dy,
+      lessThan(tester.getTopLeft(find.text('Come back and practice')).dy),
+    );
+    expect(find.text('Classroom deadlines'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
 
-class _FakeClassroomRepository implements ClassroomRepository {
-  final activities = <ClassroomActivity>[];
-  final classroom = ClassroomModel(
-    id: 'classroom-id',
-    name: 'Biology',
-    subject: 'General Biology',
-    code: 'ABCD2345',
-    createdAt: DateTime.utc(2026),
-  );
+const _student = UserModel(
+  id: 1,
+  fullName: 'Student Name',
+  email: 'student@example.com',
+  role: 'student',
+);
+
+QuizActivity _quiz({
+  required String id,
+  required String title,
+  String? classroomActivityId,
+  DateTime? lastPracticed,
+}) => QuizActivity(
+  id: id,
+  title: title,
+  sourceFile: 'biology.pdf',
+  createdAt: DateTime.utc(2026),
+  questions: const [
+    QuizQuestion(
+      question: 'Which organelle stores DNA?',
+      options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
+      answerIndex: 0,
+      explanation: 'The nucleus contains the cell DNA.',
+    ),
+  ],
+  attempts: [
+    QuizScore(
+      score: 1,
+      totalQuestions: 1,
+      createdAt: lastPracticed ?? DateTime.utc(2026),
+    ),
+  ],
+  classroomActivityId: classroomActivityId,
+);
+
+class _FakeQuizRepository implements QuizRepository {
+  _FakeQuizRepository([this.quizzes = const []]);
+
+  final List<QuizActivity> quizzes;
 
   @override
-  Future<List<ClassroomStudentSummary>> classroomStudents(
-    String classroomId,
-  ) async => [];
+  Future<List<QuizActivity>> recentAttempts() async => quizzes;
+}
+
+class _FakeProfileDataService implements ProfileDataService {
+  @override
+  Future<Set<DateTime>> loginDates() async {
+    final today = DateTime.now();
+    return {
+      DateTime(today.year, today.month, today.day),
+      DateTime(today.year, today.month, today.day - 1),
+    };
+  }
 
   @override
-  Future<void> removeClassroomStudent({
-    required String classroomId,
-    required int studentId,
-  }) async {}
+  Future<int> learnerPoints() async => 0;
 
   @override
-  Future<List<ClassroomActivity>> classroomActivities(
-    String classroomId,
-  ) async => activities
-      .where((activity) => activity.classroomId == classroomId)
-      .toList(growable: false);
+  Future<int?> weeklyRanking() async => null;
+}
+
+class _FakeTodoRepository implements InstructorTodoRepository {
+  _FakeTodoRepository([this.tasks = const []]);
+
+  List<InstructorTodoTask> tasks;
 
   @override
-  Future<InstructorDashboardStats> getInstructorDashboardStats() async =>
-      const InstructorDashboardStats(studentCount: 0, activeClassCount: 0);
+  Future<List<InstructorTodoTask>> listTasks(int instructorId) async =>
+      List.unmodifiable(tasks);
 
   @override
-  Future<ClassroomModel> createClassroom({
-    required String name,
-    required String subject,
-    required String iconKey,
-  }) async => throw UnimplementedError();
-
-  @override
-  Future<ClassroomModel> joinClassroom({required String code}) async =>
-      throw UnimplementedError();
-
-  @override
-  Future<List<ClassroomModel>> listClassrooms() async => [classroom];
-
-  @override
-  Future<List<ClassroomModel>> listStudentClassrooms() async => [classroom];
-
-  @override
-  Future<void> deleteClassroom(String classroomId) async {}
-
-  @override
-  Future<void> deleteClassroomActivity({
-    required String classroomId,
-    required String activityId,
-  }) async {}
+  Future<void> saveTasks(
+    int instructorId,
+    List<InstructorTodoTask> updatedTasks,
+  ) async {
+    tasks = List.unmodifiable(updatedTasks);
+  }
 }

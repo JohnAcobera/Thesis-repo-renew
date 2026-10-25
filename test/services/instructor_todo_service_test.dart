@@ -24,4 +24,23 @@ void main() {
     expect(restored.single.toJson(), task.toJson());
     expect(await service.listTasks(13), isEmpty);
   });
+
+  test('student tasks use storage separate from instructor tasks', () async {
+    SharedPreferences.setMockInitialValues({});
+    const instructorService = InstructorTodoService();
+    const studentService = StudentTodoService();
+    final task = InstructorTodoTask(
+      id: 'task-1',
+      title: 'Review a topic',
+      dueDate: DateTime(2026, 10, 21),
+      priority: InstructorTodoPriority.normal,
+    );
+
+    await instructorService.saveTasks(12, [task]);
+    expect(await studentService.listTasks(12), isEmpty);
+
+    await studentService.saveTasks(12, [task]);
+    expect(await instructorService.listTasks(12), hasLength(1));
+    expect(await studentService.listTasks(12), hasLength(1));
+  });
 }

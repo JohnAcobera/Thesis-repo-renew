@@ -281,7 +281,7 @@ class LearningModeService {
           .toList(growable: false);
     } on Object {
       throw const LearningModeServiceException(
-        'The generated matching game was invalid. Please generate it again.',
+        'The generated matching activity was invalid. Please generate it again.',
       );
     }
   }

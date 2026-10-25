@@ -408,7 +408,11 @@ class QuizScore {
   );
 }
 
-class QuizService {
+abstract interface class QuizRepository {
+  Future<List<QuizActivity>> recentAttempts();
+}
+
+class QuizService implements QuizRepository {
   QuizService({SupabaseClient? client, AuthService? authService})
     : _client = client ?? Supabase.instance.client,
       _authService = authService ?? AuthService();
@@ -678,6 +682,7 @@ class QuizService {
     }
   }
 
+  @override
   Future<List<QuizActivity>> recentAttempts() async {
     final token = await _requireSessionToken();
     try {

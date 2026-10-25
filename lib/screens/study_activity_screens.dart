@@ -637,7 +637,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
             padding: const EdgeInsets.only(bottom: 12),
             children: [
               _StudyHeading(
-                eyebrow: 'MATCHING GAME',
+                eyebrow: 'MATCHING ACTIVITY',
                 title: widget.title,
                 subtitle: '${widget.pairs.length} pairs · ${widget.sourceFile}',
               ),
@@ -950,7 +950,15 @@ class _MatchingScreenState extends State<MatchingScreen> {
     subtitle:
         'You finished every set. Review your score and try again whenever you like.',
     score: '$_score / ${widget.pairs.length}',
-    review: _buildMatchingReview(),
+    review: SizedBox(
+      height: (MediaQuery.sizeOf(context).height * 0.42)
+          .clamp(220.0, 420.0)
+          .toDouble(),
+      child: SingleChildScrollView(
+        key: const ValueKey('matching-result-review-scroll'),
+        child: _buildMatchingReview(),
+      ),
+    ),
     isSaving: _isSaving,
     isSaved: _isSaved,
     saveError: _saveError,

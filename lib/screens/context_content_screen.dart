@@ -181,22 +181,89 @@ class _ContextContentScreenState extends State<ContextContentScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: const Color(0xFFE8D7C2)),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF3B2419).withValues(alpha: 0.05),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF1DF),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.auto_awesome_rounded,
+                              color: Color(0xFFFF7434),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 11,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF1DF),
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: const Text(
+                              'STUDY CONTENT',
+                              style: TextStyle(
+                                color: Color(0xFFFF7434),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Start with an idea',
+                        style: TextStyle(
+                          color: Color(0xFF3B2419),
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Share a topic, question, or class notes. We will turn it '
+                        'into a clear handout with organized sections and key '
+                        'terms.',
+                        style: TextStyle(color: Color(0xFF725F53), height: 1.5),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
                 const Text(
-                  'Start with an idea',
+                  'Your topic or notes',
                   style: TextStyle(
                     color: Color(0xFF3B2419),
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Describe what you want to learn about. The connected '
-                  'generation service will use this context to create structured '
-                  'terms and definitions.',
-                  style: TextStyle(color: Color(0xFF725F53), height: 1.5),
-                ),
-                const SizedBox(height: 24),
                 TextField(
                   controller: _contextController,
                   minLines: 4,
@@ -219,8 +286,7 @@ class _ContextContentScreenState extends State<ContextContentScreen> {
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     labelText: 'Your context',
-                    hintText:
-                        'For example: Explain the water cycle for beginners',
+                    hintText: 'e.g. Explain the water cycle for beginners',
                     alignLabelWithHint: true,
                     counterText: '${_contextController.text.length}/200',
                     filled: true,
@@ -230,33 +296,66 @@ class _ContextContentScreenState extends State<ContextContentScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                _ColorSettingRow(
-                  label: 'Title',
-                  color: _titleColor,
-                  onTap: () => _chooseColor(
-                    label: 'Title',
-                    selectedColor: _titleColor,
-                    onSelected: (color) => _updateStyle(titleColor: color),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: const Color(0xFFE8D7C2)),
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                ),
-                _ColorSettingRow(
-                  label: 'Terms',
-                  color: _termsColor,
-                  onTap: () => _chooseColor(
-                    label: 'Terms',
-                    selectedColor: _termsColor,
-                    onSelected: (color) => _updateStyle(termsColor: color),
-                  ),
-                ),
-                _ColorSettingRow(
-                  label: 'Definitions',
-                  color: _definitionsColor,
-                  onTap: () => _chooseColor(
-                    label: 'Definitions',
-                    selectedColor: _definitionsColor,
-                    onSelected: (color) =>
-                        _updateStyle(definitionsColor: color),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Customize your handout',
+                        style: TextStyle(
+                          color: Color(0xFF3B2419),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Choose colors for each part of your content.',
+                        style: TextStyle(
+                          color: Color(0xFF725F53),
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _ColorSettingRow(
+                        label: 'Title',
+                        color: _titleColor,
+                        onTap: () => _chooseColor(
+                          label: 'Title',
+                          selectedColor: _titleColor,
+                          onSelected: (color) =>
+                              _updateStyle(titleColor: color),
+                        ),
+                      ),
+                      _ColorSettingRow(
+                        label: 'Terms',
+                        color: _termsColor,
+                        onTap: () => _chooseColor(
+                          label: 'Terms',
+                          selectedColor: _termsColor,
+                          onSelected: (color) =>
+                              _updateStyle(termsColor: color),
+                        ),
+                      ),
+                      _ColorSettingRow(
+                        label: 'Definitions',
+                        color: _definitionsColor,
+                        onTap: () => _chooseColor(
+                          label: 'Definitions',
+                          selectedColor: _definitionsColor,
+                          onSelected: (color) =>
+                              _updateStyle(definitionsColor: color),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
