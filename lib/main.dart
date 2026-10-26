@@ -41,6 +41,19 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        if (mediaQuery.size.width >= 600) {
+          return child ?? const SizedBox.shrink();
+        }
+
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaler: _ScaledTextScaler(mediaQuery.textScaler, 0.9),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: _buttonColor,
@@ -99,6 +112,19 @@ class MainApp extends StatelessWidget {
           : const _ConfigurationScreen(),
     );
   }
+}
+
+class _ScaledTextScaler extends TextScaler {
+  const _ScaledTextScaler(this.baseScaler, this.factor);
+
+  final TextScaler baseScaler;
+  final double factor;
+
+  @override
+  double scale(double fontSize) => baseScaler.scale(fontSize) * factor;
+
+  @override
+  double get textScaleFactor => scale(1);
 }
 
 bool _isAdminRoute(Uri uri) {

@@ -944,16 +944,21 @@ class _StackedStudentDashboard extends StatelessWidget {
         centerContent: true,
       ),
       const SizedBox(height: 16),
-      _DashboardPanel(
-        key: _DashboardPanel.recentActivityPanelKey,
-        icon: Icons.history,
-        title: 'Recent activity',
-        description: 'Your latest quizzes and study sessions.',
-        content: _RecentActivityContent(
-          key: ValueKey<int>(activityRevision),
-          user: user,
-          onQuizCompleted: onQuizCompleted,
-          onMenuSelected: onMenuSelected,
+      SizedBox(
+        height: 500,
+        child: _DashboardPanel(
+          key: _DashboardPanel.recentActivityPanelKey,
+          icon: Icons.history,
+          title: 'Recent activity',
+          description: 'Your latest quizzes and study sessions.',
+          content: _RecentActivityContent(
+            key: ValueKey<int>(activityRevision),
+            user: user,
+            onQuizCompleted: onQuizCompleted,
+            onMenuSelected: onMenuSelected,
+            scrollable: true,
+          ),
+          expandContent: true,
         ),
       ),
     ],

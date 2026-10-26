@@ -35,6 +35,32 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('recent activity has a bounded scroll area on mobile', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudentHomeScreen(
+          user: _student,
+          profileDataService: _FakeProfileDataService(),
+          todoRepository: _FakeTodoRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final recentActivityPanel = find.byKey(
+      const ValueKey<String>('dashboard_panel_3'),
+    );
+    expect(tester.getSize(recentActivityPanel).height, 500);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('wide dashboard fits the stats panel in a short viewport', (
     tester,
   ) async {
