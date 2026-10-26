@@ -40,6 +40,7 @@ class StudentScaffold extends StatefulWidget {
     this.onMenuSelected,
     this.onSettingsSelected,
     this.onBack,
+    this.trailingAction,
     this.notificationRepository,
     this.onNotificationSelected,
     super.key,
@@ -54,6 +55,7 @@ class StudentScaffold extends StatefulWidget {
   final ValueChanged<StudentMenuItem>? onMenuSelected;
   final VoidCallback? onSettingsSelected;
   final VoidCallback? onBack;
+  final Widget? trailingAction;
   final StudentNotificationRepository? notificationRepository;
   final ValueChanged<StudentNotification>? onNotificationSelected;
 
@@ -174,6 +176,7 @@ class _StudentScaffoldState extends State<StudentScaffold> {
       email: widget.email,
       onProfileSelected: () => _selectMenuItem(StudentMenuItem.profile),
       onSettingsSelected: widget.onSettingsSelected,
+      trailingAction: widget.trailingAction,
       notificationRepository: widget.notificationRepository,
       onNotificationSelected:
           widget.onNotificationSelected ?? _openNotificationClassroom,

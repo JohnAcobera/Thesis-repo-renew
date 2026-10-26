@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:thesis_repo_renew/models/classroom_model.dart';
 import 'package:thesis_repo_renew/services/auth_service.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
@@ -225,6 +226,120 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Question Types'), findsNothing);
     expect(find.text('Number of Items'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('dashboard tutorial button opens the tutorial preview', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudentHomeScreen(
+          user: UserModel(
+            id: 1,
+            fullName: 'Student Name',
+            email: 'student@example.com',
+            role: 'student',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byTooltip('Preview tutorial'), findsOneWidget);
+    await tester.tap(find.byTooltip('Preview tutorial'));
+    await tester.pumpAndSettle();
+    expect(find.text('Welcome to your first study session'), findsOneWidget);
+    expect(find.textContaining('YOUR QUICK START'), findsOneWidget);
+    expect(find.byTooltip('Dismiss tutorial'), findsOneWidget);
+    final tutorialTitleTop = tester
+        .getTopLeft(find.text('Welcome to your first study session'))
+        .dy;
+
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -500),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Welcome to your first study session'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Welcome to your first study session')).dy,
+      tutorialTitleTop,
+    );
+
+    await tester.tap(find.byTooltip('Dismiss tutorial'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Welcome to your first study session'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('new student dashboard automatically opens the tutorial', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudentHomeScreen(
+          user: UserModel(
+            id: 1,
+            fullName: 'New Student',
+            email: 'new-student@example.com',
+            role: 'student',
+          ),
+          showTutorialOnOpen: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Welcome to your first study session'), findsOneWidget);
+    expect(find.byTooltip('Dismiss tutorial'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tutorial advances and scrolls to question types', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ImportScreen(
+          username: 'Student Name',
+          email: 'student@example.com',
+          showTutorialOnOpen: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (var step = 0; step < 3; step++) {
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.text('Pick your question style'), findsOneWidget);
+    final targetRect = tester.getRect(find.text('Question Types'));
+    final scrollViewport = tester.getRect(find.byType(SingleChildScrollView));
+    expect(targetRect.top, greaterThanOrEqualTo(scrollViewport.top));
+    expect(targetRect.bottom, lessThanOrEqualTo(scrollViewport.bottom));
     expect(tester.takeException(), isNull);
   });
 

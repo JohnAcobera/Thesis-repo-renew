@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/tutorial_service.dart';
 import '../landing/landing_screen.dart';
 import 'login_screen.dart';
 
@@ -37,6 +38,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _passwordController.text,
         role: 'student',
       );
+      if (!mounted) return;
+      try {
+        await const TutorialService().markFirstLoginPending(
+          _emailController.text,
+        );
+      } on Exception catch (error, stackTrace) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'registration',
+            context: ErrorDescription('while scheduling the new-user tutorial'),
+          ),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Your account was created, but the welcome tutorial could not '
+                'be scheduled.',
+              ),
+            ),
+          );
+        }
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Account created. You can now log in.')),

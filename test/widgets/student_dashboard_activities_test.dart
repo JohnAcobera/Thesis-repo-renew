@@ -5,10 +5,9 @@ import 'package:thesis_repo_renew/models/user_model.dart';
 import 'package:thesis_repo_renew/screens/home/student_home_screen.dart';
 import 'package:thesis_repo_renew/services/auth_service.dart';
 import 'package:thesis_repo_renew/services/instructor_todo_service.dart';
-import 'package:thesis_repo_renew/services/quiz_service.dart';
 
 void main() {
-  testWidgets('dashboard shows self-paced practice on mobile', (tester) async {
+  testWidgets('dashboard omits the practice section on mobile', (tester) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     tester.view.physicalSize = const Size(400, 800);
@@ -18,7 +17,6 @@ void main() {
       MaterialApp(
         home: StudentHomeScreen(
           user: _student,
-          quizRepository: _FakeQuizRepository(),
           profileDataService: _FakeProfileDataService(),
           todoRepository: _FakeTodoRepository(),
         ),
@@ -31,7 +29,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Come back and practice'), findsOneWidget);
+    expect(find.text('Come back and practice'), findsNothing);
     expect(find.text('Pending activities'), findsNothing);
     expect(find.text('Classroom deadlines'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -49,7 +47,6 @@ void main() {
       MaterialApp(
         home: StudentHomeScreen(
           user: _student,
-          quizRepository: _FakeQuizRepository(),
           profileDataService: _FakeProfileDataService(),
           todoRepository: _FakeTodoRepository(),
         ),
@@ -60,7 +57,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('dashboard recommends generated quizzes for practice', (
+  testWidgets('dashboard omits generated quiz practice section', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -68,29 +65,10 @@ void main() {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
 
-    final repository = _FakeQuizRepository([
-      _quiz(
-        id: 'personal-quiz',
-        title: 'Cell Structure',
-        lastPracticed: DateTime.utc(2025),
-      ),
-      _quiz(
-        id: 'recent-personal-quiz',
-        title: 'Cell Review',
-        lastPracticed: DateTime.utc(2026),
-      ),
-      _quiz(
-        id: 'classroom-quiz',
-        title: 'Classroom quiz',
-        classroomActivityId: 'activity-id',
-      ),
-    ]);
-
     await tester.pumpWidget(
       MaterialApp(
         home: StudentHomeScreen(
           user: _student,
-          quizRepository: repository,
           profileDataService: _FakeProfileDataService(),
           todoRepository: _FakeTodoRepository(),
         ),
@@ -103,28 +81,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Come back and practice'), findsOneWidget);
-    expect(find.text('Cell Structure'), findsOneWidget);
-    expect(find.text('Cell Review'), findsOneWidget);
-    expect(find.text('Classroom quiz'), findsNothing);
-    expect(find.text('biology.pdf | 1 questions'), findsNWidgets(2));
-    expect(find.text('Practice quiz'), findsNWidgets(2));
-    expect(find.textContaining('Due'), findsNothing);
-    expect(find.textContaining('attempts left'), findsNothing);
-    expect(
-      tester.getTopLeft(find.text('Cell Structure')).dy,
-      lessThan(tester.getTopLeft(find.text('Cell Review')).dy),
-    );
-
-    await tester.tap(find.widgetWithText(FilledButton, 'Practice quiz').first);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Take your quiz'), findsOneWidget);
-    expect(find.text('Which organelle stores DNA?'), findsOneWidget);
+    expect(find.text('Come back and practice'), findsNothing);
+    expect(find.text('Practice quiz'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('streak calendar and todo list appear before practice', (
+  testWidgets('streak calendar and todo list appear on dashboard', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -144,7 +106,6 @@ void main() {
       MaterialApp(
         home: StudentHomeScreen(
           user: _student,
-          quizRepository: _FakeQuizRepository(),
           profileDataService: _FakeProfileDataService(),
           todoRepository: todoRepository,
         ),
@@ -196,11 +157,7 @@ void main() {
     expect(find.text('Today'), findsOneWidget);
     expect(find.text('My tasks'), findsOneWidget);
     expect(find.text('Review a topic'), findsOneWidget);
-    expect(find.text('Come back and practice'), findsOneWidget);
-    expect(
-      tester.getTopLeft(find.text('My tasks')).dy,
-      lessThan(tester.getTopLeft(find.text('Come back and practice')).dy),
-    );
+    expect(find.text('Come back and practice'), findsNothing);
     expect(find.text('Classroom deadlines'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -212,43 +169,6 @@ const _student = UserModel(
   email: 'student@example.com',
   role: 'student',
 );
-
-QuizActivity _quiz({
-  required String id,
-  required String title,
-  String? classroomActivityId,
-  DateTime? lastPracticed,
-}) => QuizActivity(
-  id: id,
-  title: title,
-  sourceFile: 'biology.pdf',
-  createdAt: DateTime.utc(2026),
-  questions: const [
-    QuizQuestion(
-      question: 'Which organelle stores DNA?',
-      options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
-      answerIndex: 0,
-      explanation: 'The nucleus contains the cell DNA.',
-    ),
-  ],
-  attempts: [
-    QuizScore(
-      score: 1,
-      totalQuestions: 1,
-      createdAt: lastPracticed ?? DateTime.utc(2026),
-    ),
-  ],
-  classroomActivityId: classroomActivityId,
-);
-
-class _FakeQuizRepository implements QuizRepository {
-  _FakeQuizRepository([this.quizzes = const []]);
-
-  final List<QuizActivity> quizzes;
-
-  @override
-  Future<List<QuizActivity>> recentAttempts() async => quizzes;
-}
 
 class _FakeProfileDataService implements ProfileDataService {
   @override

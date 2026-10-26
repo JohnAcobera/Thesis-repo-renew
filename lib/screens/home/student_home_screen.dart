@@ -25,8 +25,8 @@ import '../../widgets/student_side_menu.dart';
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({
     required this.user,
+    this.showTutorialOnOpen = false,
     this.classroomService,
-    this.quizRepository,
     this.profileDataService,
     this.todoRepository,
     this.leaderboardRepository,
@@ -35,8 +35,8 @@ class StudentHomeScreen extends StatefulWidget {
   });
 
   final UserModel user;
+  final bool showTutorialOnOpen;
   final ClassroomRepository? classroomService;
-  final QuizRepository? quizRepository;
   final ProfileDataService? profileDataService;
   final InstructorTodoRepository? todoRepository;
   final LeaderboardRepository? leaderboardRepository;
@@ -51,6 +51,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   int _activityRevision = 0;
   StudentMenuItem _selectedMenu = StudentMenuItem.dashboard;
   bool _isRecordingActivityDay = false;
+  bool _hasOpenedFirstLoginTutorial = false;
   String? _notificationClassroomId;
 
   @override
@@ -58,6 +59,29 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _recordActiveLearningDay();
+    if (widget.showTutorialOnOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openFirstLoginTutorial();
+      });
+    }
+  }
+
+  void _openFirstLoginTutorial() {
+    if (_hasOpenedFirstLoginTutorial) return;
+    _hasOpenedFirstLoginTutorial = true;
+    final user = widget.user;
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ImportScreen(
+          username: user.fullName,
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt,
+          onMenuSelected: _selectMenuItem,
+          showTutorialOnOpen: true,
+        ),
+      ),
+    );
   }
 
   @override
@@ -113,7 +137,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   Widget build(BuildContext context) {
     final user = widget.user;
 
-    Future<void> openImportScreen() async {
+    Future<void> openImportScreen({bool previewTutorial = false}) async {
       final completed = await Navigator.of(context).push<bool>(
         MaterialPageRoute<bool>(
           builder: (_) => ImportScreen(
@@ -122,6 +146,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
             role: user.role,
             createdAt: user.createdAt,
             onMenuSelected: _selectMenuItem,
+            showTutorialOnOpen: previewTutorial,
           ),
         ),
       );
@@ -168,6 +193,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       role: _displayRole(user.role),
       selectedMenu: _selectedMenu,
       onMenuSelected: onMenuSelected,
+      trailingAction: _selectedMenu == StudentMenuItem.dashboard
+          ? IconButton(
+              tooltip: 'Preview tutorial',
+              onPressed: () => openImportScreen(previewTutorial: true),
+              icon: const Icon(Icons.tips_and_updates_outlined),
+            )
+          : null,
       notificationRepository: widget.notificationRepository,
       onNotificationSelected: _openNotificationClassroom,
       body: _selectedMenu == StudentMenuItem.inventory
@@ -227,18 +259,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                               activityRevision: _activityRevision,
                               profileDataService: widget.profileDataService,
                               todoRepository: widget.todoRepository,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            height: isWide ? 440 : 520,
-                            child: _PracticeQuizSection(
-                              key: ValueKey<int>(_activityRevision),
-                              user: user,
-                              quizRepository: widget.quizRepository,
-                              onQuizCompleted: () =>
-                                  setState(() => _activityRevision++),
-                              onMenuSelected: _selectMenuItem,
                             ),
                           ),
                         ],
@@ -729,205 +749,6 @@ class _CalendarLegendDot extends StatelessWidget {
         style: const TextStyle(color: Color(0xFF765C4F), fontSize: 10),
       ),
     ],
-  );
-}
-
-class _PracticeQuizSection extends StatefulWidget {
-  const _PracticeQuizSection({
-    required this.user,
-    required this.quizRepository,
-    required this.onQuizCompleted,
-    required this.onMenuSelected,
-    super.key,
-  });
-
-  final UserModel user;
-  final QuizRepository? quizRepository;
-  final VoidCallback onQuizCompleted;
-  final ValueChanged<StudentMenuItem> onMenuSelected;
-
-  @override
-  State<_PracticeQuizSection> createState() => _PracticeQuizSectionState();
-}
-
-class _PracticeQuizSectionState extends State<_PracticeQuizSection> {
-  late Future<List<QuizActivity>> _quizzes;
-
-  @override
-  void initState() {
-    super.initState();
-    _quizzes = _loadQuizzes();
-  }
-
-  Future<List<QuizActivity>> _loadQuizzes() async {
-    final repository = widget.quizRepository ?? QuizService();
-    final quizzes = (await repository.recentAttempts())
-        .where((quiz) => quiz.classroomActivityId == null)
-        .toList();
-    quizzes.sort((first, second) {
-      final firstLastPracticed = first.latestAttempt!.createdAt;
-      final secondLastPracticed = second.latestAttempt!.createdAt;
-      return firstLastPracticed.compareTo(secondLastPracticed);
-    });
-    return quizzes;
-  }
-
-  void _retry() {
-    setState(() => _quizzes = _loadQuizzes());
-  }
-
-  Future<void> _practiceQuiz(QuizActivity quiz) async {
-    final completed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => QuizScreen(
-          username: widget.user.fullName,
-          email: widget.user.email,
-          role: widget.user.role,
-          createdAt: widget.user.createdAt,
-          onMenuSelected: widget.onMenuSelected,
-          title: quiz.title,
-          sourceFile: quiz.sourceFile,
-          questions: quiz.questions,
-          quizId: quiz.id,
-          previousAttempts: quiz.attempts,
-        ),
-      ),
-    );
-    if (completed == true && mounted) widget.onQuizCompleted();
-  }
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder<List<QuizActivity>>(
-    future: _quizzes,
-    builder: (context, snapshot) {
-      final quizzes = snapshot.data ?? const <QuizActivity>[];
-      return _DashboardSectionPanel(
-        icon: Icons.self_improvement_outlined,
-        title: 'Come back and practice',
-        description: 'Revisit one of your quizzes whenever you feel ready.',
-        child: snapshot.connectionState == ConnectionState.waiting
-            ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFFF4773C)),
-              )
-            : snapshot.hasError
-            ? Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Could not load your quizzes. Please try again.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFF725F53)),
-                    ),
-                    TextButton.icon(
-                      onPressed: _retry,
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Try again'),
-                    ),
-                  ],
-                ),
-              )
-            : quizzes.isEmpty
-            ? const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.auto_stories_outlined,
-                      color: Color(0xFFC49A7E),
-                      size: 32,
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'No quizzes to revisit yet',
-                      style: TextStyle(
-                        color: Color(0xFF3B2419),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Your generated quizzes will be here when you want to practice.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFF725F53), fontSize: 12),
-                    ),
-                  ],
-                ),
-              )
-            : ListView.separated(
-                padding: EdgeInsets.zero,
-                itemCount: quizzes.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (context, index) => _PracticeQuizTile(
-                  quiz: quizzes[index],
-                  onPractice: () => _practiceQuiz(quizzes[index]),
-                ),
-              ),
-      );
-    },
-  );
-}
-
-class _PracticeQuizTile extends StatelessWidget {
-  const _PracticeQuizTile({required this.quiz, required this.onPractice});
-
-  final QuizActivity quiz;
-  final VoidCallback onPractice;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFFBF6),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: const Color(0xFFE8D7C2)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.quiz_outlined, color: Color(0xFFF4773C)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                quiz.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF3B2419),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${quiz.sourceFile} | ${quiz.totalQuestions} questions',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Color(0xFF725F53), fontSize: 12),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: onPractice,
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFF4773C),
-              foregroundColor: Colors.white,
-              visualDensity: VisualDensity.compact,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('Practice quiz'),
-          ),
-        ),
-      ],
-    ),
   );
 }
 

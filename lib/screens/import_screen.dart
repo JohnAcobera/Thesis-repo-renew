@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter_dropzone/flutter_dropzone.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'profile_screen.dart';
 import 'quiz_screen.dart';
@@ -29,6 +30,7 @@ class ImportScreen extends StatefulWidget {
     this.createdAt,
     this.classroomService,
     this.onMenuSelected,
+    this.showTutorialOnOpen = false,
     super.key,
   });
 
@@ -38,6 +40,7 @@ class ImportScreen extends StatefulWidget {
   final DateTime? createdAt;
   final ClassroomRepository? classroomService;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
+  final bool showTutorialOnOpen;
 
   @override
   State<ImportScreen> createState() => _ImportScreenState();
@@ -53,6 +56,13 @@ class _ImportScreenState extends State<ImportScreen> {
   int _selectedItemCount = 10;
   bool _isGenerating = false;
   bool _isDragHovered = false;
+  bool _isTutorialVisible = false;
+  bool _isTutorialPreferenceLoaded = false;
+  int _tutorialStepIndex = 0;
+  final ScrollController _setupScrollController = ScrollController();
+  final Map<_TutorialStep, GlobalKey> _tutorialTargetKeys = {
+    for (final step in _TutorialStep.values) step: GlobalKey(),
+  };
   String? _generationStatus;
   DropzoneViewController? _dropzoneController;
 
@@ -63,6 +73,104 @@ class _ImportScreenState extends State<ImportScreen> {
     _LearningMode.flashcards => 'flashcard set',
     _LearningMode.matching => 'matching activity',
   };
+
+  String get _tutorialPreferenceKey =>
+      'quizforge_tutorial_dismissed_${widget.email.trim().toLowerCase()}';
+
+  List<_TutorialStep> get _tutorialSteps => [
+    _TutorialStep.start,
+    _TutorialStep.learningMode,
+    _TutorialStep.sourceFile,
+    if (_selectedMode == _LearningMode.quiz) _TutorialStep.questionType,
+    _TutorialStep.itemCount,
+    _TutorialStep.generate,
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _isTutorialVisible = widget.showTutorialOnOpen;
+    _loadTutorialPreference();
+  }
+
+  Future<void> _loadTutorialPreference() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      final dismissed = preferences.getBool(_tutorialPreferenceKey) ?? false;
+      setState(() {
+        _isTutorialVisible = widget.showTutorialOnOpen || !dismissed;
+        _isTutorialPreferenceLoaded = true;
+      });
+    } on Exception catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'quiz tutorial',
+          context: ErrorDescription('while loading tutorial preferences'),
+        ),
+      );
+      if (mounted) {
+        setState(() {
+          _isTutorialVisible = true;
+          _isTutorialPreferenceLoaded = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _dismissTutorial() async {
+    setState(() => _isTutorialVisible = false);
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final saved = await preferences.setBool(_tutorialPreferenceKey, true);
+      if (!saved && mounted) {
+        _showMessage('Your tutorial preference could not be saved.');
+      }
+    } on Exception catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'quiz tutorial',
+          context: ErrorDescription('while saving tutorial preferences'),
+        ),
+      );
+      if (mounted) {
+        _showMessage('Your tutorial preference could not be saved.');
+      }
+    }
+  }
+
+  void _advanceTutorial(int direction) {
+    final lastIndex = _tutorialSteps.length - 1;
+    final nextIndex = (_tutorialStepIndex + direction)
+        .clamp(0, lastIndex)
+        .toInt();
+    setState(() => _tutorialStepIndex = nextIndex);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final step = _tutorialSteps[nextIndex];
+      final targetContext = _tutorialTargetKeys[step]?.currentContext;
+      if (targetContext == null) {
+        if (step == _TutorialStep.start && _setupScrollController.hasClients) {
+          _setupScrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeInOutCubic,
+          );
+        }
+        return;
+      }
+      Scrollable.ensureVisible(
+        targetContext,
+        alignment: 0.12,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeInOutCubic,
+      );
+    });
+  }
 
   String _displayRole(String role) => role.isEmpty
       ? role
@@ -572,6 +680,7 @@ class _ImportScreenState extends State<ImportScreen> {
   @override
   void dispose() {
     _quizNameController.dispose();
+    _setupScrollController.dispose();
     super.dispose();
   }
 
@@ -617,98 +726,182 @@ class _ImportScreenState extends State<ImportScreen> {
         }
       },
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 24),
-                  _LearningModePanel(
-                    selectedMode: _selectedMode,
-                    onChanged: (mode) => setState(() {
-                      _selectedMode = mode;
-                      _quizNameController.clear();
-                    }),
-                  ),
-                  const SizedBox(height: 16),
-                  _FilePickerPanel(
-                    selectedFile: _selectedFile,
-                    quizNameController: _quizNameController,
-                    activityName: _activityName,
-                    isDragHovered: _isDragHovered,
-                    useWebDropzone: kIsWeb,
-                    onPick: _pickFile,
-                    onClear: _clearFile,
-                    onDragHover: () => _setDragHovered(true),
-                    onDragLeave: () => _setDragHovered(false),
-                    onDropFiles: _handleDroppedFiles,
-                    onDropzoneCreated: (controller) =>
-                        _dropzoneController = controller,
-                    onWebDropFile: _handleWebDroppedFile,
-                  ),
-                  if (_selectedMode == _LearningMode.quiz) ...[
-                    const SizedBox(height: 16),
-                    _QuestionTypesPanel(
-                      selectedTypes: _selectedTypes,
-                      onChanged: (type) => setState(() {
-                        if (_selectedTypes.contains(type)) {
-                          if (_selectedTypes.length > 1) {
-                            _selectedTypes.remove(type);
-                          }
-                        } else {
-                          _selectedTypes.add(type);
-                        }
-                      }),
+        child: Column(
+          children: [
+            if (_isTutorialPreferenceLoaded && _isTutorialVisible)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 800),
+                    child: _TutorialGuideCard(
+                      step:
+                          _tutorialSteps[_tutorialStepIndex
+                              .clamp(0, _tutorialSteps.length - 1)
+                              .toInt()],
+                      stepNumber: _tutorialStepIndex + 1,
+                      stepCount: _tutorialSteps.length,
+                      onPrevious: () => _advanceTutorial(-1),
+                      onNext: () =>
+                          _tutorialStepIndex == _tutorialSteps.length - 1
+                          ? _dismissTutorial()
+                          : _advanceTutorial(1),
+                      onDismiss: _dismissTutorial,
                     ),
-                  ],
-                  const SizedBox(height: 16),
-                  _ItemCountPanel(
-                    selectedCount: _selectedItemCount,
-                    onChanged: (count) =>
-                        setState(() => _selectedItemCount = count),
                   ),
-                  const SizedBox(height: 24),
-                  _GenerateButton(
-                    onPressed: _generate,
-                    isLoading: _isGenerating,
-                    isEnabled: _selectedFile != null,
-                  ),
-                  if (_isGenerating && _generationStatus != null) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                ),
+              ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _setupScrollController,
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 800),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          Icons.info_outline_rounded,
-                          color: _subtle,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            _generationStatus!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: _subtle,
-                              fontSize: 13,
-                              height: 1.4,
-                            ),
+                        _buildHeader(),
+                        const SizedBox(height: 24),
+                        _tutorialTarget(
+                          _TutorialStep.learningMode,
+                          _LearningModePanel(
+                            selectedMode: _selectedMode,
+                            onChanged: (mode) => setState(() {
+                              _selectedMode = mode;
+                              _quizNameController.clear();
+                            }),
                           ),
+                          key: _tutorialTargetKeys[_TutorialStep.learningMode],
                         ),
+                        const SizedBox(height: 16),
+                        _tutorialTarget(
+                          _TutorialStep.sourceFile,
+                          _FilePickerPanel(
+                            selectedFile: _selectedFile,
+                            quizNameController: _quizNameController,
+                            activityName: _activityName,
+                            isDragHovered: _isDragHovered,
+                            useWebDropzone: kIsWeb,
+                            onPick: _pickFile,
+                            onClear: _clearFile,
+                            onDragHover: () => _setDragHovered(true),
+                            onDragLeave: () => _setDragHovered(false),
+                            onDropFiles: _handleDroppedFiles,
+                            onDropzoneCreated: (controller) =>
+                                _dropzoneController = controller,
+                            onWebDropFile: _handleWebDroppedFile,
+                          ),
+                          key: _tutorialTargetKeys[_TutorialStep.sourceFile],
+                        ),
+                        if (_selectedMode == _LearningMode.quiz) ...[
+                          const SizedBox(height: 16),
+                          _tutorialTarget(
+                            _TutorialStep.questionType,
+                            _QuestionTypesPanel(
+                              selectedTypes: _selectedTypes,
+                              onChanged: (type) => setState(() {
+                                if (_selectedTypes.contains(type)) {
+                                  if (_selectedTypes.length > 1) {
+                                    _selectedTypes.remove(type);
+                                  }
+                                } else {
+                                  _selectedTypes.add(type);
+                                }
+                              }),
+                            ),
+                            key:
+                                _tutorialTargetKeys[_TutorialStep.questionType],
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        _tutorialTarget(
+                          _TutorialStep.itemCount,
+                          _ItemCountPanel(
+                            selectedCount: _selectedItemCount,
+                            onChanged: (count) =>
+                                setState(() => _selectedItemCount = count),
+                          ),
+                          key: _tutorialTargetKeys[_TutorialStep.itemCount],
+                        ),
+                        const SizedBox(height: 24),
+                        _tutorialTarget(
+                          _TutorialStep.generate,
+                          _GenerateButton(
+                            onPressed: _generate,
+                            isLoading: _isGenerating,
+                            isEnabled: _selectedFile != null,
+                          ),
+                          key: _tutorialTargetKeys[_TutorialStep.generate],
+                        ),
+                        if (_isGenerating && _generationStatus != null) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.info_outline_rounded,
+                                color: _subtle,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  _generationStatus!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: _subtle,
+                                    fontSize: 13,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 24),
                       ],
                     ),
-                  ],
-                  const SizedBox(height: 24),
-                ],
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _tutorialTarget(
+    _TutorialStep step,
+    Widget child, {
+    required GlobalKey? key,
+  }) {
+    final active =
+        _isTutorialVisible &&
+        _isTutorialPreferenceLoaded &&
+        _tutorialSteps[_tutorialStepIndex
+                .clamp(0, _tutorialSteps.length - 1)
+                .toInt()] ==
+            step;
+    return AnimatedContainer(
+      key: key,
+      duration: const Duration(milliseconds: 220),
+      padding: active ? const EdgeInsets.all(4) : EdgeInsets.zero,
+      decoration: BoxDecoration(
+        border: active ? Border.all(color: _primary, width: 2) : null,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: _primary.withValues(alpha: 0.14),
+                  blurRadius: 16,
+                  spreadRadius: 2,
+                ),
+              ]
+            : null,
+      ),
+      child: child,
     );
   }
 
@@ -748,6 +941,177 @@ class _ImportScreenState extends State<ImportScreen> {
           style: TextStyle(fontSize: 16, height: 1.5, color: _subtle),
         ),
       ],
+    );
+  }
+}
+
+enum _TutorialStep {
+  start,
+  learningMode,
+  sourceFile,
+  questionType,
+  itemCount,
+  generate,
+}
+
+class _TutorialGuideCard extends StatelessWidget {
+  const _TutorialGuideCard({
+    required this.step,
+    required this.stepNumber,
+    required this.stepCount,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onDismiss,
+  });
+
+  final _TutorialStep step;
+  final int stepNumber;
+  final int stepCount;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onDismiss;
+
+  String get _title => switch (step) {
+    _TutorialStep.start => 'Welcome to your first study session',
+    _TutorialStep.learningMode => 'Choose a learning mode',
+    _TutorialStep.sourceFile => 'Bring your study material',
+    _TutorialStep.questionType => 'Pick your question style',
+    _TutorialStep.itemCount => 'Set your session length',
+    _TutorialStep.generate => 'You’re ready to learn',
+  };
+
+  String get _description => switch (step) {
+    _TutorialStep.start =>
+      'Start from “Generate a quiz” on your dashboard. You’re already here, so let’s set up your first activity together.',
+    _TutorialStep.learningMode =>
+      'Choose Quiz to test what you know, Flashcards to practice recall, or Matching to connect related ideas.',
+    _TutorialStep.sourceFile =>
+      'Upload a PDF, DOCX, or TXT file with your notes. We’ll use it as the source for your study activity.',
+    _TutorialStep.questionType =>
+      'For quizzes, choose multiple choice, true or false, or both. You can keep the suggested option or mix formats.',
+    _TutorialStep.itemCount =>
+      'Choose how many questions or practice items you want in this session.',
+    _TutorialStep.generate =>
+      'Give your activity a name, then select Generate Quiz to create it. You can update any choice before you begin.',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final isFirst = stepNumber == 1;
+    final isLast = stepNumber == stepCount;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 14, 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFCF8),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFF0D7C5)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 18,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1DF),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: _primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'YOUR QUICK START  ·  $stepNumber OF $stepCount',
+                      style: const TextStyle(
+                        color: _primary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _title,
+                      style: const TextStyle(
+                        color: _heading,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Dismiss tutorial',
+                onPressed: onDismiss,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close_rounded, color: _subtle),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _description,
+            style: const TextStyle(color: _subtle, fontSize: 14, height: 1.5),
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              value: stepNumber / stepCount,
+              minHeight: 4,
+              backgroundColor: const Color(0xFFF4E6DA),
+              valueColor: const AlwaysStoppedAnimation<Color>(_primary),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              TextButton(
+                onPressed: onDismiss,
+                child: const Text('Skip tutorial'),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!isFirst)
+                    TextButton(
+                      onPressed: onPrevious,
+                      child: const Text('Back'),
+                    ),
+                  const SizedBox(width: 6),
+                  FilledButton(
+                    onPressed: onNext,
+                    child: Text(isLast ? 'Finish' : 'Next'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

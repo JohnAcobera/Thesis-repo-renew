@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/tutorial_service.dart';
 import '../landing/landing_screen.dart';
 import 'register_screen.dart';
 import '../home/instructor_home_screen.dart';
@@ -33,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final user = await _service.restoreSession();
       if (!mounted) return;
-      if (user != null) _openHome(user);
+      if (user != null) await _openHome(user);
     } catch (_) {
       if (mounted) setState(() => _error = 'Unable to restore your session.');
     } finally {
@@ -53,7 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailController.text,
         password: _passwordController.text,
       );
-      if (mounted) _openHome(result.user);
+      if (mounted) await _openHome(result.user);
     } on AuthException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } finally {
@@ -61,10 +62,40 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _openHome(UserModel user) {
+  Future<void> _openHome(UserModel user) async {
+    var showTutorialOnOpen = false;
+    if (user.role != 'instructor') {
+      try {
+        showTutorialOnOpen = await const TutorialService()
+            .consumeFirstLoginPending(user.email);
+      } on Exception catch (error, stackTrace) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'login',
+            context: ErrorDescription(
+              'while checking whether the new-user tutorial is pending',
+            ),
+          ),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Your tutorial could not be opened automatically. You can '
+                'start it from the dashboard.',
+              ),
+            ),
+          );
+        }
+      }
+    }
+    if (!mounted) return;
+
     final screen = user.role == 'instructor'
         ? InstructorHomeScreen(user: user)
-        : StudentHomeScreen(user: user);
+        : StudentHomeScreen(user: user, showTutorialOnOpen: showTutorialOnOpen);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
