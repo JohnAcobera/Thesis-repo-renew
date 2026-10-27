@@ -246,47 +246,6 @@ begin
       union all
 
       select
-        'activity-deadline:' || due.activity_id::text,
-        'activityDeadline'::text,
-        'Activity due soon'::text,
-        format(
-          '%s in %s is due by %s.',
-          due.title,
-          due.classroom_name,
-          to_char(due.deadline_at at time zone 'UTC', 'Mon DD at HH24:MI') ||
-            ' UTC'
-        ),
-        now(),
-        null::uuid
-      from (
-        select
-          activity.id as activity_id,
-          quiz.title,
-          classroom.name as classroom_name,
-          activity.deadline_at
-        from public.classroom_students membership
-        join public.classroom_activities activity
-          on activity.classroom_id = membership.classroom_id
-        join public.classrooms classroom
-          on classroom.id = activity.classroom_id
-        join public.student_generated_quizzes quiz
-          on quiz.id = activity.quiz_id
-        where membership.student_id = verified_user_id
-          and activity.deadline_at > now()
-          and activity.deadline_at <= now() + interval '24 hours'
-          and (
-            select count(*)
-            from public.quiz_attempts attempt
-            where attempt.user_id = verified_user_id
-              and attempt.classroom_activity_id = activity.id
-          ) < activity.max_attempts
-        order by activity.deadline_at, activity.id
-        limit 1
-      ) due
-
-      union all
-
-      select
         'classroom-joined:' || membership.classroom_id::text || ':' ||
           extract(epoch from membership.joined_at)::text,
         'classroomJoined'::text,

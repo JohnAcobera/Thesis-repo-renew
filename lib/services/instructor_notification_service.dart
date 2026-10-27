@@ -8,11 +8,7 @@ abstract interface class InstructorNotificationRepository {
   Future<void> markNotificationsRead(List<String> notificationIds);
 }
 
-enum InstructorNotificationType {
-  quizAnswered,
-  studentJoined,
-  activityDeadline,
-}
+enum InstructorNotificationType { quizAnswered, studentJoined }
 
 class InstructorNotification {
   const InstructorNotification({

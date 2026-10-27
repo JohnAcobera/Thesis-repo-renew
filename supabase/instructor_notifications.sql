@@ -91,29 +91,6 @@ begin
       where classroom.instructor_id = verified_user_id
         and membership.joined_at >= now() - interval '90 days'
 
-      union all
-
-      select
-        'activity-deadline:' || activity.id::text,
-        'activityDeadline'::text,
-        'Activity deadline approaching'::text,
-        format(
-          'Friendly reminder: "%s" in %s is due by %s UTC. Don''t forget '
-            'to remind your students.',
-          quiz.title,
-          classroom.name,
-          to_char(activity.deadline_at at time zone 'UTC', 'Mon DD, YYYY at HH24:MI')
-        ),
-        now(),
-        classroom.id
-      from public.classroom_activities activity
-      join public.classrooms classroom
-        on classroom.id = activity.classroom_id
-      join public.student_generated_quizzes quiz
-        on quiz.id = activity.quiz_id
-      where classroom.instructor_id = verified_user_id
-        and activity.deadline_at > now()
-        and activity.deadline_at <= now() + interval '24 hours'
     )
     select jsonb_agg(
       jsonb_build_object(

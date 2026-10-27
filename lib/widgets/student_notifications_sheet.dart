@@ -446,7 +446,6 @@ class _NotificationTile extends StatelessWidget {
     StudentNotificationType.quizPoints => Icons.quiz_outlined,
     StudentNotificationType.weeklyRank => Icons.emoji_events_outlined,
     StudentNotificationType.classroomActivity => Icons.campaign_outlined,
-    StudentNotificationType.activityDeadline => Icons.schedule_rounded,
     StudentNotificationType.classroomJoined => Icons.group_add_outlined,
     StudentNotificationType.classroomRemoved => Icons.person_remove_outlined,
   };

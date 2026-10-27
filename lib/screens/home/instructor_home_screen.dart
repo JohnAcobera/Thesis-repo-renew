@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/classroom_model.dart';
+import '../../models/learning_material_model.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/classroom_service.dart';
@@ -10,10 +11,10 @@ import '../../services/instructor_notification_service.dart';
 import '../../services/instructor_learning_materials_service.dart';
 import '../../services/instructor_reports_service.dart';
 import '../../services/instructor_todo_service.dart';
+import '../context_content_screen.dart';
 import '../import_screen.dart';
 import '../learning_materials_screen.dart';
 import '../instructor_reports_screen.dart';
-import '../instructor_attention_section.dart';
 import '../classroom/classroom_screen.dart';
 import '../profile_screen.dart';
 import '../instructor_todo_section.dart';
@@ -93,6 +94,12 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _openGenerateContent() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const ContextContentScreen()),
     );
   }
 
@@ -188,7 +195,13 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
                         onCreateActivity: _openCreateActivity,
                         instructorId: user.id,
                         todoRepository: widget.todoRepository,
-                        reportsRepository: widget.reportsRepository,
+                        learningMaterialsRepository:
+                            widget.learningMaterialsRepository ??
+                            InstructorLearningMaterialsService(),
+                        onViewMaterials: () => _selectMenuItem(
+                          InstructorMenuItem.learningMaterials,
+                        ),
+                        onGenerateContent: _openGenerateContent,
                       ),
               ),
               Positioned.fill(
@@ -250,16 +263,20 @@ class _InstructorDashboard extends StatefulWidget {
   const _InstructorDashboard({
     required this.classroomService,
     required this.onCreateActivity,
+    required this.onGenerateContent,
+    required this.onViewMaterials,
     required this.instructorId,
+    required this.learningMaterialsRepository,
     this.todoRepository,
-    this.reportsRepository,
   });
 
   final ClassroomRepository classroomService;
-  final VoidCallback onCreateActivity;
+  final Future<void> Function() onCreateActivity;
+  final VoidCallback onGenerateContent;
+  final VoidCallback onViewMaterials;
   final int instructorId;
+  final InstructorLearningMaterialsRepository learningMaterialsRepository;
   final InstructorTodoRepository? todoRepository;
-  final InstructorReportsRepository? reportsRepository;
 
   @override
   State<_InstructorDashboard> createState() => _InstructorDashboardState();
@@ -299,6 +316,11 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
       final metricWidth =
           (dashboardWidth - _gap * (metricColumns - 1)) / metricColumns;
       final wideSections = dashboardWidth >= 900;
+      final dashboardPanelHeight =
+          (wideSections && dashboardWidth < 1008) ||
+              (!wideSections && dashboardWidth < 496)
+          ? 480.0
+          : 420.0;
 
       return FutureBuilder<InstructorDashboardStats>(
         future: _stats,
@@ -328,7 +350,7 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
               ),
               SizedBox(height: 6),
               Text(
-                'A clear view of your classes, assessments, and student progress.',
+                'A clear view of your classes, learning activities, and student progress.',
                 style: TextStyle(color: _muted, fontSize: 14, height: 1.5),
               ),
             ],
@@ -426,41 +448,39 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            flex: 6,
-                            child: _ClassPerformanceSection(
-                              classrooms:
-                                  stats?.classroomPerformance ??
-                                  const <ClassroomPerformance>[],
+                            child: _ActivityCreationSection(
+                              onCreateQuiz: widget.onCreateActivity,
+                              onGenerateContent: widget.onGenerateContent,
+                              onViewMaterials: widget.onViewMaterials,
+                              repository: widget.learningMaterialsRepository,
+                              height: dashboardPanelHeight,
                             ),
                           ),
                           SizedBox(width: _gap),
                           Expanded(
-                            flex: 5,
                             child: InstructorTodoSection(
                               instructorId: widget.instructorId,
                               repository: widget.todoRepository,
+                              panelHeight: dashboardPanelHeight,
                             ),
                           ),
                         ],
                       )
                     else ...[
-                      _ClassPerformanceSection(
-                        classrooms:
-                            stats?.classroomPerformance ??
-                            const <ClassroomPerformance>[],
+                      _ActivityCreationSection(
+                        onCreateQuiz: widget.onCreateActivity,
+                        onGenerateContent: widget.onGenerateContent,
+                        onViewMaterials: widget.onViewMaterials,
+                        repository: widget.learningMaterialsRepository,
+                        height: dashboardPanelHeight,
                       ),
                       const SizedBox(height: _gap),
                       InstructorTodoSection(
                         instructorId: widget.instructorId,
                         repository: widget.todoRepository,
+                        panelHeight: dashboardPanelHeight,
                       ),
                     ],
-                    const SizedBox(height: _gap),
-                    InstructorAttentionSection(
-                      reportsRepository:
-                          widget.reportsRepository ??
-                          InstructorReportsService(),
-                    ),
                   ],
                 ),
               ),
@@ -590,311 +610,321 @@ class _DashboardLoadError extends StatelessWidget {
   );
 }
 
-class _ClassPerformanceSection extends StatefulWidget {
-  const _ClassPerformanceSection({required this.classrooms});
+class _ActivityCreationSection extends StatefulWidget {
+  const _ActivityCreationSection({
+    required this.onCreateQuiz,
+    required this.onGenerateContent,
+    required this.onViewMaterials,
+    required this.repository,
+    required this.height,
+  });
 
-  final List<ClassroomPerformance> classrooms;
+  final Future<void> Function() onCreateQuiz;
+  final VoidCallback onGenerateContent;
+  final VoidCallback onViewMaterials;
+  final InstructorLearningMaterialsRepository repository;
+  final double height;
 
   @override
-  State<_ClassPerformanceSection> createState() =>
-      _ClassPerformanceSectionState();
+  State<_ActivityCreationSection> createState() =>
+      _ActivityCreationSectionState();
 }
 
-class _ClassPerformanceSectionState extends State<_ClassPerformanceSection> {
-  final ScrollController _scrollController = ScrollController();
-
-  static const _accent = Color(0xFFFF7434);
-  static const _ink = Color(0xFF3B2419);
-  static const _muted = Color(0xFF765C4F);
-  static const _border = Color(0xFFE8D7C2);
-  static const _surface = Color(0xFFFFFBF7);
+class _ActivityCreationSectionState extends State<_ActivityCreationSection> {
+  late Future<List<LearningMaterialModel>> _materials;
 
   @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _materials = widget.repository.listMaterials();
+  }
+
+  void _reloadMaterials() {
+    setState(() => _materials = widget.repository.listMaterials());
+  }
+
+  Future<void> _createQuiz() async {
+    await widget.onCreateQuiz();
+    if (mounted) _reloadMaterials();
   }
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 440,
-    child: Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A3B2419),
-            blurRadius: 18,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFE9DC),
-                  borderRadius: BorderRadius.circular(12),
+  Widget build(BuildContext context) => Container(
+    key: const ValueKey('instructor-activity-creation-panel'),
+    height: widget.height,
+    width: double.infinity,
+    padding: const EdgeInsets.all(22),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFE8D7C2)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0A3B2419),
+          blurRadius: 18,
+          offset: Offset(0, 6),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE9DC),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.auto_awesome_outlined,
+                color: Color(0xFFF4773C),
+                size: 21,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Create learning materials',
+                    style: TextStyle(
+                      color: Color(0xFF3B2419),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    'Build a quiz or generate study content for your students.',
+                    style: TextStyle(
+                      color: Color(0xFF765C4F),
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 10),
+          child: Divider(height: 1, color: Color(0xFFE8D7C2)),
+        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final quizButton = FilledButton.icon(
+              onPressed: _createQuiz,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFF4773C),
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(48),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
-                child: const Icon(
-                  Icons.insights_rounded,
-                  color: _accent,
-                  size: 21,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              icon: const Icon(Icons.quiz_outlined, size: 18),
+              label: const Text('Generate a quiz'),
+            );
+            final contentButton = OutlinedButton.icon(
+              onPressed: widget.onGenerateContent,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF5F4538),
+                backgroundColor: const Color(0xFFFFFBF7),
+                minimumSize: const Size.fromHeight(48),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                side: const BorderSide(color: Color(0xFFE8D7C2)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: const Icon(
+                Icons.auto_awesome_outlined,
+                color: Color(0xFFF4773C),
+                size: 18,
+              ),
+              label: const Text('Generate content'),
+            );
+
+            if (constraints.maxWidth >= 452) {
+              return Row(
+                children: [
+                  Expanded(child: quizButton),
+                  const SizedBox(width: 12),
+                  Expanded(child: contentButton),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [quizButton, const SizedBox(height: 10), contentButton],
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Recent generated materials',
+                style: TextStyle(
+                  color: Color(0xFF3B2419),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: widget.onViewMaterials,
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFF4773C),
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: const Text('View all'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Expanded(
+          child: FutureBuilder<List<LearningMaterialModel>>(
+            future: _materials,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFF4773C),
+                    strokeWidth: 2,
+                  ),
+                );
+              }
+              if (snapshot.hasError) {
+                return Row(
                   children: [
-                    Text(
-                      'Class performance',
-                      style: TextStyle(
-                        color: _ink,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                    const Expanded(
+                      child: Text(
+                        'Recent materials could not be loaded.',
+                        style: TextStyle(
+                          color: Color(0xFF765C4F),
+                          fontSize: 12,
+                        ),
                       ),
                     ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Progress across your classrooms',
-                      style: TextStyle(color: _muted, fontSize: 12),
+                    TextButton(
+                      onPressed: _reloadMaterials,
+                      child: const Text('Retry'),
                     ),
                   ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: _surface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _border),
-                ),
-                child: Text(
-                  '${widget.classrooms.length} '
-                  '${widget.classrooms.length == 1 ? 'class' : 'classes'}',
-                  style: const TextStyle(
-                    color: _muted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Divider(height: 1, color: _border),
-          ),
-          Expanded(
-            child: widget.classrooms.isEmpty
-                ? const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.insights_outlined, color: _accent, size: 26),
-                        SizedBox(height: 8),
-                        Text(
-                          'No classrooms yet',
-                          style: TextStyle(
-                            color: _ink,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Create a classroom to see student and quiz progress.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: _muted, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  )
-                : Scrollbar(
-                    controller: _scrollController,
-                    child: SingleChildScrollView(
-                      controller: _scrollController,
-                      primary: false,
-                      child: Column(
-                        children: [
-                          for (
-                            var index = 0;
-                            index < widget.classrooms.length;
-                            index++
-                          ) ...[
-                            if (index > 0) const SizedBox(height: 12),
-                            _ClassPerformanceRow(
-                              classroom: widget.classrooms[index],
-                            ),
-                          ],
-                        ],
-                      ),
+                );
+              }
+
+              final materials = [...snapshot.data!]
+                ..sort((first, second) {
+                  return second.createdAt.compareTo(first.createdAt);
+                });
+              final recentMaterials = materials.take(3).toList(growable: false);
+              if (recentMaterials.isEmpty) {
+                return const Align(
+                  alignment: Alignment.topLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Saved quizzes will appear here after you generate them.',
+                      style: TextStyle(color: Color(0xFF765C4F), fontSize: 12),
                     ),
                   ),
+                );
+              }
+
+              return ListView.separated(
+                padding: EdgeInsets.zero,
+                itemCount: recentMaterials.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final material = recentMaterials[index];
+                  return _RecentMaterialTile(
+                    material: material,
+                    onTap: widget.onViewMaterials,
+                  );
+                },
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
 
-class _ClassPerformanceRow extends StatelessWidget {
-  const _ClassPerformanceRow({required this.classroom});
+class _RecentMaterialTile extends StatelessWidget {
+  const _RecentMaterialTile({required this.material, required this.onTap});
 
-  final ClassroomPerformance classroom;
-
-  static const _accent = Color(0xFFFF7434);
-  static const _ink = Color(0xFF3B2419);
-  static const _muted = Color(0xFF765C4F);
-  static const _border = Color(0xFFF0E1D4);
+  final LearningMaterialModel material;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final percentage = classroom.averageScore?.clamp(0.0, 100.0);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFBF7),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(11),
-                  border: Border.all(color: _border),
-                ),
-                child: const Icon(
-                  Icons.menu_book_rounded,
-                  color: _accent,
-                  size: 19,
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      classroom.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _ink,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xFFFFFBF7),
+    borderRadius: BorderRadius.circular(10),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            const Icon(Icons.quiz_outlined, color: Color(0xFFF4773C), size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    material.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF3B2419),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      classroom.subject,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: _muted, fontSize: 11),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${material.questionCount} questions · ${material.sourceFile}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF765C4F),
+                      fontSize: 11,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Text(
-                percentage == null ? '—' : '${percentage.toStringAsFixed(0)}%',
-                style: const TextStyle(
-                  color: _ink,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: LinearProgressIndicator(
-              value: (percentage ?? 0) / 100,
-              minHeight: 7,
-              backgroundColor: const Color(0xFFF1E4D9),
-              valueColor: const AlwaysStoppedAnimation<Color>(_accent),
             ),
-          ),
-          const SizedBox(height: 11),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _ClassDetailChip(
-                icon: Icons.people_alt_outlined,
-                text:
-                    '${classroom.studentCount} '
-                    '${classroom.studentCount == 1 ? 'student' : 'students'}',
-              ),
-              _ClassDetailChip(
-                icon: Icons.assignment_outlined,
-                text:
-                    '${classroom.activityCount} '
-                    '${classroom.activityCount == 1 ? 'activity' : 'activities'} posted',
-              ),
-              if (percentage == null)
-                const _ClassDetailChip(
-                  icon: Icons.info_outline_rounded,
-                  text: 'No scores yet',
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ClassDetailChip extends StatelessWidget {
-  const _ClassDetailChip({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: const Color(0xFFF0E1D4)),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: const Color(0xFF8A6D5E)),
-        const SizedBox(width: 5),
-        Text(
-          text,
-          style: const TextStyle(
-            color: Color(0xFF765C4F),
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
+            const SizedBox(width: 6),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFF9C806F),
+              size: 18,
+            ),
+          ],
         ),
-      ],
+      ),
     ),
   );
 }

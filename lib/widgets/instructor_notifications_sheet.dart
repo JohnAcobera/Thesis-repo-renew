@@ -346,8 +346,6 @@ class _InstructorNotificationTile extends StatelessWidget {
                     Icons.quiz_outlined,
                   InstructorNotificationType.studentJoined =>
                     Icons.group_add_outlined,
-                  InstructorNotificationType.activityDeadline =>
-                    Icons.schedule_rounded,
                 },
                 size: 19,
                 color: const Color(0xFFF4773C),

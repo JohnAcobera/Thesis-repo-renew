@@ -23,12 +23,14 @@ class InstructorTodoSection extends StatefulWidget {
     required this.instructorId,
     this.repository,
     this.studentMode = false,
+    this.panelHeight = 440,
     super.key,
   });
 
   final int instructorId;
   final InstructorTodoRepository? repository;
   final bool studentMode;
+  final double panelHeight;
 
   @override
   State<InstructorTodoSection> createState() => _InstructorTodoSectionState();
@@ -143,7 +145,8 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 440,
+    key: const ValueKey('instructor-todo-panel'),
+    height: widget.panelHeight,
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
       color: Colors.white,

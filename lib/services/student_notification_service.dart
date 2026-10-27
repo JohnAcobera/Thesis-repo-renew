@@ -14,7 +14,6 @@ enum StudentNotificationType {
   quizPoints,
   weeklyRank,
   classroomActivity,
-  activityDeadline,
   classroomJoined,
   classroomRemoved,
 }

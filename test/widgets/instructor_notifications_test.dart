@@ -23,7 +23,7 @@ void main() {
 
     expect(find.byTooltip('Notifications'), findsOneWidget);
     expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
@@ -37,20 +37,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('A student joined your classroom'), findsOneWidget);
-    expect(
-      find.text(
-        'Friendly reminder: "Cell Structure" in Biology is due by tomorrow. '
-        "Don't forget to remind your students.",
-      ),
-      findsOneWidget,
-    );
-
     await tester.tap(find.text('Mark all as read'));
     await tester.pumpAndSettle();
     expect(notifications.markedIds, [
       'quiz-answered:attempt-1',
       'student-joined:class-1:student-1',
-      'activity-deadline:activity-1',
     ]);
     expect(find.text('Mark all as read'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -81,17 +72,6 @@ class _FakeInstructorNotificationRepository
       message: 'Ari Santos joined Biology.',
       createdAt: DateTime(2026, 10, 18, 11),
       isRead: _readIds.contains('student-joined:class-1:student-1'),
-      classroomId: 'class-1',
-    ),
-    InstructorNotification(
-      id: 'activity-deadline:activity-1',
-      type: InstructorNotificationType.activityDeadline,
-      title: 'Activity deadline approaching',
-      message:
-          'Friendly reminder: "Cell Structure" in Biology is due by tomorrow. '
-          "Don't forget to remind your students.",
-      createdAt: DateTime(2026, 10, 18, 10),
-      isRead: _readIds.contains('activity-deadline:activity-1'),
       classroomId: 'class-1',
     ),
   ];

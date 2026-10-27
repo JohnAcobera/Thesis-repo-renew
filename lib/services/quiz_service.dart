@@ -323,8 +323,7 @@ class ClassroomActivity {
     required this.sourceFile,
     required this.questions,
     required this.startsAt,
-    required this.deadlineAt,
-    this.maxAttempts = 2,
+    this.maxAttempts,
     this.attemptCount = 0,
     this.attempts = const [],
   });
@@ -337,23 +336,22 @@ class ClassroomActivity {
   final String sourceFile;
   final List<QuizQuestion> questions;
   final DateTime startsAt;
-  final DateTime deadlineAt;
-  final int maxAttempts;
+  final int? maxAttempts;
   final int attemptCount;
   final List<QuizScore> attempts;
 
   bool get isAvailable {
     final now = DateTime.now().toUtc();
-    return attemptCount < maxAttempts &&
-        !now.isBefore(startsAt.toUtc()) &&
-        !now.isAfter(deadlineAt.toUtc());
+    return (maxAttempts == null || attemptCount < maxAttempts!) &&
+        !now.isBefore(startsAt.toUtc());
   }
 
   String get status {
     final now = DateTime.now().toUtc();
-    if (attemptCount >= maxAttempts) return 'Completed';
+    if (maxAttempts != null && attemptCount >= maxAttempts!) {
+      return 'Completed';
+    }
     if (now.isBefore(startsAt.toUtc())) return 'Upcoming';
-    if (now.isAfter(deadlineAt.toUtc())) return 'Closed';
     return attemptCount == 0 ? 'Open' : 'In progress';
   }
 
@@ -373,8 +371,7 @@ class ClassroomActivity {
             )
             .toList(growable: false),
         startsAt: DateTime.parse(json['starts_at'] as String),
-        deadlineAt: DateTime.parse(json['deadline_at'] as String),
-        maxAttempts: (json['max_attempts'] as num?)?.toInt() ?? 2,
+        maxAttempts: (json['max_attempts'] as num?)?.toInt(),
         attemptCount: (json['attempt_count'] as num?)?.toInt() ?? 0,
         attempts: (json['attempts'] as List<dynamic>? ?? const [])
             .map(
@@ -476,18 +473,10 @@ class QuizService implements QuizRepository {
     required String quizId,
     required List<String> classroomIds,
     required DateTime startsAt,
-    required DateTime deadlineAt,
-    int maxAttempts = 2,
   }) async {
     if (classroomIds.isEmpty) {
       throw const QuizServiceException('Choose at least one classroom.');
     }
-    if (!deadlineAt.isAfter(startsAt)) {
-      throw const QuizServiceException(
-        'The deadline must be after the start time.',
-      );
-    }
-
     final token = await _requireSessionToken();
     try {
       await _client.rpc<int>(
@@ -497,8 +486,7 @@ class QuizService implements QuizRepository {
           'p_quiz_id': quizId,
           'p_classroom_ids': classroomIds,
           'p_starts_at': startsAt.toUtc().toIso8601String(),
-          'p_deadline_at': deadlineAt.toUtc().toIso8601String(),
-          'p_max_attempts': maxAttempts,
+          'p_max_attempts': null,
         },
       );
     } on PostgrestException catch (error) {

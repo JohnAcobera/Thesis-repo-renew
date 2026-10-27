@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/classroom_model.dart';
@@ -52,11 +51,58 @@ void main() {
         'Total students',
         'Active classes',
         'Quizzes created',
-        'Class performance',
+        'Create learning materials',
+        'Generate a quiz',
+        'Generate content',
+        'Recent generated materials',
+        'Saved biology quiz',
+        'View all',
         'My tasks',
-        'Students needing attention',
       ]) {
         expect(find.text(heading), findsOneWidget);
+      }
+      expect(find.text('Class performance'), findsNothing);
+      expect(find.text('Students needing attention'), findsNothing);
+      expect(
+        tester
+            .getSize(
+              find.byKey(const ValueKey('instructor-activity-creation-panel')),
+            )
+            .height,
+        size.width < 600 ? 480 : 420,
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('instructor-todo-panel')))
+            .height,
+        size.width < 600 ? 480 : 420,
+      );
+      if (size.width >= 900) {
+        expect(
+          tester
+              .getSize(
+                find.byKey(
+                  const ValueKey('instructor-activity-creation-panel'),
+                ),
+              )
+              .width,
+          tester
+              .getSize(find.byKey(const ValueKey('instructor-todo-panel')))
+              .width,
+        );
+        final panelWidth = tester
+            .getSize(
+              find.byKey(const ValueKey('instructor-activity-creation-panel')),
+            )
+            .width;
+        final quizButtonWidth = tester
+            .getSize(find.widgetWithText(FilledButton, 'Generate a quiz'))
+            .width;
+        final contentButtonWidth = tester
+            .getSize(find.widgetWithText(OutlinedButton, 'Generate content'))
+            .width;
+        expect(quizButtonWidth, contentButtonWidth);
+        expect(quizButtonWidth * 2 + 12, closeTo(panelWidth - 44, 2));
       }
 
       for (final mockValue in ['128', '78%', 'Student A', 'Student B']) {
@@ -67,26 +113,6 @@ void main() {
       expect(find.text('2'), findsOneWidget);
       expect(find.text('4'), findsOneWidget);
       expect(find.text('Average score'), findsNothing);
-      expect(find.text('Computer Networks'), findsOneWidget);
-      expect(find.text('82%'), findsOneWidget);
-      expect(find.text('Programming'), findsOneWidget);
-      expect(find.text('75%'), findsOneWidget);
-      expect(find.text('Database Systems'), findsOneWidget);
-      expect(find.text('Support Needed Student'), findsOneWidget);
-      expect(
-        find.text('Grade 11 - STEM A · General Biology 1'),
-        findsOneWidget,
-      );
-      expect(
-        find.text('Grade 11 - STEM B · General Biology 1'),
-        findsOneWidget,
-      );
-      expect(find.text('On track'), findsNothing);
-      expect(find.text('68%'), findsOneWidget);
-      expect(find.text('32 students'), findsOneWidget);
-      expect(find.text('4 activities posted'), findsOneWidget);
-      expect(find.text('25 students'), findsOneWidget);
-      expect(find.text('2 activities posted'), findsOneWidget);
       expect(find.text('—'), findsNothing);
       if (size.width >= 600) {
         final metricLabelTops = [
@@ -96,19 +122,14 @@ void main() {
         ].map((label) => tester.getTopLeft(find.text(label)).dy);
         expect(metricLabelTops.toSet(), hasLength(1));
       }
-      if (size.width >= 1600) {
-        final scrollbar = find.byType(Scrollbar);
-        expect(scrollbar, findsOneWidget);
-        await tester.sendEventToBinding(
-          PointerScrollEvent(
-            position: tester.getCenter(scrollbar),
-            scrollDelta: const Offset(0, 120),
-          ),
-        );
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-      }
       expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('Generate content'));
+      await tester.tap(find.text('Generate content'));
+      await tester.pumpAndSettle();
+      expect(find.text('Generate study content'), findsOneWidget);
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Create activity'));
       await tester.tap(find.text('Create activity'));
       await tester.pumpAndSettle();
       expect(
@@ -266,8 +287,6 @@ class _FakeInstructorLearningMaterialsRepository
     required String quizId,
     required List<String> classroomIds,
     required DateTime startsAt,
-    required DateTime deadlineAt,
-    required int maxAttempts,
   }) async {}
 }
 

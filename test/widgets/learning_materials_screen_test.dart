@@ -38,6 +38,7 @@ void main() {
     await tester.tap(find.text('Post to classroom'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Post to classrooms'), findsOneWidget);
+    expect(find.text('Deadline'), findsNothing);
     await tester.tap(find.text('Post activity'));
     await tester.pumpAndSettle();
 
@@ -198,8 +199,6 @@ class _FakeMaterialsRepository
     required String quizId,
     required List<String> classroomIds,
     required DateTime startsAt,
-    required DateTime deadlineAt,
-    required int maxAttempts,
   }) async {
     postedQuizId = quizId;
     postedClassroomIds = classroomIds;

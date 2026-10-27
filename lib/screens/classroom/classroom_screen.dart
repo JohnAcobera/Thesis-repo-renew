@@ -1798,7 +1798,7 @@ class _ClassroomActivityTile extends StatelessWidget {
                           ),
                           Text(
                             '${activity.questions.length} questions · '
-                            '${activity.maxAttempts} attempts per student',
+                            '${activity.maxAttempts == null ? 'Unlimited attempts' : '${activity.maxAttempts} attempts per student'}',
                             style: const TextStyle(
                               color: _subtle,
                               fontSize: 12,
@@ -2015,16 +2015,14 @@ class _ClassroomActivityTile extends StatelessWidget {
                     icon: Icons.play_arrow_rounded,
                     text: 'Opens ${formatDateTime(activity.startsAt)}',
                   ),
-                  _ActivityScheduleLabel(
-                    icon: Icons.event_outlined,
-                    text: 'Due ${formatDateTime(activity.deadlineAt)}',
-                  ),
                   if (isStudent)
                     _ActivityScheduleLabel(
                       icon: Icons.replay_rounded,
-                      text:
-                          '${activity.attemptCount} of '
-                          '${activity.maxAttempts} attempts used',
+                      text: activity.maxAttempts == null
+                          ? '${activity.attemptCount} '
+                                '${activity.attemptCount == 1 ? 'attempt' : 'attempts'} used'
+                          : '${activity.attemptCount} of '
+                                '${activity.maxAttempts} attempts used',
                     ),
                 ],
               ),

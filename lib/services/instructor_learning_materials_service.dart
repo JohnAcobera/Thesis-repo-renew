@@ -22,8 +22,6 @@ abstract interface class InstructorLearningMaterialsRepository {
     required String quizId,
     required List<String> classroomIds,
     required DateTime startsAt,
-    required DateTime deadlineAt,
-    required int maxAttempts,
   });
 }
 
@@ -195,16 +193,12 @@ class InstructorLearningMaterialsService
     required String quizId,
     required List<String> classroomIds,
     required DateTime startsAt,
-    required DateTime deadlineAt,
-    required int maxAttempts,
   }) async {
     try {
       await _quizzes.postToClassrooms(
         quizId: quizId,
         classroomIds: classroomIds,
         startsAt: startsAt,
-        deadlineAt: deadlineAt,
-        maxAttempts: maxAttempts,
       );
     } on QuizServiceException catch (error) {
       throw InstructorLearningMaterialsException(error.message);

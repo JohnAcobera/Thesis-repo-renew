@@ -657,8 +657,6 @@ class _ImportScreenState extends State<ImportScreen> {
         quizId: quizId,
         classroomIds: schedule.classroomIds,
         startsAt: schedule.startsAt,
-        deadlineAt: schedule.deadlineAt,
-        maxAttempts: schedule.maxAttempts,
       );
       if (!mounted) return;
       _showMessage('Activity posted to the selected classrooms.');
@@ -1867,14 +1865,10 @@ class _PostActivitySchedule {
   const _PostActivitySchedule({
     required this.classroomIds,
     required this.startsAt,
-    required this.deadlineAt,
-    required this.maxAttempts,
   });
 
   final List<String> classroomIds;
   final DateTime startsAt;
-  final DateTime deadlineAt;
-  final int maxAttempts;
 }
 
 class _PostActivityDialog extends StatefulWidget {
@@ -1889,8 +1883,6 @@ class _PostActivityDialog extends StatefulWidget {
 class _PostActivityDialogState extends State<_PostActivityDialog> {
   late final Set<String> _selectedIds = {widget.classrooms.first.id};
   late DateTime _startsAt = DateTime.now().add(const Duration(minutes: 5));
-  late DateTime _deadlineAt = _startsAt.add(const Duration(days: 7));
-  int _maxAttempts = 2;
   String? _validationError;
 
   Future<DateTime?> _pickDateTime(DateTime initial) async {
@@ -1983,59 +1975,6 @@ class _PostActivityDialogState extends State<_PostActivityDialog> {
                 if (value != null) setState(() => _startsAt = value);
               },
             ),
-            const SizedBox(height: 8),
-            _SchedulePickerTile(
-              icon: Icons.event_available_outlined,
-              label: 'Deadline',
-              value: _formatDateTime(_deadlineAt),
-              onTap: () async {
-                final value = await _pickDateTime(_deadlineAt);
-                if (value != null) setState(() => _deadlineAt = value);
-              },
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Attempts allowed',
-              style: TextStyle(color: _heading, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Total attempts per student, including the first try.',
-              style: TextStyle(color: _subtle, fontSize: 12),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<int>(
-              initialValue: _maxAttempts,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: _border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: _border),
-                ),
-              ),
-              items: List.generate(20, (index) => index + 1)
-                  .map(
-                    (count) => DropdownMenuItem(
-                      value: count,
-                      child: Text(
-                        '$count ${count == 1 ? 'attempt' : 'attempts'}',
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-              onChanged: (value) {
-                if (value != null) setState(() => _maxAttempts = value);
-              },
-            ),
             if (_validationError != null) ...[
               const SizedBox(height: 12),
               Container(
@@ -2094,19 +2033,11 @@ class _PostActivityDialogState extends State<_PostActivityDialog> {
       );
       return;
     }
-    if (!_deadlineAt.isAfter(_startsAt)) {
-      setState(
-        () => _validationError = 'The deadline must be after the start.',
-      );
-      return;
-    }
     Navigator.pop(
       context,
       _PostActivitySchedule(
         classroomIds: _selectedIds.toList(growable: false),
         startsAt: _startsAt,
-        deadlineAt: _deadlineAt,
-        maxAttempts: _maxAttempts,
       ),
     );
   }

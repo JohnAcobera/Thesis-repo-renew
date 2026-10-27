@@ -352,7 +352,6 @@ void main() {
             ),
           ],
           startsAt: now.subtract(const Duration(minutes: 1)),
-          deadlineAt: now.add(const Duration(days: 1)),
         ),
       );
 
@@ -416,8 +415,7 @@ void main() {
             ),
           ],
           startsAt: now.add(const Duration(minutes: 1)),
-          deadlineAt: now.add(const Duration(days: 1)),
-          maxAttempts: 3,
+          maxAttempts: null,
         ),
       );
 
@@ -443,7 +441,8 @@ void main() {
     await tester.tap(find.text('Cell Structure'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('3 attempts per student'), findsOneWidget);
+    expect(find.textContaining('Unlimited attempts'), findsOneWidget);
+    expect(find.textContaining('Due '), findsNothing);
     expect(find.text('Which organelle stores DNA?'), findsOneWidget);
     expect(find.text('Nucleus'), findsOneWidget);
     expect(find.text('Correct answer'), findsOneWidget);
@@ -489,7 +488,6 @@ void main() {
             ),
           ],
           startsAt: now,
-          deadlineAt: now.add(const Duration(days: 1)),
         ),
       );
 

@@ -300,8 +300,6 @@ class _LearningMaterialsScreenState extends State<LearningMaterialsScreen> {
         quizId: material.id,
         classroomIds: schedule.classroomIds,
         startsAt: schedule.startsAt,
-        deadlineAt: schedule.deadlineAt,
-        maxAttempts: schedule.maxAttempts,
       );
       if (!mounted) return;
       setState(_load);
@@ -950,17 +948,10 @@ class _MaterialsMessage extends StatelessWidget {
 }
 
 class _MaterialSchedule {
-  const _MaterialSchedule({
-    required this.classroomIds,
-    required this.startsAt,
-    required this.deadlineAt,
-    required this.maxAttempts,
-  });
+  const _MaterialSchedule({required this.classroomIds, required this.startsAt});
 
   final List<String> classroomIds;
   final DateTime startsAt;
-  final DateTime deadlineAt;
-  final int maxAttempts;
 }
 
 class _MaterialScheduleDialog extends StatefulWidget {
@@ -976,8 +967,6 @@ class _MaterialScheduleDialog extends StatefulWidget {
 class _MaterialScheduleDialogState extends State<_MaterialScheduleDialog> {
   late final Set<String> _selectedClassroomIds = {widget.classrooms.first.id};
   late DateTime _startsAt = DateTime.now().add(const Duration(minutes: 5));
-  late DateTime _deadlineAt = _startsAt.add(const Duration(days: 7));
-  int _maxAttempts = 2;
   String? _validationError;
 
   Future<DateTime?> _pickDateTime(DateTime initial) async {
@@ -1009,19 +998,11 @@ class _MaterialScheduleDialogState extends State<_MaterialScheduleDialog> {
       setState(() => _validationError = 'Choose a start time in the future.');
       return;
     }
-    if (!_deadlineAt.isAfter(_startsAt)) {
-      setState(
-        () => _validationError = 'The deadline must be after the start time.',
-      );
-      return;
-    }
     Navigator.pop(
       context,
       _MaterialSchedule(
         classroomIds: _selectedClassroomIds.toList(growable: false),
         startsAt: _startsAt,
-        deadlineAt: _deadlineAt,
-        maxAttempts: _maxAttempts,
       ),
     );
   }
@@ -1086,47 +1067,6 @@ class _MaterialScheduleDialogState extends State<_MaterialScheduleDialog> {
                 final value = await _pickDateTime(_startsAt);
                 if (value != null) setState(() => _startsAt = value);
               },
-            ),
-            const SizedBox(height: 8),
-            _MaterialScheduleTile(
-              icon: Icons.event_available_outlined,
-              label: 'Deadline',
-              value: _formatDateTime(_deadlineAt),
-              onTap: () async {
-                final value = await _pickDateTime(_deadlineAt);
-                if (value != null) setState(() => _deadlineAt = value);
-              },
-            ),
-            const SizedBox(height: 12),
-            Theme(
-              data: Theme.of(
-                context,
-              ).copyWith(focusColor: _materialsMenuSelection),
-              child: DropdownButtonFormField<int>(
-                initialValue: _maxAttempts,
-                dropdownColor: _materialsMenuSurface,
-                borderRadius: BorderRadius.circular(14),
-                elevation: 10,
-                menuMaxHeight: 360,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                style: const TextStyle(color: _materialsHeading, fontSize: 14),
-                decoration: _materialsDropdownDecoration(
-                  labelText: 'Attempts allowed per student',
-                ),
-                items: List.generate(20, (index) => index + 1)
-                    .map(
-                      (count) => DropdownMenuItem(
-                        value: count,
-                        child: Text(
-                          '$count ${count == 1 ? 'attempt' : 'attempts'}',
-                        ),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) {
-                  if (value != null) setState(() => _maxAttempts = value);
-                },
-              ),
             ),
             if (_validationError != null) ...[
               const SizedBox(height: 10),

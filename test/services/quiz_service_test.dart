@@ -403,8 +403,7 @@ void main() {
         },
       ],
       'starts_at': now.subtract(const Duration(days: 1)).toIso8601String(),
-      'deadline_at': now.add(const Duration(days: 1)).toIso8601String(),
-      'max_attempts': 2,
+      'max_attempts': null,
       'attempt_count': 0,
       'attempts': [],
     });
@@ -413,9 +412,39 @@ void main() {
     expect(activity.questions, hasLength(1));
     expect(activity.isAvailable, isTrue);
     expect(activity.status, 'Open');
-    expect(activity.maxAttempts, 2);
+    expect(activity.maxAttempts, isNull);
     expect(activity.attemptCount, 0);
   });
+
+  test(
+    'ClassroomActivity stays available after unlimited practice attempts',
+    () {
+      final now = DateTime.now().toUtc();
+      final activity = ClassroomActivity.fromJson({
+        'id': 'activity-id',
+        'classroom_id': 'classroom-id',
+        'classroom_name': 'Biology',
+        'quiz_id': 'quiz-id',
+        'title': 'Cell Structure',
+        'source_file': 'biology.pdf',
+        'questions': [
+          {
+            'question': 'Which organelle stores DNA?',
+            'options': ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
+            'answerIndex': 0,
+            'explanation': 'The nucleus contains the cell DNA.',
+          },
+        ],
+        'starts_at': now.subtract(const Duration(days: 1)).toIso8601String(),
+        'max_attempts': null,
+        'attempt_count': 25,
+        'attempts': [],
+      });
+
+      expect(activity.isAvailable, isTrue);
+      expect(activity.status, 'In progress');
+    },
+  );
 
   test(
     'ClassroomActivity reports completion when the attempt limit is used',
@@ -437,7 +466,6 @@ void main() {
           },
         ],
         'starts_at': now.subtract(const Duration(days: 1)).toIso8601String(),
-        'deadline_at': now.add(const Duration(days: 1)).toIso8601String(),
         'max_attempts': 2,
         'attempt_count': 2,
         'attempts': [

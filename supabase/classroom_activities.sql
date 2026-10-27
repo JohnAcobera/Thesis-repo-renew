@@ -5,23 +5,34 @@ create table if not exists public.classroom_activities (
   quiz_id uuid not null references public.student_generated_quizzes(id)
     on delete cascade,
   starts_at timestamptz not null,
-  deadline_at timestamptz not null,
-  max_attempts integer not null default 2,
+  deadline_at timestamptz,
+  max_attempts integer,
   created_at timestamptz not null default now(),
-  constraint classroom_activities_deadline_after_start
-    check (deadline_at > starts_at),
   constraint classroom_activities_max_attempts_check
-    check (max_attempts between 1 and 20)
+    check (max_attempts is null or max_attempts between 1 and 20)
 );
 
 alter table public.classroom_activities
-  add column if not exists max_attempts integer not null default 2;
+  drop constraint if exists classroom_activities_deadline_after_start;
+alter table public.classroom_activities
+  alter column deadline_at drop not null;
+update public.classroom_activities set deadline_at = null;
+
+alter table public.classroom_activities
+  add column if not exists max_attempts integer;
 
 alter table public.classroom_activities
   drop constraint if exists classroom_activities_max_attempts_check;
 alter table public.classroom_activities
+  alter column max_attempts drop not null;
+alter table public.classroom_activities
+  alter column max_attempts drop default;
+alter table public.classroom_activities
   add constraint classroom_activities_max_attempts_check
-  check (max_attempts between 1 and 20);
+  check (max_attempts is null or max_attempts between 1 and 20);
+update public.classroom_activities set max_attempts = null;
+
+drop index if exists public.classroom_activities_classroom_schedule_idx;
 
 alter table public.quiz_attempts
   add column if not exists classroom_activity_id uuid;
@@ -40,7 +51,7 @@ with matching_activities as (
   join public.classroom_students cs
     on cs.classroom_id = a.classroom_id and cs.student_id = qa.user_id
   where qa.classroom_activity_id is null
-    and qa.created_at between a.starts_at and a.deadline_at
+    and qa.created_at >= a.starts_at
   group by qa.id
 )
 update public.quiz_attempts qa
@@ -50,7 +61,7 @@ where qa.id = matching_activities.attempt_id
   and matching_activities.match_count = 1;
 
 create index if not exists classroom_activities_classroom_schedule_idx
-  on public.classroom_activities (classroom_id, starts_at, deadline_at);
+  on public.classroom_activities (classroom_id, starts_at);
 create index if not exists quiz_attempts_classroom_activity_user_created_idx
   on public.quiz_attempts (classroom_activity_id, user_id, created_at desc)
   where classroom_activity_id is not null;
@@ -143,14 +154,16 @@ $$;
 drop function if exists public.post_classroom_activity(
   text, uuid, uuid[], timestamptz, timestamptz
 );
+drop function if exists public.post_classroom_activity(
+  text, uuid, uuid[], timestamptz, timestamptz, integer
+);
 
 create or replace function public.post_classroom_activity(
   p_session_token text,
   p_quiz_id uuid,
   p_classroom_ids uuid[],
   p_starts_at timestamptz,
-  p_deadline_at timestamptz,
-  p_max_attempts integer default 2
+  p_max_attempts integer default null
 ) returns integer
 language plpgsql
 security definer
@@ -181,9 +194,8 @@ begin
     raise exception 'Invalid or expired session';
   end if;
   if p_starts_at is null or p_starts_at < now()
-     or p_deadline_at is null or p_deadline_at <= p_starts_at
-     or p_max_attempts is null or p_max_attempts < 1
-     or p_max_attempts > 20 then
+     or (p_max_attempts is not null and
+       (p_max_attempts < 1 or p_max_attempts > 20)) then
     raise exception 'Invalid activity schedule';
   end if;
   if p_classroom_ids is null
@@ -214,10 +226,9 @@ begin
   end if;
 
   insert into public.classroom_activities (
-    classroom_id, quiz_id, starts_at, deadline_at, max_attempts
+    classroom_id, quiz_id, starts_at, max_attempts
   )
-  select distinct selected.classroom_id, p_quiz_id, p_starts_at,
-    p_deadline_at, p_max_attempts
+  select distinct selected.classroom_id, p_quiz_id, p_starts_at, p_max_attempts
   from unnest(p_classroom_ids) as selected(classroom_id);
   get diagnostics posted_count = row_count;
   return posted_count;
@@ -277,7 +288,6 @@ begin
           'source_file', q.source_file,
           'questions', q.questions,
           'starts_at', a.starts_at,
-          'deadline_at', a.deadline_at,
           'max_attempts', a.max_attempts,
           'attempt_count', case when verified_role = 'student' then (
             select count(*)::integer
@@ -404,7 +414,6 @@ begin
   join public.student_generated_quizzes q on q.id = a.quiz_id
   where a.id = p_activity_id
     and now() >= a.starts_at
-    and now() <= a.deadline_at
   for update of a;
 
   if saved_quiz_id is null then
@@ -414,7 +423,8 @@ begin
   from public.quiz_attempts
   where classroom_activity_id = saved_activity_id
     and user_id = verified_user_id;
-  if existing_attempt_count >= saved_max_attempts then
+  if saved_max_attempts is not null
+     and existing_attempt_count >= saved_max_attempts then
     raise exception 'You have reached the attempt limit for this activity';
   end if;
   if p_score is null or p_total_questions is null
@@ -514,7 +524,7 @@ $$;
 revoke all on function public.save_quiz_draft(text, text, text, jsonb)
   from public;
 revoke all on function public.post_classroom_activity(
-  text, uuid, uuid[], timestamptz, timestamptz, integer
+  text, uuid, uuid[], timestamptz, integer
 ) from public;
 revoke all on function public.list_classroom_activities(text, uuid)
   from public;
@@ -527,7 +537,7 @@ revoke all on function public.submit_classroom_activity_attempt(
 grant execute on function public.save_quiz_draft(text, text, text, jsonb)
   to anon, authenticated;
 grant execute on function public.post_classroom_activity(
-  text, uuid, uuid[], timestamptz, timestamptz, integer
+  text, uuid, uuid[], timestamptz, integer
 ) to anon, authenticated;
 grant execute on function public.list_classroom_activities(text, uuid)
   to anon, authenticated;

@@ -63,11 +63,11 @@ it to update the save function to accept both multiple-choice and True or False
 questions.
 Student-generated quizzes are saved after a student completes them. Instructors
 can save generated quizzes or post them to selected classrooms with a start
-time and deadline. Students can take posted activities from their classroom
-while they are available, and can retake them until the instructor-set attempt
-limit is reached. The student dashboard shows recent quiz scores and classroom
-attribution; saved student quizzes can be retaken from the dashboard. The
-recent activity list includes completed flashcard and matching sessions.
+time. Students can take posted activities from their classroom once they open,
+and can practice with unlimited attempts. The student dashboard shows recent
+quiz scores and classroom attribution; saved student quizzes can be retaken
+from the dashboard. The recent activity list includes completed flashcard and
+matching sessions.
 Run `supabase/learning_inventory.sql` in the Supabase SQL Editor to create the
 separate inventory tables and custom-session RPCs. This migration does not
 alter existing tables. Student-generated quizzes are listed from existing
@@ -121,13 +121,17 @@ overview cards.
 Run or re-run `supabase/classroom_activities.sql` after `classrooms.sql` and
 `quiz_attempts.sql` to enable saved instructor quiz drafts, scheduled
 classroom activities, activity listings, and student submissions. Classroom
-activities allow instructors to set a total attempt limit (default 2); student
-attempts are attributed to the classroom and activity, and the limit is
-enforced by the database. Instructors can remove a quiz posting from a
-classroom without deleting its saved quiz, while student recent activity
-includes classroom quiz attempts and their classroom names. Existing attempts
+activities are practice activities with unlimited student attempts; attempts
+are attributed to the classroom and activity. Re-running the script removes
+deadlines and attempt limits from existing activities. Instructors can remove
+a quiz posting from a classroom without deleting its saved quiz, while student
+recent activity includes classroom quiz attempts and their classroom names. Existing attempts
 are associated with an activity only when their classroom and schedule match
-exactly one activity.
+exactly one activity. If student notifications are enabled, re-run
+`supabase/student_notifications.sql` after this migration to remove student
+deadline reminders. Re-run
+`supabase/instructor_notifications.sql` as well to remove instructor deadline
+reminders.
 
 Run `supabase/instructor_classroom_students.sql` after `classrooms.sql`,
 `classroom_activities.sql`, and `quiz_attempts.sql` to enable the instructor
@@ -141,14 +145,12 @@ the instructor Reports screen. It summarizes classrooms and student quiz
 performance and provides account details, overall quiz statistics, and quiz
 generation counts for each enrolled student. Student details include the same
 Accuracy, Retention, Improvement, Consistency, and Focus radar chart as the
-student dashboard. Re-run it to enable the dashboard student follow-up panel;
-it groups each student once across their classrooms and flags quiz averages
-below 60% or started classroom quizzes they have not completed.
+student dashboard.
 
 Run `supabase/instructor_learning_materials.sql` after `custom_auth.sql`,
 `quiz_attempts.sql`, and `classroom_activities.sql` to enable the instructor
 Learning Materials library. Instructors can review saved quizzes, post them to
-selected classrooms with an availability window and attempt limit, or delete
+selected classrooms with a start time and unlimited student attempts, or delete
 them. Quizzes can be sorted by recency, name, or question count and organized
 into named folders. Deleting a quiz also removes its classroom activity
 postings; student quiz attempt records are retained.
@@ -162,16 +164,15 @@ Run `supabase/student_notifications.sql` after the learner-points, learning
 streak, weekly leaderboard, classroom, and classroom-activity migrations to
 enable the student notification bell. It shows daily LP and streak rewards,
 streaks of at least three days that ended, quiz LP reward breakdowns, last
-week's final leaderboard rank, classroom activity posts, activities due within
-24 hours, and classroom join/removal events. Notifications are kept for 90
-days, support marking unread items as read, and the removal trigger records
+week's final leaderboard rank, classroom activity posts, and classroom
+join/removal events. Notifications are kept for 90 days, support marking unread
+items as read, and the removal trigger records
 future classroom removals.
 
 Run `supabase/instructor_notifications.sql` after `custom_auth.sql`,
 `classrooms.sql`, `classroom_activities.sql`, and `quiz_attempts.sql` to enable
 the instructor notification bell. It reports student quiz submissions with
-their score, new classroom memberships, and activities due within 24 hours
-with a reminder to notify students. Submission and join notifications are
+their score and new classroom memberships. Submission and join notifications are
 kept for 90 days, and notifications support marking unread items as read.
 
 The quiz-generation function reads `GEMINI_API_KEY_1` through
