@@ -2079,14 +2079,14 @@ class _StatsMetricTooltip extends StatelessWidget {
   const _StatsMetricTooltip();
 
   static const _headingStyle = TextStyle(
-    color: Color(0xFFFFC18F),
+    color: Color(0xFF8A3B16),
     fontSize: 11,
     fontWeight: FontWeight.w800,
     letterSpacing: 0.8,
   );
 
   static const _bodyStyle = TextStyle(
-    color: Color(0xFFFFF8F1),
+    color: Color(0xFF1F1A17),
     fontSize: 12,
     height: 1.4,
   );
@@ -2099,7 +2099,7 @@ class _StatsMetricTooltip extends StatelessWidget {
     constraints: const BoxConstraints(maxWidth: 300),
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     decoration: BoxDecoration(
-      color: const Color(0xFF3B2419),
+      color: const Color(0xFFFFF8EB),
       borderRadius: BorderRadius.circular(16),
       border: Border.all(color: const Color(0xFFF4773C).withValues(alpha: 0.6)),
       boxShadow: const [
@@ -2116,34 +2116,37 @@ class _StatsMetricTooltip extends StatelessWidget {
           text: 'HOW YOUR STATS ARE CALCULATED\n\n',
           style: _headingStyle,
         ),
+        TextSpan(
+          text: 'Orange shows current stats; teal shows the past 7 days.\n\n',
+          style: _bodyStyle,
+        ),
         TextSpan(text: 'ACCURACY\n', style: _headingStyle),
         TextSpan(
           text:
-              'Correct answers across each quiz’s latest attempt ÷ questions on those attempts × 100.\n\n',
+              'Percent correct across all quiz attempts in the last 28 days (or since you joined, if newer).\n\n',
           style: _bodyStyle,
         ),
         TextSpan(text: 'RETENTION\n', style: _headingStyle),
         TextSpan(
           text:
-              'Average each quiz’s latest two attempt accuracies, then average those quiz values. Requires two attempts per quiz.\n\n',
+              'Average score on your two most recent attempts per quiz. Quizzes with fewer than two attempts are skipped.\n\n',
           style: _bodyStyle,
         ),
         TextSpan(text: 'IMPROVEMENT\n', style: _headingStyle),
         TextSpan(
           text:
-              'Average the chronological accuracy changes per quiz, then across quizzes. Shown in percentage points; drops count as negative.\n\n',
+              'Shows whether scores tend to rise or fall when you retry quizzes. For example, 60% to 70% is a 10-point gain.\n\n',
           style: _bodyStyle,
         ),
         TextSpan(text: 'CONSISTENCY\n', style: _headingStyle),
         TextSpan(
           text:
-              'Unique days with a completed quiz ÷ eligible days × 100. Uses the last 28 days, or days since account creation for newer accounts.\n\n',
+              'Percent of days you completed a quiz in the last 28 days (or since you joined, if newer).\n\n',
           style: _bodyStyle,
         ),
         TextSpan(text: 'FOCUS\n', style: _headingStyle),
         TextSpan(
-          text:
-              'Correct answers across each quiz’s first attempt ÷ questions on those attempts × 100.',
+          text: 'Percent correct on your first attempt at each quiz.',
           style: _bodyStyle,
         ),
       ],
@@ -2222,7 +2225,12 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
         future: _metricsData,
         builder: (context, snapshot) {
           final quizzes = snapshot.data ?? const <QuizActivity>[];
-          final accuracyPercentage = latestQuizAccuracyPercentage(quizzes);
+          final metricsNow = DateTime.now();
+          final accuracyPercentage = quizLearningWindowAccuracyPercentage(
+            quizzes: quizzes,
+            accountCreatedAt: widget.accountCreatedAt,
+            now: metricsNow,
+          );
           final retentionPercentage = averageQuizRetentionPercentage(quizzes);
           final improvementPercentage = averageQuizImprovementPercentage(
             quizzes,
@@ -2231,6 +2239,34 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
           final consistencyPercentage = quizLearningConsistencyPercentage(
             quizzes: quizzes,
             accountCreatedAt: widget.accountCreatedAt,
+            now: metricsNow,
+          );
+          final weeklyAccuracyPercentage = quizLearningWindowAccuracyPercentage(
+            quizzes: quizzes,
+            accountCreatedAt: widget.accountCreatedAt,
+            windowDays: 7,
+            now: metricsNow,
+          );
+          final weeklyRetentionPercentage = averageQuizRetentionPercentage(
+            quizzes,
+            windowDays: 7,
+            now: metricsNow,
+          );
+          final weeklyImprovementPercentage = averageQuizImprovementPercentage(
+            quizzes,
+            windowDays: 7,
+            now: metricsNow,
+          );
+          final weeklyFocusPercentage = firstQuizAttemptFocusPercentage(
+            quizzes,
+            windowDays: 7,
+            now: metricsNow,
+          );
+          final weeklyConsistencyPercentage = quizLearningConsistencyPercentage(
+            quizzes: quizzes,
+            accountCreatedAt: widget.accountCreatedAt,
+            windowDays: 7,
+            now: metricsNow,
           );
           final status = snapshot.hasError
               ? Column(
@@ -2266,6 +2302,12 @@ class _StudentMetricsChartState extends State<_StudentMetricsChart> {
             improvementPercentage: improvementPercentage,
             consistencyPercentage: consistencyPercentage,
             focusPercentage: focusPercentage,
+            showWeeklySeries: true,
+            weeklyAccuracyPercentage: weeklyAccuracyPercentage,
+            weeklyRetentionPercentage: weeklyRetentionPercentage,
+            weeklyImprovementPercentage: weeklyImprovementPercentage,
+            weeklyConsistencyPercentage: weeklyConsistencyPercentage,
+            weeklyFocusPercentage: weeklyFocusPercentage,
           );
 
           if (constraints.hasBoundedHeight) {

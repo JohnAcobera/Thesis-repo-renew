@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../services/quiz_service.dart';
 import '../widgets/app_glass_surface.dart';
 import '../widgets/student_side_menu.dart';
 
@@ -31,69 +32,24 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   late final ProfileDataService _authService =
       widget.authService ?? AuthService();
-  late Future<Set<DateTime>> _loginDatesFuture;
   late Future<int> _learnerPointsFuture;
   late Future<int?> _weeklyRankingFuture;
+  late Future<List<QuizActivity>> _quizMetricsFuture;
 
   @override
   void initState() {
     super.initState();
     _learnerPointsFuture = _loadLearnerPoints();
     _weeklyRankingFuture = _loadWeeklyRanking();
-    if (widget.streakDays == null) {
-      _loginDatesFuture = _loadLoginDates();
-    }
+    _quizMetricsFuture = _loadQuizMetrics();
   }
-
-  Future<Set<DateTime>> _loadLoginDates() async =>
-      await _authService.loginDates();
 
   Future<int> _loadLearnerPoints() async => await _authService.learnerPoints();
 
   Future<int?> _loadWeeklyRanking() async => await _authService.weeklyRanking();
 
-  Widget _buildStreakCalendar() {
-    final suppliedDates = widget.streakDays;
-    if (suppliedDates != null) {
-      return _StreakCalendar(
-        streakDays: suppliedDates,
-        currentStreak: _currentStreak(suppliedDates),
-      );
-    }
-
-    return FutureBuilder<Set<DateTime>>(
-      future: _loginDatesFuture,
-      builder: (context, snapshot) {
-        final loginDates = snapshot.data ?? const <DateTime>{};
-        return _StreakCalendar(
-          streakDays: loginDates,
-          currentStreak: _currentStreak(loginDates),
-          isLoading: !snapshot.hasData && !snapshot.hasError,
-          hasError: snapshot.hasError,
-          onRetry: () => setState(() => _loginDatesFuture = _loadLoginDates()),
-        );
-      },
-    );
-  }
-
-  int _currentStreak(Set<DateTime> loginDates) {
-    final normalizedDates = loginDates
-        .map((date) => DateTime(date.year, date.month, date.day))
-        .toSet();
-    final today = DateTime.now();
-    final currentDay = DateTime(today.year, today.month, today.day);
-    var streakEnd = normalizedDates.contains(currentDay)
-        ? currentDay
-        : currentDay.subtract(const Duration(days: 1));
-    if (!normalizedDates.contains(streakEnd)) return 0;
-
-    var streak = 0;
-    while (normalizedDates.contains(streakEnd)) {
-      streak++;
-      streakEnd = streakEnd.subtract(const Duration(days: 1));
-    }
-    return streak;
-  }
+  Future<List<QuizActivity>> _loadQuizMetrics() async =>
+      await QuizService().recentAttempts();
 
   @override
   Widget build(BuildContext context) => StudentScaffold(
@@ -216,7 +172,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                _buildStreakCalendar(),
+                _buildMetricsPanel(),
               ],
             ),
           ),
@@ -247,327 +203,553 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ];
     return '${monthNames[date.month - 1]} ${date.day}, ${date.year}';
   }
+
+  Widget _buildMetricsPanel() => AppGlassSurface(
+    width: double.infinity,
+    borderRadius: 20,
+    padding: const EdgeInsets.all(20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Your learning stats',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: const Color(0xFF3B2419),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'A snapshot of your quiz performance.',
+          style: TextStyle(color: Color(0xFF765C4F)),
+        ),
+        const SizedBox(height: 16),
+        FutureBuilder<List<QuizActivity>>(
+          future: _quizMetricsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                children: [
+                  const Text(
+                    'Could not load your quiz stats.',
+                    style: TextStyle(color: Color(0xFF765C4F)),
+                  ),
+                  TextButton.icon(
+                    onPressed: () =>
+                        setState(() => _quizMetricsFuture = _loadQuizMetrics()),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Try again'),
+                  ),
+                ],
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(color: Color(0xFFF4773C)),
+                ),
+              );
+            }
+
+            return _LearningMetricsGrid(
+              quizzes: snapshot.data!,
+              accountCreatedAt: widget.createdAt,
+            );
+          },
+        ),
+      ],
+    ),
+  );
 }
 
-class _StreakCalendar extends StatefulWidget {
-  const _StreakCalendar({
-    required this.streakDays,
-    required this.currentStreak,
-    this.isLoading = false,
-    this.hasError = false,
-    this.onRetry,
+class _LearningMetricsGrid extends StatelessWidget {
+  const _LearningMetricsGrid({
+    required this.quizzes,
+    required this.accountCreatedAt,
   });
 
-  final Set<DateTime> streakDays;
-  final int currentStreak;
-  final bool isLoading;
-  final bool hasError;
-  final VoidCallback? onRetry;
-
-  @override
-  State<_StreakCalendar> createState() => _StreakCalendarState();
-}
-
-class _StreakCalendarState extends State<_StreakCalendar> {
-  static const _monthNames = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-
-  late DateTime _displayedMonth;
-
-  @override
-  void initState() {
-    super.initState();
-    final now = DateTime.now();
-    _displayedMonth = DateTime(now.year, now.month);
-  }
-
-  void _changeMonth(int offset) {
-    setState(() {
-      _displayedMonth = DateTime(
-        _displayedMonth.year,
-        _displayedMonth.month + offset,
-      );
-    });
-  }
-
-  bool _isStreakDay(DateTime date) => widget.streakDays.any(
-    (streakDay) =>
-        streakDay.year == date.year &&
-        streakDay.month == date.month &&
-        streakDay.day == date.day,
-  );
+  final List<QuizActivity> quizzes;
+  final DateTime? accountCreatedAt;
 
   @override
   Widget build(BuildContext context) {
-    final firstDay = DateTime(_displayedMonth.year, _displayedMonth.month);
-    final daysInMonth = DateTime(
-      _displayedMonth.year,
-      _displayedMonth.month + 1,
-      0,
-    ).day;
-    final leadingDays = firstDay.weekday % 7;
-    final weekCount = ((leadingDays + daysInMonth) / 7).ceil();
-    final today = DateTime.now();
+    final now = DateTime.now();
+    final today = _calendarDate(now);
+    final firstEligibleDate = _firstEligibleDate(accountCreatedAt, today);
+    final recentAttempts = [
+      for (final quiz in quizzes)
+        for (final attempt in quiz.attempts)
+          if (firstEligibleDate != null &&
+              !_calendarDate(
+                attempt.createdAt.toLocal(),
+              ).isBefore(firstEligibleDate) &&
+              !_calendarDate(attempt.createdAt.toLocal()).isAfter(today))
+            attempt,
+    ]..sort((first, second) => first.createdAt.compareTo(second.createdAt));
 
-    return AppGlassSurface(
-      width: double.infinity,
-      borderRadius: 20,
-      padding: const EdgeInsets.all(24),
+    final accuracy = quizLearningWindowAccuracyPercentage(
+      quizzes: quizzes,
+      accountCreatedAt: accountCreatedAt,
+    );
+    final retention = averageQuizRetentionPercentage(quizzes);
+    final improvement = averageQuizImprovementPercentage(quizzes);
+    final consistency = quizLearningConsistencyPercentage(
+      quizzes: quizzes,
+      accountCreatedAt: accountCreatedAt,
+    );
+    final focus = firstQuizAttemptFocusPercentage(quizzes);
+
+    final orderedRetention =
+        quizzes.where((quiz) => quiz.retentionPercentage != null).toList()
+          ..sort((first, second) {
+            return first.latestAttempt!.createdAt.compareTo(
+              second.latestAttempt!.createdAt,
+            );
+          });
+    final orderedImprovement =
+        quizzes.where((quiz) => quiz.improvementPercentage != null).toList()
+          ..sort((first, second) {
+            return first.latestAttempt!.createdAt.compareTo(
+              second.latestAttempt!.createdAt,
+            );
+          });
+    final orderedFocus =
+        quizzes.where((quiz) => quiz.firstAttempt != null).toList()
+          ..sort((first, second) {
+            return first.firstAttempt!.createdAt.compareTo(
+              second.firstAttempt!.createdAt,
+            );
+          });
+
+    final consistencySamples = <double>[];
+    if (firstEligibleDate != null) {
+      final activeDays = recentAttempts
+          .map((attempt) => _calendarDate(attempt.createdAt.toLocal()))
+          .toSet();
+      final eligibleDays = today.difference(firstEligibleDate).inDays + 1;
+      for (var day = 0; day < eligibleDays; day++) {
+        final date = firstEligibleDate.add(Duration(days: day));
+        consistencySamples.add(activeDays.contains(date) ? 1 : 0);
+      }
+    }
+
+    final metrics = [
+      _LearningMetric(
+        title: 'Accuracy',
+        value: _formatPercentage(accuracy),
+        description:
+            'Percent correct across all quiz attempts in the last 28 days (or since you joined, if newer). The line shows recent attempt scores.',
+        samples: _lastSamples(
+          recentAttempts.map((attempt) => attempt.percentage),
+        ),
+        kind: _MiniChartKind.line,
+        color: const Color(0xFFF4773C),
+      ),
+      _LearningMetric(
+        title: 'Retention',
+        value: _formatPercentage(retention),
+        description:
+            'Average score across the two latest attempts for each quiz. Bars show each quiz; quizzes with fewer than two attempts are skipped.',
+        samples: _lastSamples(
+          orderedRetention.map((quiz) => quiz.retentionPercentage!),
+        ),
+        kind: _MiniChartKind.bars,
+        color: const Color(0xFFF2C230),
+      ),
+      _LearningMetric(
+        title: 'Improvement',
+        value: _formatImprovement(improvement),
+        description:
+            'Average score change between retries. Each bar is one quiz: above the line means scores improved; below means they dropped.',
+        samples: _lastSamples(
+          orderedImprovement.map((quiz) => quiz.improvementPercentage!),
+        ),
+        kind: _MiniChartKind.diverging,
+        color: const Color(0xFF2F8AB9),
+      ),
+      _LearningMetric(
+        title: 'Consistency',
+        value: _formatPercentage(consistency),
+        description:
+            'Percent of days you completed a quiz in the last 28 days (or since you joined, if newer). Green bars mark quiz days.',
+        samples: consistencySamples,
+        kind: _MiniChartKind.activity,
+        color: const Color(0xFF42A765),
+      ),
+      _LearningMetric(
+        title: 'Focus',
+        value: _formatPercentage(focus),
+        description:
+            'Percent correct on your first attempt at each quiz. Bars show your first-attempt scores.',
+        samples: _lastSamples(
+          orderedFocus.map((quiz) => quiz.firstAttempt!.percentage),
+        ),
+        kind: _MiniChartKind.bars,
+        color: const Color(0xFFD04FA2),
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columnCount = constraints.maxWidth >= 560 ? 3 : 2;
+        final cardWidth =
+            (constraints.maxWidth - 10 * (columnCount - 1)) / columnCount;
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final metric in metrics)
+              SizedBox(
+                width: cardWidth,
+                child: _LearningMetricCard(metric: metric),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  DateTime? _firstEligibleDate(DateTime? createdAt, DateTime today) {
+    if (createdAt == null) return null;
+    final creationDate = _calendarDate(createdAt.toLocal());
+    if (creationDate.isAfter(today)) return null;
+    final windowStart = today.subtract(const Duration(days: 27));
+    return creationDate.isAfter(windowStart) ? creationDate : windowStart;
+  }
+
+  DateTime _calendarDate(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  List<double> _lastSamples(Iterable<double> samples) {
+    final values = samples.toList(growable: false);
+    return values.length <= 12 ? values : values.sublist(values.length - 12);
+  }
+
+  String _formatPercentage(double? value) =>
+      value == null ? '—' : '${value.round()}%';
+
+  String _formatImprovement(double? value) {
+    if (value == null) return '—';
+    final sign = value > 0 ? '+' : '';
+    return '$sign${value.toStringAsFixed(0)} pts';
+  }
+}
+
+class _LearningMetric {
+  const _LearningMetric({
+    required this.title,
+    required this.value,
+    required this.description,
+    required this.samples,
+    required this.kind,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final String description;
+  final List<double> samples;
+  final _MiniChartKind kind;
+  final Color color;
+}
+
+class _LearningMetricCard extends StatelessWidget {
+  const _LearningMetricCard({required this.metric});
+
+  final _LearningMetric metric;
+
+  static const _tooltipBodyStyle = TextStyle(
+    color: Color(0xFF1F1A17),
+    fontSize: 12,
+    height: 1.4,
+  );
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: '${metric.title}: ${metric.value}',
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8EE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE8D7C2)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const CircleAvatar(
-                radius: 22,
-                backgroundColor: Color(0xFFFFE5D5),
-                child: Icon(
-                  Icons.local_fire_department,
-                  color: Color(0xFFF4773C),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Learning streak',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: const Color(0xFF3B2419),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Your learning activity, day by day.',
-                      style: TextStyle(color: Color(0xFF765C4F)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.isLoading
-                          ? 'Loading streak...'
-                          : widget.hasError
-                          ? 'Streak unavailable'
-                          : '${widget.currentStreak} '
-                                '${widget.currentStreak == 1 ? 'day' : 'days'} in a row',
-                      style: const TextStyle(
-                        color: Color(0xFFF4773C),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
               Expanded(
                 child: Text(
-                  '${_monthNames[_displayedMonth.month - 1]} '
-                  '${_displayedMonth.year}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: const Color(0xFF3B2419),
+                  metric.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF765C4F),
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              IconButton(
-                tooltip: 'Previous month',
-                onPressed: () => _changeMonth(-1),
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.chevron_left),
-                color: const Color(0xFF765C4F),
-              ),
-              IconButton(
-                tooltip: 'Next month',
-                onPressed: () => _changeMonth(1),
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.chevron_right),
-                color: const Color(0xFF765C4F),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Row(
-            children: [
-              _WeekdayLabel('S'),
-              _WeekdayLabel('M'),
-              _WeekdayLabel('T'),
-              _WeekdayLabel('W'),
-              _WeekdayLabel('T'),
-              _WeekdayLabel('F'),
-              _WeekdayLabel('S'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          for (var week = 0; week < weekCount; week++)
-            Row(
-              children: [
-                for (var weekday = 0; weekday < 7; weekday++)
-                  _CalendarDay(
-                    date: DateTime(
-                      _displayedMonth.year,
-                      _displayedMonth.month,
-                      week * 7 + weekday - leadingDays + 1,
+              Tooltip(
+                triggerMode: TooltipTriggerMode.tap,
+                preferBelow: false,
+                showDuration: const Duration(seconds: 12),
+                constraints: const BoxConstraints(maxWidth: 290),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF8EB),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: metric.color.withValues(alpha: 0.7),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
                     ),
-                    displayedMonth: _displayedMonth,
-                    today: today,
-                    isStreakDay: _isStreakDay(
-                      DateTime(
-                        _displayedMonth.year,
-                        _displayedMonth.month,
-                        week * 7 + weekday - leadingDays + 1,
+                  ],
+                ),
+                richMessage: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${metric.title.toUpperCase()}\n',
+                      style: TextStyle(
+                        color: metric.color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
                       ),
                     ),
+                    TextSpan(
+                      text: metric.description,
+                      style: _tooltipBodyStyle,
+                    ),
+                  ],
+                ),
+                child: Semantics(
+                  button: true,
+                  label: 'About ${metric.title}',
+                  child: Container(
+                    width: 23,
+                    height: 23,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: metric.color.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: metric.color.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.info_outline_rounded,
+                      size: 15,
+                      color: metric.color,
+                    ),
                   ),
-              ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                metric.value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: metric.color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 42,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _MiniChartPainter(
+                samples: metric.samples,
+                kind: metric.kind,
+                color: metric.color,
+              ),
             ),
-          const SizedBox(height: 12),
-          const Divider(color: Color(0xFFE8D7C2)),
-          const SizedBox(height: 4),
-          if (widget.isLoading)
-            const Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              children: [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Color(0xFFF4773C),
-                  ),
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'Loading login history...',
-                  style: TextStyle(color: Color(0xFF765C4F)),
-                ),
-              ],
-            )
-          else if (widget.hasError)
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              children: [
-                const Text(
-                  'Unable to load login history.',
-                  style: TextStyle(color: Color(0xFF765C4F)),
-                ),
-                TextButton.icon(
-                  onPressed: widget.onRetry,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Try again'),
-                ),
-              ],
-            )
-          else
-            const Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              children: [
-                CircleAvatar(radius: 5, backgroundColor: Color(0xFFF4773C)),
-                Text(
-                  'Days you log in will be highlighted here.',
-                  style: TextStyle(color: Color(0xFF765C4F)),
-                ),
-              ],
-            ),
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class _WeekdayLabel extends StatelessWidget {
-  const _WeekdayLabel(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-    child: Center(
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF8A7A70),
-          fontWeight: FontWeight.w600,
-        ),
       ),
     ),
   );
 }
 
-class _CalendarDay extends StatelessWidget {
-  const _CalendarDay({
-    required this.date,
-    required this.displayedMonth,
-    required this.today,
-    required this.isStreakDay,
+enum _MiniChartKind { line, bars, diverging, activity }
+
+class _MiniChartPainter extends CustomPainter {
+  const _MiniChartPainter({
+    required this.samples,
+    required this.kind,
+    required this.color,
   });
 
-  final DateTime date;
-  final DateTime displayedMonth;
-  final DateTime today;
-  final bool isStreakDay;
+  final List<double> samples;
+  final _MiniChartKind kind;
+  final Color color;
 
   @override
-  Widget build(BuildContext context) {
-    final isDisplayedMonth =
-        date.year == displayedMonth.year && date.month == displayedMonth.month;
-    final isToday =
-        date.year == today.year &&
-        date.month == today.month &&
-        date.day == today.day;
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
 
-    return Expanded(
-      child: SizedBox(
-        height: 44,
-        child: Center(
-          child: Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: isStreakDay ? const Color(0xFFF4773C) : null,
-              shape: BoxShape.circle,
-              border: isToday && !isStreakDay
-                  ? Border.all(color: const Color(0xFFF4773C))
-                  : null,
-            ),
-            child: Text(
-              '${date.day}',
-              style: TextStyle(
-                color: isStreakDay
-                    ? Colors.white
-                    : isDisplayedMonth
-                    ? const Color(0xFF3B2419)
-                    : const Color(0xFFB8A99D),
-                fontWeight: isStreakDay || isToday
-                    ? FontWeight.w600
-                    : FontWeight.normal,
-              ),
-            ),
-          ),
-        ),
-      ),
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    final baseline = size.height - 2;
+    final basePaint = Paint()
+      ..color = const Color(0xFFE8D7C2)
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      Offset(0, baseline),
+      Offset(size.width, baseline),
+      basePaint,
     );
+    if (samples.isEmpty) {
+      canvas.restore();
+      return;
+    }
+
+    switch (kind) {
+      case _MiniChartKind.line:
+        _paintLine(canvas, size);
+      case _MiniChartKind.bars:
+        _paintBars(canvas, size, diverging: false);
+      case _MiniChartKind.diverging:
+        _paintBars(canvas, size, diverging: true);
+      case _MiniChartKind.activity:
+        _paintActivity(canvas, size);
+    }
+    canvas.restore();
   }
+
+  void _paintLine(Canvas canvas, Size size) {
+    final points = _normalizedPoints(size, samples, 0, 100);
+    if (points.length == 1) {
+      canvas.drawCircle(points.first, 2.5, Paint()..color = color);
+      return;
+    }
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final point in points.skip(1)) {
+      path.lineTo(point.dx, point.dy);
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke,
+    );
+    for (final point in points) {
+      canvas.drawCircle(point, 2, Paint()..color = color);
+    }
+  }
+
+  void _paintBars(Canvas canvas, Size size, {required bool diverging}) {
+    final count = samples.length;
+    final gap = 3.0;
+    final barWidth = (size.width - gap * (count - 1)) / count;
+    final zeroY = diverging ? size.height / 2 : size.height - 2;
+    if (diverging) {
+      canvas.drawLine(
+        Offset(0, zeroY),
+        Offset(size.width, zeroY),
+        Paint()
+          ..color = const Color(0xFFCAB6A5)
+          ..strokeWidth = 1,
+      );
+    }
+    for (var index = 0; index < count; index++) {
+      final sample = samples[index];
+      final normalized = diverging
+          ? sample.clamp(-100.0, 100.0) / 100
+          : sample.clamp(0.0, 100.0) / 100;
+      final availableHeight = diverging ? size.height / 2 - 2 : size.height - 2;
+      final barHeight = (normalized.abs() * availableHeight).clamp(
+        2.0,
+        availableHeight,
+      );
+      final left = index * (barWidth + gap);
+      final top = diverging
+          ? normalized > 0
+                ? zeroY - barHeight
+                : zeroY
+          : zeroY - barHeight;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(left, top, barWidth, barHeight),
+          const Radius.circular(2),
+        ),
+        Paint()..color = color.withValues(alpha: 0.82),
+      );
+    }
+  }
+
+  void _paintActivity(Canvas canvas, Size size) {
+    final gap = 1.5;
+    final barWidth = (size.width - gap * (samples.length - 1)) / samples.length;
+    for (var index = 0; index < samples.length; index++) {
+      final active = samples[index] > 0;
+      final left = index * (barWidth + gap);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            left,
+            active ? size.height * 0.35 : size.height * 0.78,
+            barWidth,
+            active ? size.height * 0.65 - 2 : size.height * 0.22,
+          ),
+          const Radius.circular(1.5),
+        ),
+        Paint()
+          ..color = active
+              ? color.withValues(alpha: 0.88)
+              : color.withValues(alpha: 0.16),
+      );
+    }
+  }
+
+  List<Offset> _normalizedPoints(
+    Size size,
+    List<double> values,
+    double minimum,
+    double maximum,
+  ) {
+    if (values.length == 1) {
+      return [
+        Offset(
+          size.width / 2,
+          size.height - 2 - (values.first / maximum) * (size.height - 4),
+        ),
+      ];
+    }
+    return List<Offset>.generate(values.length, (index) {
+      final x = size.width * index / (values.length - 1);
+      final normalized =
+          ((values[index].clamp(minimum, maximum) - minimum) /
+                  (maximum - minimum))
+              .toDouble();
+      return Offset(x, size.height - 2 - normalized * (size.height - 4));
+    });
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniChartPainter oldDelegate) =>
+      oldDelegate.samples != samples ||
+      oldDelegate.kind != kind ||
+      oldDelegate.color != color;
 }
 
 class _LearnerPointsBadge extends StatelessWidget {
@@ -661,14 +843,14 @@ class _LearnerPointsTooltip extends StatelessWidget {
   const _LearnerPointsTooltip();
 
   static const _headingStyle = TextStyle(
-    color: Color(0xFFFFC18F),
+    color: Color(0xFF8A3B16),
     fontSize: 11,
     fontWeight: FontWeight.w800,
     letterSpacing: 0.8,
   );
 
   static const _bodyStyle = TextStyle(
-    color: Color(0xFFFFF8F1),
+    color: Color(0xFF1F1A17),
     fontSize: 12,
     height: 1.4,
   );
@@ -681,7 +863,7 @@ class _LearnerPointsTooltip extends StatelessWidget {
     constraints: const BoxConstraints(maxWidth: 310),
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     decoration: BoxDecoration(
-      color: const Color(0xFF3B2419),
+      color: const Color(0xFFFFF8EB),
       borderRadius: BorderRadius.circular(16),
       border: Border.all(color: const Color(0xFFF4773C).withValues(alpha: 0.6)),
       boxShadow: const [

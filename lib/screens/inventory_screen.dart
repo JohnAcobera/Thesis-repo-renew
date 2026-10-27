@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_model.dart';
 import '../services/learning_mode_service.dart';
@@ -31,11 +32,15 @@ class InventoryScreen extends StatefulWidget {
   const InventoryScreen({
     required this.user,
     required this.onMenuSelected,
+    this.quizRepository,
+    this.learningModeService,
     super.key,
   });
 
   final UserModel user;
   final ValueChanged<StudentMenuItem> onMenuSelected;
+  final QuizRepository? quizRepository;
+  final LearningModeService? learningModeService;
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
@@ -49,6 +54,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
   String _searchQuery = '';
   Set<String>? _favoriteOverrides;
   final Set<String> _pendingFavorites = {};
+  Set<String>? _archivedOverrides;
+  bool _isShowingArchived = false;
+  bool _isSavingArchive = false;
+
+  String get _archivePreferenceKey =>
+      'quizforge_inventory_archived_${widget.user.id}';
 
   @override
   void initState() {
@@ -57,13 +68,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Future<_InventoryData> _loadInventory() async {
+    final learningService = widget.learningModeService ?? LearningModeService();
     final results = await Future.wait<Object>([
-      QuizService().recentAttempts(),
-      LearningModeService().inventoryItems(),
-      LearningModeService().inventoryFavorites(),
+      (widget.quizRepository ?? QuizService()).recentAttempts(),
+      learningService.inventoryItems(),
+      learningService.inventoryFavorites(),
+      SharedPreferences.getInstance(),
     ]);
     final quizzes = results[0] as List<QuizActivity>;
     final learningItems = results[1] as List<LearningInventoryItem>;
+    final preferences = results[3] as SharedPreferences;
     return _InventoryData(
       records: [
         for (final quiz in quizzes)
@@ -71,12 +85,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
         for (final item in learningItems) _InventoryRecord.learning(item),
       ],
       favoriteKeys: results[2] as Set<String>,
+      archivedKeys:
+          preferences.getStringList(_archivePreferenceKey)?.toSet() ?? const {},
     );
   }
 
   void _reload() {
     setState(() {
       _favoriteOverrides = null;
+      _archivedOverrides = null;
       _inventory = _loadInventory();
     });
   }
@@ -89,11 +106,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final makeFavorite = !favoriteKeys.contains(key);
     setState(() => _pendingFavorites.add(key));
     try {
-      await LearningModeService().setInventoryFavorite(
-        itemType: record.type,
-        itemId: record.id,
-        isFavorite: makeFavorite,
-      );
+      await (widget.learningModeService ?? LearningModeService())
+          .setInventoryFavorite(
+            itemType: record.type,
+            itemId: record.id,
+            isFavorite: makeFavorite,
+          );
       if (!mounted) return;
       setState(() {
         final updated = Set<String>.of(_favoriteOverrides ?? favoriteKeys);
@@ -156,9 +174,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
           final inventory = snapshot.data!;
           final favoriteKeys = _favoriteOverrides ?? inventory.favoriteKeys;
+          final archivedKeys = _archivedOverrides ?? inventory.archivedKeys;
+          final archivedCount = inventory.records
+              .where((record) => archivedKeys.contains(record.favoriteKey))
+              .length;
           final records = _filteredAndSorted(
             inventory.records,
             favoriteKeys: favoriteKeys,
+            archivedKeys: archivedKeys,
           );
           final groups = _groupRecords(records);
           return ListView(
@@ -185,6 +208,25 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         style: TextStyle(color: _inventorySubtle, height: 1.4),
                       ),
                       const SizedBox(height: 20),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton.icon(
+                          onPressed: () => setState(
+                            () => _isShowingArchived = !_isShowingArchived,
+                          ),
+                          icon: Icon(
+                            _isShowingArchived
+                                ? Icons.inventory_2_outlined
+                                : Icons.archive_outlined,
+                          ),
+                          label: Text(
+                            _isShowingArchived
+                                ? 'View inventory'
+                                : 'View archive ($archivedCount)',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       _InventoryControls(
                         filter: _filter,
                         sort: _sort,
@@ -198,13 +240,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       const SizedBox(height: 18),
                       if (records.isEmpty)
                         _InventoryMessage(
-                          icon: inventory.records.isEmpty
+                          icon: _isShowingArchived
+                              ? Icons.archive_outlined
+                              : inventory.records.isEmpty
                               ? Icons.auto_stories_outlined
                               : Icons.search_off_rounded,
-                          title: inventory.records.isEmpty
+                          title: _isShowingArchived
+                              ? 'Your archive is empty'
+                              : inventory.records.isEmpty
                               ? 'Your inventory is ready'
                               : 'No activities found',
-                          detail: inventory.records.isEmpty
+                          detail: _isShowingArchived
+                              ? 'Items you archive will appear here. Your activity history remains unchanged.'
+                              : inventory.records.isEmpty
                               ? 'Complete a generated activity and it will be saved here for your next study session.'
                               : 'Try a different title or activity filter.',
                         )
@@ -243,6 +291,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                 ),
                                 onFavorite: () =>
                                     _toggleFavorite(record, favoriteKeys),
+                                isArchived: _isShowingArchived,
+                                isArchivePending: _isSavingArchive,
+                                onArchive: () => _setArchived(
+                                  record,
+                                  archived: !_isShowingArchived,
+                                ),
                                 onTap: () => _openActivity(record),
                               ),
                               const SizedBox(height: 10),
@@ -264,8 +318,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
   List<_InventoryRecord> _filteredAndSorted(
     List<_InventoryRecord> source, {
     required Set<String> favoriteKeys,
+    required Set<String> archivedKeys,
   }) {
     final records = source.where((record) {
+      if (archivedKeys.contains(record.favoriteKey) != _isShowingArchived) {
+        return false;
+      }
       if (_searchQuery.isNotEmpty &&
           !record.title.toLowerCase().contains(_searchQuery.toLowerCase())) {
         return false;
@@ -293,6 +351,84 @@ class _InventoryScreenState extends State<InventoryScreen> {
       };
     });
     return records;
+  }
+
+  Future<void> _setArchived(
+    _InventoryRecord record, {
+    required bool archived,
+  }) async {
+    final key = record.favoriteKey;
+    if (_isSavingArchive) return;
+    setState(() => _isSavingArchive = true);
+    try {
+      final updated = Set<String>.of(_archivedOverrides ?? const {});
+      if (_archivedOverrides == null) {
+        final inventory = await _inventory;
+        updated.addAll(inventory.archivedKeys);
+      }
+      if (archived) {
+        updated.add(key);
+      } else {
+        updated.remove(key);
+      }
+      final preferences = await SharedPreferences.getInstance();
+      final saved = await preferences.setStringList(
+        _archivePreferenceKey,
+        updated.toList(growable: false),
+      );
+      if (!saved) {
+        if (mounted) {
+          setState(() => _isSavingArchive = false);
+          _showArchiveSaveFailure();
+        }
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _archivedOverrides = updated;
+        _isSavingArchive = false;
+      });
+      if (archived) _showArchiveMessage();
+    } on Exception catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'learning inventory',
+          context: ErrorDescription('while saving an archive change'),
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _isSavingArchive = false);
+      _showArchiveSaveFailure();
+    }
+  }
+
+  void _showArchiveSaveFailure() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Could not update the archive. Please try again.'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showArchiveMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Item placed in the archive',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        width: 310,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   Map<String, List<_InventoryRecord>> _groupRecords(
@@ -397,10 +533,15 @@ class _InventoryRecord {
 }
 
 class _InventoryData {
-  const _InventoryData({required this.records, required this.favoriteKeys});
+  const _InventoryData({
+    required this.records,
+    required this.favoriteKeys,
+    required this.archivedKeys,
+  });
 
   final List<_InventoryRecord> records;
   final Set<String> favoriteKeys;
+  final Set<String> archivedKeys;
 }
 
 class _InventoryControls extends StatelessWidget {
@@ -484,7 +625,7 @@ class _InventoryControls extends StatelessWidget {
       Align(
         alignment: Alignment.centerRight,
         child: SizedBox(
-          width: 210,
+          width: 310,
           child: DropdownButtonFormField<_InventorySort>(
             initialValue: sort,
             decoration: const InputDecoration(
@@ -516,6 +657,9 @@ class _InventoryTile extends StatelessWidget {
     required this.isFavorite,
     required this.isFavoritePending,
     required this.onFavorite,
+    required this.isArchived,
+    required this.isArchivePending,
+    required this.onArchive,
     required this.onTap,
   });
 
@@ -523,6 +667,9 @@ class _InventoryTile extends StatelessWidget {
   final bool isFavorite;
   final bool isFavoritePending;
   final VoidCallback onFavorite;
+  final bool isArchived;
+  final bool isArchivePending;
+  final VoidCallback onArchive;
   final VoidCallback onTap;
 
   @override
@@ -589,6 +736,22 @@ class _InventoryTile extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip: isArchived ? 'Restore to inventory' : 'Archive item',
+                onPressed: isArchivePending ? null : onArchive,
+                icon: isArchivePending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        isArchived
+                            ? Icons.unarchive_outlined
+                            : Icons.archive_outlined,
+                        color: _inventorySubtle,
+                      ),
               ),
               IconButton(
                 tooltip: isFavorite

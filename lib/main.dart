@@ -112,6 +112,20 @@ class MainApp extends StatelessWidget {
             ),
           ),
         ),
+        tooltipTheme: TooltipThemeData(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF8EB),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 14,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          textStyle: const TextStyle(color: Color(0xFF1F1A17), fontSize: 12),
+        ),
         scaffoldBackgroundColor: Colors.transparent,
         fontFamily: 'sans',
         appBarTheme: const AppBarTheme(

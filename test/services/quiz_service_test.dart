@@ -236,8 +236,8 @@ void main() {
     expect(averageQuizRetentionPercentage([quizzes.last]), isNull);
   });
 
-  test('latest quiz accuracy uses only the newest attempt per quiz', () {
-    final now = DateTime.utc(2026, 10, 16);
+  test('accuracy includes every attempt in the 28-day learning window', () {
+    final now = DateTime(2026, 10, 16);
     QuizScore score(int points, int total, int daysAgo) => QuizScore(
       score: points,
       totalQuestions: total,
@@ -253,12 +253,91 @@ void main() {
     );
 
     final quizzes = [
-      quiz('first', [score(0, 10, 1), score(8, 10, 0)]),
-      quiz('second', [score(1, 20, 2), score(1, 20, 1)]),
+      quiz('activity', [
+        score(8, 10, 0),
+        score(2, 10, 27),
+        score(10, 10, 28),
+        score(10, 10, -1),
+      ]),
     ];
 
-    expect(latestQuizAccuracyPercentage(quizzes), 30);
-    expect(latestQuizAccuracyPercentage([]), isNull);
+    expect(
+      quizLearningWindowAccuracyPercentage(
+        quizzes: quizzes,
+        accountCreatedAt: DateTime(2026, 1, 1),
+        now: now,
+      ),
+      50,
+    );
+    expect(
+      quizLearningWindowAccuracyPercentage(
+        quizzes: quizzes,
+        accountCreatedAt: now.subtract(const Duration(days: 10)),
+        now: now,
+      ),
+      80,
+    );
+    expect(
+      quizLearningWindowAccuracyPercentage(
+        quizzes: [],
+        accountCreatedAt: DateTime(2026, 1, 1),
+        now: now,
+      ),
+      isNull,
+    );
+    expect(
+      quizLearningWindowAccuracyPercentage(
+        quizzes: quizzes,
+        accountCreatedAt: null,
+        now: now,
+      ),
+      isNull,
+    );
+  });
+
+  test('weekly quiz metrics only use attempts from the last seven days', () {
+    final now = DateTime(2026, 10, 16);
+    QuizScore score(int points, int daysAgo) => QuizScore(
+      score: points,
+      totalQuestions: 10,
+      createdAt: now.subtract(Duration(days: daysAgo)),
+    );
+    final quiz = QuizActivity(
+      id: 'weekly-activity',
+      title: 'Weekly activity',
+      sourceFile: 'weekly.pdf',
+      createdAt: now,
+      questions: const [],
+      attempts: [score(8, 0), score(4, 6), score(10, 7), score(0, -1)],
+    );
+
+    expect(
+      quizLearningWindowAccuracyPercentage(
+        quizzes: [quiz],
+        accountCreatedAt: DateTime(2026, 1, 1),
+        windowDays: 7,
+        now: now,
+      ),
+      60,
+    );
+    expect(averageQuizRetentionPercentage([quiz], windowDays: 7, now: now), 60);
+    expect(
+      averageQuizImprovementPercentage([quiz], windowDays: 7, now: now),
+      40,
+    );
+    expect(
+      firstQuizAttemptFocusPercentage([quiz], windowDays: 7, now: now),
+      40,
+    );
+    expect(
+      quizLearningConsistencyPercentage(
+        quizzes: [quiz],
+        accountCreatedAt: DateTime(2026, 1, 1),
+        windowDays: 7,
+        now: now,
+      ),
+      closeTo(2 / 7 * 100, 0.001),
+    );
   });
 
   test('Focus uses the first attempt for each quiz', () {

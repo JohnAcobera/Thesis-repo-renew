@@ -172,27 +172,9 @@ class QuizActivity {
     );
   }
 
-  double? get retentionPercentage {
-    if (attempts.length < 2) return null;
+  double? get retentionPercentage => _retentionPercentage(attempts);
 
-    final orderedAttempts = List<QuizScore>.of(attempts)
-      ..sort((first, second) => second.createdAt.compareTo(first.createdAt));
-    return (orderedAttempts[0].percentage + orderedAttempts[1].percentage) / 2;
-  }
-
-  double? get improvementPercentage {
-    if (attempts.length < 2) return null;
-
-    final chronologicalAttempts = List<QuizScore>.of(attempts)
-      ..sort((first, second) => first.createdAt.compareTo(second.createdAt));
-    var totalChange = 0.0;
-    for (var index = 1; index < chronologicalAttempts.length; index++) {
-      totalChange +=
-          chronologicalAttempts[index].percentage -
-          chronologicalAttempts[index - 1].percentage;
-    }
-    return totalChange / (chronologicalAttempts.length - 1);
-  }
+  double? get improvementPercentage => _improvementPercentage(attempts);
 
   int get highestPercentage => attempts.fold(0, (highest, attempt) {
     final percentage = (attempt.score / attempt.totalQuestions * 100).round();
@@ -229,9 +211,21 @@ class QuizActivity {
   }
 }
 
-double? averageQuizRetentionPercentage(Iterable<QuizActivity> quizzes) {
+double? averageQuizRetentionPercentage(
+  Iterable<QuizActivity> quizzes, {
+  int? windowDays,
+  DateTime? now,
+}) {
   final quizAverages = quizzes
-      .map((quiz) => quiz.retentionPercentage)
+      .map(
+        (quiz) => _retentionPercentage(
+          _attemptsInRecentWindow(
+            quiz.attempts,
+            windowDays: windowDays,
+            now: now,
+          ),
+        ),
+      )
       .whereType<double>()
       .toList(growable: false);
   if (quizAverages.isEmpty) return null;
@@ -240,27 +234,59 @@ double? averageQuizRetentionPercentage(Iterable<QuizActivity> quizzes) {
       quizAverages.length;
 }
 
-double? latestQuizAccuracyPercentage(Iterable<QuizActivity> quizzes) {
+double? quizLearningWindowAccuracyPercentage({
+  required Iterable<QuizActivity> quizzes,
+  required DateTime? accountCreatedAt,
+  int windowDays = 28,
+  DateTime? now,
+}) {
+  final firstEligibleDate = _firstEligibleQuizActivityDate(
+    accountCreatedAt: accountCreatedAt,
+    now: now,
+    windowDays: windowDays,
+  );
+  if (firstEligibleDate == null) return null;
+
+  DateTime calendarDate(DateTime date) =>
+      DateTime.utc(date.year, date.month, date.day);
+  final today = calendarDate((now ?? DateTime.now()).toLocal());
   var totalScore = 0;
   var totalQuestions = 0;
   for (final quiz in quizzes) {
-    final attempt = quiz.latestAttempt;
-    if (attempt == null) continue;
+    for (final attempt in quiz.attempts) {
+      final attemptDate = calendarDate(attempt.createdAt.toLocal());
+      if (attemptDate.isBefore(firstEligibleDate) ||
+          attemptDate.isAfter(today)) {
+        continue;
+      }
 
-    totalScore += attempt.score;
-    totalQuestions += attempt.totalQuestions;
+      totalScore += attempt.score;
+      totalQuestions += attempt.totalQuestions;
+    }
   }
   if (totalQuestions == 0) return null;
 
   return totalScore / totalQuestions * 100;
 }
 
-double? firstQuizAttemptFocusPercentage(Iterable<QuizActivity> quizzes) {
+double? firstQuizAttemptFocusPercentage(
+  Iterable<QuizActivity> quizzes, {
+  int? windowDays,
+  DateTime? now,
+}) {
   var totalScore = 0;
   var totalQuestions = 0;
   for (final quiz in quizzes) {
-    final attempt = quiz.firstAttempt;
-    if (attempt == null) continue;
+    final attempts = _attemptsInRecentWindow(
+      quiz.attempts,
+      windowDays: windowDays,
+      now: now,
+    );
+    if (attempts.isEmpty) continue;
+
+    final attempt = attempts.reduce(
+      (first, next) => next.createdAt.isBefore(first.createdAt) ? next : first,
+    );
 
     totalScore += attempt.score;
     totalQuestions += attempt.totalQuestions;
@@ -273,21 +299,20 @@ double? firstQuizAttemptFocusPercentage(Iterable<QuizActivity> quizzes) {
 double? quizLearningConsistencyPercentage({
   required Iterable<QuizActivity> quizzes,
   required DateTime? accountCreatedAt,
+  int windowDays = 28,
   DateTime? now,
 }) {
-  if (accountCreatedAt == null) return null;
-
   DateTime calendarDate(DateTime date) =>
       DateTime.utc(date.year, date.month, date.day);
 
   final today = calendarDate((now ?? DateTime.now()).toLocal());
-  final creationDate = calendarDate(accountCreatedAt.toLocal());
-  if (creationDate.isAfter(today)) return null;
+  final firstEligibleDate = _firstEligibleQuizActivityDate(
+    accountCreatedAt: accountCreatedAt,
+    now: now,
+    windowDays: windowDays,
+  );
+  if (firstEligibleDate == null) return null;
 
-  final windowStart = today.subtract(const Duration(days: 27));
-  final firstEligibleDate = creationDate.isAfter(windowStart)
-      ? creationDate
-      : windowStart;
   final activeQuizDays = <DateTime>{};
   for (final quiz in quizzes) {
     for (final attempt in quiz.attempts) {
@@ -302,15 +327,92 @@ double? quizLearningConsistencyPercentage({
   return activeQuizDays.length / eligibleDays * 100;
 }
 
-double? averageQuizImprovementPercentage(Iterable<QuizActivity> quizzes) {
+DateTime? _firstEligibleQuizActivityDate({
+  required DateTime? accountCreatedAt,
+  required DateTime? now,
+  required int windowDays,
+}) {
+  if (windowDays < 1) {
+    throw ArgumentError.value(windowDays, 'windowDays', 'Must be positive.');
+  }
+
+  if (accountCreatedAt == null) return null;
+
+  DateTime calendarDate(DateTime date) =>
+      DateTime.utc(date.year, date.month, date.day);
+
+  final today = calendarDate((now ?? DateTime.now()).toLocal());
+  final creationDate = calendarDate(accountCreatedAt.toLocal());
+  if (creationDate.isAfter(today)) return null;
+
+  final windowStart = today.subtract(Duration(days: windowDays - 1));
+  return creationDate.isAfter(windowStart) ? creationDate : windowStart;
+}
+
+double? averageQuizImprovementPercentage(
+  Iterable<QuizActivity> quizzes, {
+  int? windowDays,
+  DateTime? now,
+}) {
   final quizAverages = quizzes
-      .map((quiz) => quiz.improvementPercentage)
+      .map(
+        (quiz) => _improvementPercentage(
+          _attemptsInRecentWindow(
+            quiz.attempts,
+            windowDays: windowDays,
+            now: now,
+          ),
+        ),
+      )
       .whereType<double>()
       .toList(growable: false);
   if (quizAverages.isEmpty) return null;
 
   return quizAverages.reduce((sum, average) => sum + average) /
       quizAverages.length;
+}
+
+List<QuizScore> _attemptsInRecentWindow(
+  Iterable<QuizScore> attempts, {
+  required int? windowDays,
+  required DateTime? now,
+}) {
+  if (windowDays == null) return attempts.toList(growable: false);
+  if (windowDays < 1) {
+    throw ArgumentError.value(windowDays, 'windowDays', 'Must be positive.');
+  }
+
+  DateTime calendarDate(DateTime date) =>
+      DateTime.utc(date.year, date.month, date.day);
+  final today = calendarDate((now ?? DateTime.now()).toLocal());
+  final firstEligibleDate = today.subtract(Duration(days: windowDays - 1));
+  return attempts
+      .where((attempt) {
+        final date = calendarDate(attempt.createdAt.toLocal());
+        return !date.isBefore(firstEligibleDate) && !date.isAfter(today);
+      })
+      .toList(growable: false);
+}
+
+double? _retentionPercentage(Iterable<QuizScore> attempts) {
+  final orderedAttempts = attempts.toList(growable: false)
+    ..sort((first, second) => second.createdAt.compareTo(first.createdAt));
+  if (orderedAttempts.length < 2) return null;
+  return (orderedAttempts[0].percentage + orderedAttempts[1].percentage) / 2;
+}
+
+double? _improvementPercentage(Iterable<QuizScore> attempts) {
+  final chronologicalAttempts = attempts.toList(growable: false)
+    ..sort((first, second) => first.createdAt.compareTo(second.createdAt));
+  if (chronologicalAttempts.length < 2) return null;
+
+  var totalChange = 0.0;
+  for (var index = 1; index < chronologicalAttempts.length; index++) {
+    totalChange +=
+        chronologicalAttempts[index].percentage -
+        chronologicalAttempts[index - 1].percentage;
+  }
+  return totalChange / (chronologicalAttempts.length - 1);
 }
 
 class ClassroomActivity {
