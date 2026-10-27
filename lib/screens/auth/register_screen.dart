@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 
 import '../../services/auth_service.dart';
 import '../../services/tutorial_service.dart';
@@ -18,20 +20,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
-  final _service = AuthService();
+  final _otpController = TextEditingController();
+  final _otpDigitControllers = List.generate(6, (_) => TextEditingController());
+  final _otpFocusNodes = List.generate(6, (_) => FocusNode());
+  late final _service = AuthService();
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
+  bool _otpSent = false;
   String? _error;
 
   Future<void> _register() async {
     if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
+    if (!_otpSent) {
+      await _sendVerificationCode();
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _error = null;
     });
     try {
+      final verification = await _invokeRegistrationOtp({
+        'action': 'verify',
+        'email': _emailController.text.trim(),
+        'otp': _otpController.text.trim(),
+        'password': _passwordController.text,
+      });
+      if (verification['success'] != true) {
+        throw const AuthException(
+          'The verification service returned an invalid response.',
+        );
+      }
+
       await _service.register(
         fullName: _nameController.text,
         email: _emailController.text,
@@ -77,13 +100,182 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  Future<void> _sendVerificationCode() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final response = await _invokeRegistrationOtp({
+        'action': 'send',
+        'email': _emailController.text.trim(),
+      });
+      if (response['success'] != true) {
+        throw const AuthException(
+          'The verification service returned an invalid response.',
+        );
+      }
+      if (mounted) {
+        setState(() => _otpSent = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              response['message'] as String? ??
+                  'Verification code sent. Check your inbox and spam folder.',
+                  
+            ),
+          ),
+        );
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _onOtpDigitChanged(
+    int index,
+    String value,
+    FormFieldState<String> field,
+  ) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.length > 1) {
+      for (var i = index; i < _otpDigitControllers.length; i++) {
+        final digitIndex = i - index;
+        _otpDigitControllers[i].text = digitIndex < digits.length
+            ? digits[digitIndex]
+            : '';
+      }
+      final nextIndex = (index + digits.length).clamp(
+        index,
+        _otpDigitControllers.length - 1,
+      );
+      _otpFocusNodes[nextIndex].requestFocus();
+    } else {
+      _otpDigitControllers[index].text = digits;
+      if (digits.isNotEmpty && index < _otpFocusNodes.length - 1) {
+        _otpFocusNodes[index + 1].requestFocus();
+      } else if (digits.isEmpty && index > 0) {
+        _otpFocusNodes[index - 1].requestFocus();
+      }
+    }
+
+    final otp = _otpDigitControllers
+        .map((controller) => controller.text)
+        .join();
+    _otpController.text = otp;
+    field.didChange(otp);
+  }
+
+  Future<Map<String, dynamic>> _invokeRegistrationOtp(
+    Map<String, String> body,
+  ) async {
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'registration-otp',
+        body: body,
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) {
+        return data.map((key, value) => MapEntry(key.toString(), value));
+      }
+      throw const AuthException(
+        'The verification service returned an invalid response.',
+      );
+    } on FunctionException catch (error) {
+      throw AuthException(
+        error.status == 0
+            ? 'Unable to connect to the verification service. Please try again.'
+            : 'The verification service could not process your request. Please try again.',
+      );
+    } on AuthException {
+      rethrow;
+    } on Exception {
+      throw const AuthException(
+        'Unable to connect to the verification service. Please try again.',
+      );
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _otpController.dispose();
+    for (final controller in _otpDigitControllers) {
+      controller.dispose();
+    }
+    for (final focusNode in _otpFocusNodes) {
+      focusNode.dispose();
+    }
     super.dispose();
+  }
+
+  Widget _otpInput() {
+    return FormField<String>(
+      validator: (value) => value == null || !RegExp(r'^\d{6}$').hasMatch(value)
+          ? 'Enter the six-digit verification code.'
+          : null,
+      builder: (field) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Email verification code',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (var i = 0; i < _otpDigitControllers.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                Expanded(
+                  child: Semantics(
+                    label: 'Verification code digit ${i + 1}',
+                    child: TextField(
+                      controller: _otpDigitControllers[i],
+                      focusNode: _otpFocusNodes[i],
+                      keyboardType: TextInputType.number,
+                      textInputAction: i == _otpDigitControllers.length - 1
+                          ? TextInputAction.done
+                          : TextInputAction.next,
+                      autofillHints: i == 0
+                          ? const [AutofillHints.oneTimeCode]
+                          : null,
+                      textAlign: TextAlign.center,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      onChanged: (value) => _onOtpDigitChanged(i, value, field),
+                      decoration: const InputDecoration(
+                        counterText: '',
+                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (field.errorText != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              field.errorText!,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          ] else
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('Enter the six-digit code sent to your email (Check spam folder).'),
+              
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -133,6 +325,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: const InputDecoration(labelText: 'Email'),
                       validator: _validateEmail,
                     ),
+                    if (_otpSent) ...[
+                      const SizedBox(height: 16),
+                      _otpInput(),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _isLoading ? null : _sendVerificationCode,
+                          child: const Text('Resend code'),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     _passwordField(
                       controller: _passwordController,
@@ -180,7 +383,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               width: 22,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Create account'),
+                          : Text(
+                              _otpSent
+                                  ? 'Verify and create account'
+                                  : 'Send verification code',
+                            ),
                     ),
                     TextButton(
                       onPressed: _isLoading
