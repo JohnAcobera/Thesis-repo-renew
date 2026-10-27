@@ -1383,7 +1383,8 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: InkWell(
-        onTap: () => widget.onMenuSelected(StudentMenuItem.inventory),
+        onTap: () =>
+            _openReviewSuggestion(_ReviewSuggestion.learning(activity)),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),

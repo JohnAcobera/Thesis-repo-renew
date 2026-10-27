@@ -933,6 +933,9 @@ class _MatchingScreenState extends State<MatchingScreen> {
                   onTap: () => _placeSelectedAnswer(index),
                   borderRadius: BorderRadius.circular(14),
                   child: AnimatedContainer(
+                    key: ValueKey(
+                      'matching-answer-target-${_batchStart + index}',
+                    ),
                     duration: const Duration(milliseconds: 160),
                     width: double.infinity,
                     constraints: const BoxConstraints(minHeight: 54),
@@ -943,12 +946,14 @@ class _MatchingScreenState extends State<MatchingScreen> {
                     decoration: BoxDecoration(
                       color: isHovering
                           ? const Color(0xFFFFE3D2)
-                          : selectedAnswer != null
+                          : _selectedAnswer != null
                           ? _studyFill
                           : Colors.white,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: isHovering || _selectedAnswer != null
+                        color: isHovering
+                            ? _studyPrimary
+                            : _selectedAnswer != null
                             ? _studyPrimary
                             : _studyBorder,
                         width: isHovering ? 2 : 1,

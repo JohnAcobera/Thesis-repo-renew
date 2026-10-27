@@ -161,6 +161,122 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('recent flashcard activity opens a study attempt', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    final client = SupabaseClient(
+      'https://example.supabase.co',
+      'test-key',
+      authOptions: const AuthClientOptions(autoRefreshToken: false),
+    );
+    final attemptedAt = DateTime.now().subtract(const Duration(days: 3));
+    final item = LearningInventoryItem(
+      id: 'flashcard-id',
+      type: LearningActivityType.flashcards,
+      title: 'Cell biology cards',
+      sourceFile: 'biology.pdf',
+      createdAt: attemptedAt,
+      flashcards: const [
+        Flashcard(
+          question: 'What stores genetic information?',
+          answer: 'The nucleus.',
+          explanation: 'The nucleus contains DNA.',
+        ),
+      ],
+      matchingPairs: const [],
+      attempts: [
+        LearningInventoryAttempt(
+          score: 3,
+          totalItems: 10,
+          createdAt: attemptedAt,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudentHomeScreen(
+          user: _student,
+          profileDataService: _FakeProfileDataService(),
+          todoRepository: _FakeTodoRepository(),
+          quizRepository: const _FakeQuizRepository([]),
+          learningModeService: _FakeLearningModeService(client, items: [item]),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final activityTitle = find.text('Cell biology cards').last;
+    await tester.ensureVisible(activityTitle);
+    await tester.tap(activityTitle);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Study flashcards'), findsOneWidget);
+    expect(find.text('What stores genetic information?'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('recent matching activity opens a study attempt', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    final client = SupabaseClient(
+      'https://example.supabase.co',
+      'test-key',
+      authOptions: const AuthClientOptions(autoRefreshToken: false),
+    );
+    final attemptedAt = DateTime.now().subtract(const Duration(days: 3));
+    final item = LearningInventoryItem(
+      id: 'matching-id',
+      type: LearningActivityType.matching,
+      title: 'Cell biology matching',
+      sourceFile: 'biology.pdf',
+      createdAt: attemptedAt,
+      flashcards: const [],
+      matchingPairs: const [
+        MatchingPair(
+          left: 'Nucleus',
+          right: 'Stores genetic information',
+          explanation: 'The nucleus contains DNA.',
+        ),
+      ],
+      attempts: [
+        LearningInventoryAttempt(
+          score: 3,
+          totalItems: 10,
+          createdAt: attemptedAt,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudentHomeScreen(
+          user: _student,
+          profileDataService: _FakeProfileDataService(),
+          todoRepository: _FakeTodoRepository(),
+          quizRepository: const _FakeQuizRepository([]),
+          learningModeService: _FakeLearningModeService(client, items: [item]),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final activityTitle = find.text('Cell biology matching').last;
+    await tester.ensureVisible(activityTitle);
+    await tester.tap(activityTitle);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Match the concepts'), findsOneWidget);
+    expect(find.text('Nucleus'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('dashboard omits the practice section on mobile', (tester) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);

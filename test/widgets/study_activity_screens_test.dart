@@ -6,6 +6,78 @@ import 'package:thesis_repo_renew/services/auth_service.dart';
 import 'package:thesis_repo_renew/services/learning_mode_service.dart';
 
 void main() {
+  testWidgets('matching targets do not reveal whether an answer is correct', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final client = SupabaseClient(
+      'https://example.supabase.co',
+      'test-key',
+      authOptions: const AuthClientOptions(autoRefreshToken: false),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MatchingScreen(
+          activityId: 'activity-id',
+          username: 'Student',
+          email: 'student@example.com',
+          title: 'Cell biology',
+          sourceFile: 'biology.txt',
+          pairs: const [
+            MatchingPair(
+              left: 'Prompt 0',
+              right: 'Answer 0',
+              explanation: 'Explanation 0',
+            ),
+            MatchingPair(
+              left: 'Prompt 1',
+              right: 'Answer 1',
+              explanation: 'Explanation 1',
+            ),
+          ],
+          learningModeService: _TestLearningModeService(client),
+        ),
+      ),
+    );
+
+    BoxDecoration targetDecoration(int index) =>
+        tester
+                .widget<AnimatedContainer>(
+                  find.byKey(ValueKey('matching-answer-target-$index')),
+                )
+                .decoration!
+            as BoxDecoration;
+
+    expect(targetDecoration(0).color, Colors.white);
+
+    await tester.tap(find.text('Answer 1'));
+    await tester.pumpAndSettle();
+    final prompt = find.byKey(const ValueKey('matching-answer-target-0'));
+    await tester.ensureVisible(prompt);
+    await tester.tap(prompt);
+    await tester.pumpAndSettle();
+
+    expect(targetDecoration(0).color, Colors.white);
+    expect(targetDecoration(0).border!.top.color, const Color(0xFFE8D7C2));
+    expect(find.text('That match may need another look.'), findsNothing);
+
+    await tester.tap(find.text('Answer 1').last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Answer 0'));
+    await tester.tap(find.text('Answer 0'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('matching-answer-target-0')));
+    await tester.pumpAndSettle();
+
+    expect(targetDecoration(0).color, Colors.white);
+    expect(targetDecoration(0).border!.top.color, const Color(0xFFE8D7C2));
+    expect(find.text('That match may need another look.'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('matching results review wrong answers and show corrections', (
     tester,
   ) async {
@@ -44,14 +116,16 @@ void main() {
 
     await tester.tap(find.text('Answer 1'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Tap to place selected answer').first);
-    await tester.tap(find.text('Tap to place selected answer').first);
+    final firstTarget = find.byKey(const ValueKey('matching-answer-target-0'));
+    await tester.ensureVisible(firstTarget);
+    await tester.tap(firstTarget);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Answer 0'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Tap to place selected answer'));
-    await tester.tap(find.text('Tap to place selected answer'));
+    final secondTarget = find.byKey(const ValueKey('matching-answer-target-1'));
+    await tester.ensureVisible(secondTarget);
+    await tester.tap(secondTarget);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Finish matching'));
     await tester.pumpAndSettle();
