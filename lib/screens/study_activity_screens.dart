@@ -23,6 +23,8 @@ class FlashcardsScreen extends StatefulWidget {
     this.role = 'student',
     this.createdAt,
     this.onMenuSelected,
+    this.learningModeService,
+    this.isReviewRound = false,
     super.key,
   });
 
@@ -35,6 +37,8 @@ class FlashcardsScreen extends StatefulWidget {
   final String role;
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
+  final LearningModeService? learningModeService;
+  final bool isReviewRound;
 
   @override
   State<FlashcardsScreen> createState() => _FlashcardsScreenState();
@@ -46,6 +50,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     (index) => index,
   );
   final Set<int> _mastered = {};
+  final Set<int> _reviewAgainCardIndexes = {};
   bool _isFlipped = false;
   bool _isHintVisible = false;
   bool _isFinished = false;
@@ -63,6 +68,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         _mastered.add(cardIndex);
       } else {
         _mastered.remove(cardIndex);
+        if (!widget.isReviewRound) _reviewAgainCardIndexes.add(cardIndex);
         final requeueAt = math.min(2, _queue.length);
         _queue.insert(requeueAt, cardIndex);
       }
@@ -72,7 +78,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
 
     if (_mastered.length == widget.cards.length) {
       setState(() => _isFinished = true);
-      await _saveResult();
+      if (!widget.isReviewRound) await _saveResult();
     }
   }
 
@@ -83,7 +89,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
       _saveError = null;
     });
     try {
-      await LearningModeService().saveAttempt(
+      await (widget.learningModeService ?? LearningModeService()).saveAttempt(
         itemId: widget.activityId,
         score: _mastered.length,
         totalItems: widget.cards.length,
@@ -147,7 +153,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _StudyHeading(
-          eyebrow: 'FLASHCARDS',
+          eyebrow: widget.isReviewRound ? 'CARD REVIEW' : 'FLASHCARDS',
           title: widget.title,
           subtitle: '${widget.cards.length} cards · ${widget.sourceFile}',
         ),
@@ -225,15 +231,66 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
 
   Widget _buildResult() => _ActivityResult(
     icon: Icons.style_rounded,
-    title: 'All cards mastered',
-    subtitle: 'You marked every card as understood. Great work!',
+    title: widget.isReviewRound ? 'Review complete' : 'All cards mastered',
+    subtitle: widget.isReviewRound
+        ? 'You revisited the cards you marked for review.'
+        : 'You marked every card as understood. Great work!',
     score: '${_mastered.length} / ${widget.cards.length}',
     isSaving: _isSaving,
     isSaved: _isSaved,
     saveError: _saveError,
     onRetrySave: _saveResult,
-    onDone: _returnToDashboard,
+    onDone: widget.isReviewRound
+        ? () => Navigator.of(context).pop()
+        : _returnToDashboard,
+    isPractice: widget.isReviewRound,
+    doneLabel: widget.isReviewRound ? 'Back to activity summary' : null,
+    followUp: !widget.isReviewRound && _reviewAgainCardIndexes.isNotEmpty
+        ? FilledButton.icon(
+            onPressed: _startReviewAgain,
+            icon: const Icon(Icons.replay_rounded),
+            label: Text(
+              'Review ${_reviewAgainCardIndexes.length} '
+              '${_reviewAgainCardIndexes.length == 1 ? 'card' : 'cards'} '
+              'marked for review',
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: _studyFill,
+              foregroundColor: _studyHeading,
+              side: const BorderSide(color: _studyPrimary, width: 1.5),
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              textStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          )
+        : null,
   );
+
+  void _startReviewAgain() {
+    final reviewCards = _reviewAgainCardIndexes.toList()..sort();
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => FlashcardsScreen(
+          activityId: widget.activityId,
+          username: widget.username,
+          email: widget.email,
+          title: widget.title,
+          sourceFile: widget.sourceFile,
+          cards: reviewCards.map((index) => widget.cards[index]).toList(),
+          role: widget.role,
+          createdAt: widget.createdAt,
+          onMenuSelected: widget.onMenuSelected,
+          learningModeService: widget.learningModeService,
+          isReviewRound: true,
+        ),
+      ),
+    );
+  }
 }
 
 class _FlipCard extends StatelessWidget {
@@ -1143,11 +1200,14 @@ class _ActivityResult extends StatelessWidget {
     required this.subtitle,
     required this.score,
     this.review,
+    this.followUp,
     required this.isSaving,
     required this.isSaved,
     required this.saveError,
     required this.onRetrySave,
     required this.onDone,
+    this.isPractice = false,
+    this.doneLabel,
   });
 
   final IconData icon;
@@ -1155,11 +1215,14 @@ class _ActivityResult extends StatelessWidget {
   final String subtitle;
   final String score;
   final Widget? review;
+  final Widget? followUp;
   final bool isSaving;
   final bool isSaved;
   final String? saveError;
   final VoidCallback onRetrySave;
   final VoidCallback onDone;
+  final bool isPractice;
+  final String? doneLabel;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1206,7 +1269,14 @@ class _ActivityResult extends StatelessWidget {
           ),
         ),
         if (review != null) ...[const SizedBox(height: 24), review!],
-        if (saveError != null) ...[
+        if (isPractice) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'This review round was not added to your activity history.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _studySubtle, fontSize: 13),
+          ),
+        ] else if (saveError != null) ...[
           const SizedBox(height: 12),
           Text(
             'Result not saved: $saveError',
@@ -1236,12 +1306,16 @@ class _ActivityResult extends StatelessWidget {
               ),
             ),
         ],
+        if (followUp != null) ...[
+          const SizedBox(height: 20),
+          SizedBox(width: double.infinity, child: followUp),
+        ],
         const SizedBox(height: 20),
         SizedBox(
           width: double.infinity,
           child: FilledButton(
-            onPressed: isSaved ? onDone : null,
-            child: const Text('Back to dashboard'),
+            onPressed: isPractice || isSaved ? onDone : null,
+            child: Text(doneLabel ?? 'Back to dashboard'),
           ),
         ),
       ],

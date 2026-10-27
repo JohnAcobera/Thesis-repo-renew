@@ -24,6 +24,7 @@ class QuizScreen extends StatefulWidget {
     this.createdAt,
     this.onMenuSelected,
     this.quizService,
+    this.isPracticeRound = false,
     super.key,
   });
 
@@ -39,6 +40,7 @@ class QuizScreen extends StatefulWidget {
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
   final QuizService? quizService;
+  final bool isPracticeRound;
 
   @override
   State<QuizScreen> createState() => _QuizScreenState();
@@ -67,7 +69,16 @@ class _QuizScreenState extends State<QuizScreen> {
     (index) => index,
   ).where((index) => _answers[index] == _questions[index].answerIndex).length;
 
+  List<QuizQuestion> get _missedQuestions => [
+    for (var index = 0; index < _questions.length; index++)
+      if (_answers[index] != _questions[index].answerIndex) _questions[index],
+  ];
+
   Future<void> _finishQuiz() async {
+    if (widget.isPracticeRound) {
+      setState(() => _showResults = true);
+      return;
+    }
     if (_isSaving || _isSaved) return;
     setState(() {
       _isSaving = true;
@@ -140,6 +151,10 @@ class _QuizScreenState extends State<QuizScreen> {
 
   void _returnToDashboard() {
     Navigator.of(context).pop(true);
+  }
+
+  void _returnToDashboardFromPractice() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
@@ -301,7 +316,9 @@ class _QuizScreenState extends State<QuizScreen> {
           borderRadius: BorderRadius.circular(30),
         ),
         child: Text(
-          _question.options.length == 2
+          widget.isPracticeRound
+              ? 'PRACTICE ROUND'
+              : _question.options.length == 2
               ? 'TRUE OR FALSE QUIZ'
               : 'MULTIPLE-CHOICE QUIZ',
           style: const TextStyle(
@@ -386,6 +403,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   Widget _buildResults() {
     final percent = (_score / _questions.length * 100).round();
+    final missedQuestions = _missedQuestions;
     return Column(
       children: [
         const SizedBox(height: 16),
@@ -402,16 +420,20 @@ class _QuizScreenState extends State<QuizScreen> {
                   color: _inputFill,
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: const Icon(
-                  Icons.emoji_events_rounded,
+                child: Icon(
+                  widget.isPracticeRound
+                      ? Icons.lightbulb_outline_rounded
+                      : Icons.emoji_events_rounded,
                   color: _primary,
                   size: 42,
                 ),
               ),
               const SizedBox(height: 18),
-              const Text(
-                'Quiz complete!',
-                style: TextStyle(
+              Text(
+                widget.isPracticeRound
+                    ? 'Practice complete!'
+                    : 'Quiz complete!',
+                style: const TextStyle(
                   color: _heading,
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
@@ -442,6 +464,45 @@ class _QuizScreenState extends State<QuizScreen> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              if (widget.isPracticeRound) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'This practice round was not saved as a quiz score.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _subtle),
+                ),
+              ],
+              if (missedQuestions.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _startMissedQuestionPractice,
+                    icon: const Icon(Icons.replay_rounded),
+                    label: Text(
+                      widget.isPracticeRound
+                          ? 'Practice ${missedQuestions.length} '
+                                '${missedQuestions.length == 1 ? 'question' : 'questions'} '
+                                'again'
+                          : 'Practice ${missedQuestions.length} missed '
+                                '${missedQuestions.length == 1 ? 'question' : 'questions'}',
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _inputFill,
+                      foregroundColor: _heading,
+                      side: const BorderSide(color: _primary, width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      textStyle: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               SizedBox(
                 height: (MediaQuery.sizeOf(context).height * 0.42)
@@ -452,12 +513,13 @@ class _QuizScreenState extends State<QuizScreen> {
                   child: _buildQuestionReview(),
                 ),
               ),
-              if (widget.previousAttempts.isNotEmpty) ...[
+              if (!widget.isPracticeRound &&
+                  widget.previousAttempts.isNotEmpty) ...[
                 const SizedBox(height: 24),
                 _buildPreviousAttempts(),
               ],
               const SizedBox(height: 24),
-              if (_saveError != null) ...[
+              if (!widget.isPracticeRound && _saveError != null) ...[
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
@@ -484,14 +546,14 @@ class _QuizScreenState extends State<QuizScreen> {
                   label: Text(_isSaving ? 'Saving...' : 'Retry saving score'),
                 ),
                 const SizedBox(height: 12),
-              ] else
+              ] else if (!widget.isPracticeRound)
                 Text(
                   _isSaved
                       ? 'Your score was saved to recent activity.'
                       : 'Saving your score...',
                   style: const TextStyle(color: _subtle),
                 ),
-              if (_isSaved) ...[
+              if (!widget.isPracticeRound && _isSaved) ...[
                 const SizedBox(height: 16),
                 _buildPointsAward(),
               ],
@@ -502,14 +564,54 @@ class _QuizScreenState extends State<QuizScreen> {
                 child: FilledButton.icon(
                   onPressed: _isSaving ? null : _returnToDashboard,
                   style: _buttonStyle,
-                  icon: const Icon(Icons.dashboard_outlined),
-                  label: const Text('Return to dashboard'),
+                  icon: Icon(
+                    widget.isPracticeRound
+                        ? Icons.arrow_back_rounded
+                        : Icons.dashboard_outlined,
+                  ),
+                  label: Text(
+                    widget.isPracticeRound
+                        ? 'Return to quiz results'
+                        : 'Return to dashboard',
+                  ),
                 ),
               ),
+              if (widget.isPracticeRound) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: _returnToDashboardFromPractice,
+                    style: _buttonStyle,
+                    icon: const Icon(Icons.dashboard_outlined),
+                    label: const Text('Return to dashboard'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ],
+    );
+  }
+
+  void _startMissedQuestionPractice() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => QuizScreen(
+          username: widget.username,
+          email: widget.email,
+          title: widget.title,
+          sourceFile: widget.sourceFile,
+          questions: _missedQuestions,
+          role: widget.role,
+          createdAt: widget.createdAt,
+          onMenuSelected: widget.onMenuSelected,
+          quizService: widget.quizService,
+          isPracticeRound: true,
+        ),
+      ),
     );
   }
 

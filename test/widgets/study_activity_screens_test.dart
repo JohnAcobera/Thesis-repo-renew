@@ -180,6 +180,81 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('flashcards offer a separate, unscored review round', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final client = SupabaseClient(
+      'https://example.supabase.co',
+      'test-key',
+      authOptions: const AuthClientOptions(autoRefreshToken: false),
+    );
+    final service = _TestLearningModeService(client);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FlashcardsScreen(
+          activityId: 'activity-id',
+          username: 'Student',
+          email: 'student@example.com',
+          title: 'Cell biology',
+          sourceFile: 'biology.txt',
+          learningModeService: service,
+          cards: const [
+            Flashcard(
+              question: 'What is osmosis?',
+              answer: 'Movement of water across a membrane.',
+              explanation:
+                  'Water moves across a selectively permeable barrier.',
+            ),
+            Flashcard(
+              question: 'What stores genetic information?',
+              answer: 'The nucleus.',
+              explanation: 'The nucleus contains DNA.',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('What is osmosis?'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review again'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('What stores genetic information?'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Got it'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('What is osmosis?'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Got it'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Review 1 card marked for review'), findsOneWidget);
+    expect(service.saveAttemptCalls, 1);
+    await tester.tap(find.text('Review 1 card marked for review'));
+    await tester.pumpAndSettle();
+    expect(find.text('CARD REVIEW'), findsOneWidget);
+    expect(find.text('What is osmosis?'), findsOneWidget);
+    await tester.tap(find.text('What is osmosis?'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Got it'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Review complete'), findsOneWidget);
+    expect(
+      find.text('This review round was not added to your activity history.'),
+      findsOneWidget,
+    );
+    expect(service.saveAttemptCalls, 1);
+    await tester.tap(find.text('Back to activity summary'));
+    await tester.pumpAndSettle();
+    expect(find.text('All cards mastered'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('matching activities present at most ten pairs per set', (
     tester,
   ) async {
@@ -333,10 +408,14 @@ class _TestLearningModeService extends LearningModeService {
         authService: AuthService(client: client),
       );
 
+  int saveAttemptCalls = 0;
+
   @override
   Future<void> saveAttempt({
     required String itemId,
     required int score,
     required int totalItems,
-  }) async {}
+  }) async {
+    saveAttemptCalls++;
+  }
 }

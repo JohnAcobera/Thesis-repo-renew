@@ -19,6 +19,7 @@ import '../instructor_todo_section.dart';
 import '../leaderboard_screen.dart';
 import '../profile_screen.dart';
 import '../quiz_screen.dart';
+import '../study_activity_screens.dart';
 import '../../widgets/student_performance_radar_chart.dart';
 import '../../widgets/student_side_menu.dart';
 
@@ -31,6 +32,8 @@ class StudentHomeScreen extends StatefulWidget {
     this.todoRepository,
     this.leaderboardRepository,
     this.notificationRepository,
+    this.quizRepository,
+    this.learningModeService,
     super.key,
   });
 
@@ -41,6 +44,8 @@ class StudentHomeScreen extends StatefulWidget {
   final InstructorTodoRepository? todoRepository;
   final LeaderboardRepository? leaderboardRepository;
   final StudentNotificationRepository? notificationRepository;
+  final QuizRepository? quizRepository;
+  final LearningModeService? learningModeService;
 
   @override
   State<StudentHomeScreen> createState() => _StudentHomeScreenState();
@@ -238,6 +243,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                                 onQuizCompleted: () =>
                                     setState(() => _activityRevision++),
                                 onMenuSelected: _selectMenuItem,
+                                quizRepository: widget.quizRepository,
+                                learningModeService: widget.learningModeService,
                               ),
                             )
                           else
@@ -249,6 +256,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                               onQuizCompleted: () =>
                                   setState(() => _activityRevision++),
                               onMenuSelected: _selectMenuItem,
+                              quizRepository: widget.quizRepository,
+                              learningModeService: widget.learningModeService,
                             ),
                           const SizedBox(height: 20),
                           SizedBox(
@@ -819,6 +828,8 @@ class _WideStudentDashboard extends StatelessWidget {
     required this.activityRevision,
     required this.onQuizCompleted,
     required this.onMenuSelected,
+    required this.quizRepository,
+    required this.learningModeService,
   });
 
   final UserModel user;
@@ -827,6 +838,8 @@ class _WideStudentDashboard extends StatelessWidget {
   final int activityRevision;
   final VoidCallback onQuizCompleted;
   final ValueChanged<StudentMenuItem> onMenuSelected;
+  final QuizRepository? quizRepository;
+  final LearningModeService? learningModeService;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -887,6 +900,8 @@ class _WideStudentDashboard extends StatelessWidget {
             user: user,
             onQuizCompleted: onQuizCompleted,
             onMenuSelected: onMenuSelected,
+            quizRepository: quizRepository,
+            learningModeService: learningModeService,
             scrollable: true,
           ),
           expandContent: true,
@@ -904,6 +919,8 @@ class _StackedStudentDashboard extends StatelessWidget {
     required this.activityRevision,
     required this.onQuizCompleted,
     required this.onMenuSelected,
+    required this.quizRepository,
+    required this.learningModeService,
   });
 
   final UserModel user;
@@ -912,6 +929,8 @@ class _StackedStudentDashboard extends StatelessWidget {
   final int activityRevision;
   final VoidCallback onQuizCompleted;
   final ValueChanged<StudentMenuItem> onMenuSelected;
+  final QuizRepository? quizRepository;
+  final LearningModeService? learningModeService;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -956,6 +975,8 @@ class _StackedStudentDashboard extends StatelessWidget {
             user: user,
             onQuizCompleted: onQuizCompleted,
             onMenuSelected: onMenuSelected,
+            quizRepository: quizRepository,
+            learningModeService: learningModeService,
             scrollable: true,
           ),
           expandContent: true,
@@ -970,6 +991,8 @@ class _RecentActivityContent extends StatefulWidget {
     required this.user,
     required this.onQuizCompleted,
     required this.onMenuSelected,
+    required this.quizRepository,
+    required this.learningModeService,
     this.scrollable = false,
     super.key,
   });
@@ -977,6 +1000,8 @@ class _RecentActivityContent extends StatefulWidget {
   final UserModel user;
   final VoidCallback onQuizCompleted;
   final ValueChanged<StudentMenuItem> onMenuSelected;
+  final QuizRepository? quizRepository;
+  final LearningModeService? learningModeService;
   final bool scrollable;
 
   @override
@@ -999,8 +1024,8 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
   Future<(List<QuizActivity>, List<LearningInventoryItem>)>
   _loadActivities() async {
     final results = await Future.wait<Object>([
-      QuizService().recentAttempts(),
-      LearningModeService().inventoryItems(),
+      (widget.quizRepository ?? QuizService()).recentAttempts(),
+      (widget.learningModeService ?? LearningModeService()).inventoryItems(),
     ]);
     return (
       results[0] as List<QuizActivity>,
@@ -1045,6 +1070,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
               .where((item) => item.attempts.isNotEmpty)
               .toList(growable: false) ??
           const <LearningInventoryItem>[];
+      final reviewSuggestion = _selectReviewSuggestion(quizzes, studyItems);
       final activities = <Object>[...quizzes, ...studyItems]
         ..sort((first, second) {
           final firstDate = first is QuizActivity
@@ -1055,147 +1081,301 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
               : (second as LearningInventoryItem).lastActivity;
           return secondDate.compareTo(firstDate);
         });
-      if (activities.isEmpty) {
-        return const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
-          child: Text(
-            'No learning activity yet. Complete a quiz or study session and it will appear here.',
-            style: TextStyle(color: Color(0xFF725F53)),
-          ),
-        );
-      }
 
-      return ListView.separated(
+      return ListView(
         shrinkWrap: !widget.scrollable,
         physics: widget.scrollable
             ? null
             : const NeverScrollableScrollPhysics(),
         padding: EdgeInsets.zero,
-        itemCount: activities.length,
-        separatorBuilder: (_, _) =>
+        children: [
+          if (reviewSuggestion != null) ...[
+            _buildReviewSuggestion(reviewSuggestion),
             const Divider(height: 1, color: Color(0xFFE8D7C2)),
-        itemBuilder: (context, index) {
-          final entry = activities[index];
-          if (entry is LearningInventoryItem) {
-            return _buildStudyModeActivity(entry);
-          }
-          final activity = entry as QuizActivity;
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () => _showQuizDetails(activity),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF1DF),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.quiz_outlined,
-                              color: Color(0xFFF4773C),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  activity.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Color(0xFF3B2419),
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  '${activity.sourceFile} · ${_formatActivityDate(activity.createdAt)}',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Color(0xFF725F53),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                if (activity.classroomName != null) ...[
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    'Classroom: ${activity.classroomName}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Color(0xFF8A6B58),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(height: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 9,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF1E5),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    '${activity.highestPercentage}% · ${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
-                                    style: const TextStyle(
-                                      color: Color(0xFFB84E25),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (_canRetake(activity))
-                  FilledButton(
-                    onPressed: () => _retakeQuiz(activity),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      visualDensity: VisualDensity.compact,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text('Retake'),
-                  )
-                else if (activity.classroomActivityId != null &&
-                    activity.maxAttempts != null &&
-                    activity.attempts.length >= activity.maxAttempts!)
-                  const Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: Color(0xFF578258),
-                    semanticLabel: 'Attempt limit reached',
-                  ),
-              ],
-            ),
-          );
-        },
+          ],
+          if (activities.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'No learning activity yet. Complete a quiz or study session and it will appear here.',
+                style: TextStyle(color: Color(0xFF725F53)),
+              ),
+            )
+          else
+            for (var index = 0; index < activities.length; index++) ...[
+              if (index > 0) const Divider(height: 1, color: Color(0xFFE8D7C2)),
+              if (activities[index] is LearningInventoryItem)
+                _buildStudyModeActivity(
+                  activities[index] as LearningInventoryItem,
+                )
+              else
+                _buildQuizActivity(activities[index] as QuizActivity),
+            ],
+        ],
       );
     },
   );
+
+  Widget _buildQuizActivity(QuizActivity activity) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: Row(
+      children: [
+        Expanded(
+          child: InkWell(
+            onTap: () => _showQuizDetails(activity),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF1DF),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.quiz_outlined,
+                      color: Color(0xFFF4773C),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          activity.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF3B2419),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '${activity.sourceFile} · ${_formatActivityDate(activity.createdAt)}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF725F53),
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (activity.classroomName != null) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            'Classroom: ${activity.classroomName}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF8A6B58),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1E5),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${activity.highestPercentage}% · ${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
+                            style: const TextStyle(
+                              color: Color(0xFFB84E25),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (_canRetake(activity))
+          FilledButton(
+            onPressed: () => _retakeQuiz(activity),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              visualDensity: VisualDensity.compact,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Retake'),
+          )
+        else if (activity.classroomActivityId != null &&
+            activity.maxAttempts != null &&
+            activity.attempts.length >= activity.maxAttempts!)
+          const Icon(
+            Icons.check_circle_outline_rounded,
+            color: Color(0xFF578258),
+            semanticLabel: 'Attempt limit reached',
+          ),
+      ],
+    ),
+  );
+
+  Widget _buildReviewSuggestion(_ReviewSuggestion suggestion) {
+    final title = suggestion.title;
+    final reason = suggestion.reason;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E9),
+        border: Border.all(color: const Color(0xFFF4DDC9)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.lightbulb_outline_rounded,
+                color: Color(0xFFF4773C),
+                size: 19,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'What should I review?',
+                style: TextStyle(
+                  color: Color(0xFF3B2419),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF3B2419),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            reason,
+            style: const TextStyle(color: Color(0xFF725F53), fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _openReviewSuggestion(suggestion),
+              icon: const Icon(Icons.play_arrow_rounded, size: 18),
+              label: Text(suggestion.actionLabel),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFF7434),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  _ReviewSuggestion? _selectReviewSuggestion(
+    List<QuizActivity> quizzes,
+    List<LearningInventoryItem> studyItems,
+  ) {
+    final candidates = <_ReviewSuggestion>[
+      for (final quiz in quizzes)
+        if (quiz.classroomActivityId == null && quiz.latestAttempt != null)
+          _ReviewSuggestion.quiz(quiz),
+      for (final item in studyItems)
+        if (item.attempts.isNotEmpty) _ReviewSuggestion.learning(item),
+    ];
+    if (candidates.isEmpty) return null;
+
+    final lowerScoring = candidates
+        .where(
+          (candidate) =>
+              candidate.latestPercentage != null &&
+              candidate.latestPercentage! < 70,
+        )
+        .toList();
+    if (lowerScoring.isNotEmpty) {
+      lowerScoring.sort((first, second) {
+        final scoreOrder = first.latestPercentage!.compareTo(
+          second.latestPercentage!,
+        );
+        if (scoreOrder != 0) return scoreOrder;
+        return first.lastPracticed.compareTo(second.lastPracticed);
+      });
+      return lowerScoring.first;
+    }
+
+    candidates.sort(
+      (first, second) => first.lastPracticed.compareTo(second.lastPracticed),
+    );
+    return candidates.first;
+  }
+
+  Future<void> _openReviewSuggestion(_ReviewSuggestion suggestion) async {
+    final quiz = suggestion.quiz;
+    if (quiz != null) {
+      await _retakeQuiz(quiz);
+      return;
+    }
+
+    final item = suggestion.learning!;
+    final user = widget.user;
+    final route = item.type == LearningActivityType.flashcards
+        ? MaterialPageRoute<bool>(
+            builder: (_) => FlashcardsScreen(
+              activityId: item.id,
+              username: user.fullName,
+              email: user.email,
+              role: user.role,
+              createdAt: user.createdAt,
+              onMenuSelected: widget.onMenuSelected,
+              title: item.title,
+              sourceFile: item.sourceFile,
+              cards: item.flashcards,
+              learningModeService: widget.learningModeService,
+            ),
+          )
+        : MaterialPageRoute<bool>(
+            builder: (_) => MatchingScreen(
+              activityId: item.id,
+              username: user.fullName,
+              email: user.email,
+              role: user.role,
+              createdAt: user.createdAt,
+              onMenuSelected: widget.onMenuSelected,
+              title: item.title,
+              sourceFile: item.sourceFile,
+              pairs: item.matchingPairs,
+              learningModeService: widget.learningModeService,
+            ),
+          );
+    final completed = await Navigator.of(context).push<bool>(route);
+    if (completed == true && mounted) widget.onQuizCompleted();
+  }
 
   Widget _buildStudyModeActivity(LearningInventoryItem activity) {
     final latestAttempt = activity.attempts.first;
@@ -1600,6 +1780,72 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
 
   bool _canRetake(QuizActivity activity) =>
       activity.classroomActivityId == null;
+}
+
+class _ReviewSuggestion {
+  const _ReviewSuggestion.quiz(this.quiz) : learning = null;
+
+  _ReviewSuggestion.learning(this.learning) : quiz = null;
+
+  final QuizActivity? quiz;
+  final LearningInventoryItem? learning;
+
+  String get title => quiz?.title ?? learning!.title;
+
+  double? get latestPercentage {
+    final activity = quiz;
+    if (activity != null) return activity.latestAttempt?.percentage;
+    final attempts = learning!.attempts;
+    if (attempts.isEmpty) return null;
+    return _latestLearningAttempt.percentage;
+  }
+
+  DateTime get lastPracticed {
+    final activity = quiz;
+    if (activity != null) {
+      return activity.latestAttempt?.createdAt ?? activity.createdAt;
+    }
+    return _latestLearningAttempt.createdAt;
+  }
+
+  LearningInventoryAttempt get _latestLearningAttempt {
+    final attempts = learning!.attempts;
+    return attempts.reduce(
+      (latest, attempt) =>
+          attempt.createdAt.isAfter(latest.createdAt) ? attempt : latest,
+    );
+  }
+
+  String get reason {
+    final percentage = latestPercentage;
+    if (percentage != null && percentage < 70) {
+      return 'Your latest result was ${percentage.round()}%.';
+    }
+    return 'You last practiced this on ${_formatReviewDate(lastPracticed)}.';
+  }
+
+  String get actionLabel => quiz == null
+      ? 'Review ${learning!.type == LearningActivityType.flashcards ? 'flashcards' : 'matching'}'
+      : 'Practice quiz';
+}
+
+String _formatReviewDate(DateTime date) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final localDate = date.toLocal();
+  return '${months[localDate.month - 1]} ${localDate.day}';
 }
 
 class _DashboardPanel extends StatelessWidget {

@@ -51,6 +51,139 @@ void main() {
     expect(find.text('Earth travels around the Sun.'), findsOneWidget);
   });
 
+  testWidgets(
+    'missed questions can be practiced without saving another score',
+    (tester) async {
+      tester.view.physicalSize = const Size(1000, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final client = SupabaseClient(
+        'https://example.supabase.co',
+        'test-key',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+      );
+      final service = _TestQuizService(client);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: QuizScreen(
+            username: 'Student',
+            email: 'student@example.com',
+            title: 'Science review',
+            sourceFile: 'science.txt',
+            questions: const [
+              QuizQuestion(
+                question: 'The Earth orbits the Sun.',
+                options: ['True', 'False'],
+                answerIndex: 0,
+                explanation: 'Earth travels around the Sun.',
+              ),
+            ],
+            quizService: service,
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('False'));
+      await tester.pump();
+      await tester.tap(find.text('See your score'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Practice 1 missed question'), findsOneWidget);
+      expect(service.saveAttemptCalls, 1);
+      expect(service.pointsCalls, 1);
+
+      await tester.tap(find.text('Practice 1 missed question'));
+      await tester.pumpAndSettle();
+      expect(find.text('PRACTICE ROUND'), findsOneWidget);
+      expect(find.text('The Earth orbits the Sun.'), findsOneWidget);
+      await tester.tap(find.text('False'));
+      await tester.pump();
+      await tester.tap(find.text('See your score'));
+      await tester.pumpAndSettle();
+      expect(find.text('Practice 1 question again'), findsOneWidget);
+      await tester.tap(find.text('Practice 1 question again'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('True'));
+      await tester.pump();
+      await tester.tap(find.text('See your score'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Practice complete!'), findsOneWidget);
+      expect(
+        find.text('This practice round was not saved as a quiz score.'),
+        findsOneWidget,
+      );
+      expect(find.text('Learner points from this quiz'), findsNothing);
+      expect(service.saveAttemptCalls, 1);
+      expect(service.pointsCalls, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('practice results can return directly to the dashboard', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Student dashboard'),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute<void>(
+                        builder: (_) => QuizScreen(
+                          username: 'Student',
+                          email: 'student@example.com',
+                          title: 'Science review',
+                          sourceFile: 'science.txt',
+                          isPracticeRound: true,
+                          questions: const [
+                            QuizQuestion(
+                              question: 'The Earth orbits the Sun.',
+                              options: ['True', 'False'],
+                              answerIndex: 0,
+                              explanation: 'Earth travels around the Sun.',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    child: const Text('Open practice'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open practice'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('False'));
+    await tester.pump();
+    await tester.tap(find.text('See your score'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Return to quiz results'), findsOneWidget);
+    final dashboardButton = find.text('Return to dashboard');
+    await tester.ensureVisible(dashboardButton);
+    await tester.tap(dashboardButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Student dashboard'), findsOneWidget);
+    expect(find.text('Practice complete!'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('quiz answer review scrolls through all 30 questions', (
     tester,
   ) async {
@@ -120,6 +253,9 @@ class _TestQuizService extends QuizService {
         authService: AuthService(client: client),
       );
 
+  int saveAttemptCalls = 0;
+  int pointsCalls = 0;
+
   @override
   Future<String> saveAttempt({
     required String title,
@@ -128,11 +264,17 @@ class _TestQuizService extends QuizService {
     required int totalQuestions,
     required List<QuizQuestion> questions,
     String? quizId,
-  }) async => 'saved-quiz-id';
+  }) async {
+    saveAttemptCalls++;
+    return 'saved-quiz-id';
+  }
 
   @override
   Future<int> learnerPointsForAttempt({
     required String quizId,
     String? classroomActivityId,
-  }) async => 0;
+  }) async {
+    pointsCalls++;
+    return 0;
+  }
 }

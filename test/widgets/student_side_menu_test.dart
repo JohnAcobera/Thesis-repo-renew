@@ -310,6 +310,33 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('dismissed tutorial stays dismissed even when opened again', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'quizforge_tutorial_dismissed_student@example.com': true,
+    });
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ImportScreen(
+          username: 'Student Name',
+          email: 'student@example.com',
+          showTutorialOnOpen: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Welcome to your first study session'), findsNothing);
+    expect(find.byTooltip('Dismiss tutorial'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('tutorial advances and scrolls to question types', (
     tester,
   ) async {

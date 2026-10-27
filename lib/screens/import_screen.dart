@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -99,7 +101,7 @@ class _ImportScreenState extends State<ImportScreen> {
       if (!mounted) return;
       final dismissed = preferences.getBool(_tutorialPreferenceKey) ?? false;
       setState(() {
-        _isTutorialVisible = widget.showTutorialOnOpen || !dismissed;
+        _isTutorialVisible = !dismissed;
         _isTutorialPreferenceLoaded = true;
       });
     } on Exception catch (error, stackTrace) {
@@ -724,146 +726,136 @@ class _ImportScreenState extends State<ImportScreen> {
         }
       },
       body: SafeArea(
-        child: Column(
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            if (_isTutorialPreferenceLoaded && _isTutorialVisible)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 800),
-                    child: _TutorialGuideCard(
-                      step:
-                          _tutorialSteps[_tutorialStepIndex
-                              .clamp(0, _tutorialSteps.length - 1)
-                              .toInt()],
-                      stepNumber: _tutorialStepIndex + 1,
-                      stepCount: _tutorialSteps.length,
-                      onPrevious: () => _advanceTutorial(-1),
-                      onNext: () =>
-                          _tutorialStepIndex == _tutorialSteps.length - 1
-                          ? _dismissTutorial()
-                          : _advanceTutorial(1),
-                      onDismiss: _dismissTutorial,
+            Column(
+              children: [
+                if (_isTutorialPreferenceLoaded && _isTutorialVisible)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: _TutorialGuideCard(
+                          step:
+                              _tutorialSteps[_tutorialStepIndex
+                                  .clamp(0, _tutorialSteps.length - 1)
+                                  .toInt()],
+                          stepNumber: _tutorialStepIndex + 1,
+                          stepCount: _tutorialSteps.length,
+                          onPrevious: () => _advanceTutorial(-1),
+                          onNext: () =>
+                              _tutorialStepIndex == _tutorialSteps.length - 1
+                              ? _dismissTutorial()
+                              : _advanceTutorial(1),
+                          onDismiss: _dismissTutorial,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: _setupScrollController,
-                padding: const EdgeInsets.all(24),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 800),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildHeader(),
-                        const SizedBox(height: 24),
-                        _tutorialTarget(
-                          _TutorialStep.learningMode,
-                          _LearningModePanel(
-                            selectedMode: _selectedMode,
-                            onChanged: (mode) => setState(() {
-                              _selectedMode = mode;
-                              _quizNameController.clear();
-                            }),
-                          ),
-                          key: _tutorialTargetKeys[_TutorialStep.learningMode],
-                        ),
-                        const SizedBox(height: 16),
-                        _tutorialTarget(
-                          _TutorialStep.sourceFile,
-                          _FilePickerPanel(
-                            selectedFile: _selectedFile,
-                            quizNameController: _quizNameController,
-                            activityName: _activityName,
-                            isDragHovered: _isDragHovered,
-                            useWebDropzone: kIsWeb,
-                            onPick: _pickFile,
-                            onClear: _clearFile,
-                            onDragHover: () => _setDragHovered(true),
-                            onDragLeave: () => _setDragHovered(false),
-                            onDropFiles: _handleDroppedFiles,
-                            onDropzoneCreated: (controller) =>
-                                _dropzoneController = controller,
-                            onWebDropFile: _handleWebDroppedFile,
-                          ),
-                          key: _tutorialTargetKeys[_TutorialStep.sourceFile],
-                        ),
-                        if (_selectedMode == _LearningMode.quiz) ...[
-                          const SizedBox(height: 16),
-                          _tutorialTarget(
-                            _TutorialStep.questionType,
-                            _QuestionTypesPanel(
-                              selectedTypes: _selectedTypes,
-                              onChanged: (type) => setState(() {
-                                if (_selectedTypes.contains(type)) {
-                                  if (_selectedTypes.length > 1) {
-                                    _selectedTypes.remove(type);
-                                  }
-                                } else {
-                                  _selectedTypes.add(type);
-                                }
-                              }),
-                            ),
-                            key:
-                                _tutorialTargetKeys[_TutorialStep.questionType],
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        _tutorialTarget(
-                          _TutorialStep.itemCount,
-                          _ItemCountPanel(
-                            selectedCount: _selectedItemCount,
-                            onChanged: (count) =>
-                                setState(() => _selectedItemCount = count),
-                          ),
-                          key: _tutorialTargetKeys[_TutorialStep.itemCount],
-                        ),
-                        const SizedBox(height: 24),
-                        _tutorialTarget(
-                          _TutorialStep.generate,
-                          _GenerateButton(
-                            onPressed: _generate,
-                            isLoading: _isGenerating,
-                            isEnabled: _selectedFile != null,
-                          ),
-                          key: _tutorialTargetKeys[_TutorialStep.generate],
-                        ),
-                        if (_isGenerating && _generationStatus != null) ...[
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.info_outline_rounded,
-                                color: _subtle,
-                                size: 18,
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _setupScrollController,
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeader(),
+                            const SizedBox(height: 24),
+                            _tutorialTarget(
+                              _TutorialStep.learningMode,
+                              _LearningModePanel(
+                                selectedMode: _selectedMode,
+                                onChanged: (mode) => setState(() {
+                                  _selectedMode = mode;
+                                  _quizNameController.clear();
+                                }),
                               ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  _generationStatus!,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: _subtle,
-                                    fontSize: 13,
-                                    height: 1.4,
-                                  ),
+                              key:
+                                  _tutorialTargetKeys[_TutorialStep
+                                      .learningMode],
+                            ),
+                            const SizedBox(height: 16),
+                            _tutorialTarget(
+                              _TutorialStep.sourceFile,
+                              _FilePickerPanel(
+                                selectedFile: _selectedFile,
+                                quizNameController: _quizNameController,
+                                activityName: _activityName,
+                                isDragHovered: _isDragHovered,
+                                useWebDropzone: kIsWeb,
+                                onPick: _pickFile,
+                                onClear: _clearFile,
+                                onDragHover: () => _setDragHovered(true),
+                                onDragLeave: () => _setDragHovered(false),
+                                onDropFiles: _handleDroppedFiles,
+                                onDropzoneCreated: (controller) =>
+                                    _dropzoneController = controller,
+                                onWebDropFile: _handleWebDroppedFile,
+                              ),
+                              key:
+                                  _tutorialTargetKeys[_TutorialStep.sourceFile],
+                            ),
+                            if (_selectedMode == _LearningMode.quiz) ...[
+                              const SizedBox(height: 16),
+                              _tutorialTarget(
+                                _TutorialStep.questionType,
+                                _QuestionTypesPanel(
+                                  selectedTypes: _selectedTypes,
+                                  onChanged: (type) => setState(() {
+                                    if (_selectedTypes.contains(type)) {
+                                      if (_selectedTypes.length > 1) {
+                                        _selectedTypes.remove(type);
+                                      }
+                                    } else {
+                                      _selectedTypes.add(type);
+                                    }
+                                  }),
                                 ),
+                                key:
+                                    _tutorialTargetKeys[_TutorialStep
+                                        .questionType],
                               ),
                             ],
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                      ],
+                            const SizedBox(height: 16),
+                            _tutorialTarget(
+                              _TutorialStep.itemCount,
+                              _ItemCountPanel(
+                                selectedCount: _selectedItemCount,
+                                onChanged: (count) =>
+                                    setState(() => _selectedItemCount = count),
+                              ),
+                              key: _tutorialTargetKeys[_TutorialStep.itemCount],
+                            ),
+                            const SizedBox(height: 24),
+                            _tutorialTarget(
+                              _TutorialStep.generate,
+                              _GenerateButton(
+                                onPressed: _generate,
+                                isLoading: _isGenerating,
+                                isEnabled: _selectedFile != null,
+                              ),
+                              key: _tutorialTargetKeys[_TutorialStep.generate],
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
+            if (_isGenerating)
+              Positioned.fill(
+                child: _GenerationLoadingOverlay(
+                  status: _generationStatus ?? 'Getting things ready...',
+                ),
+              ),
           ],
         ),
       ),
@@ -951,6 +943,258 @@ enum _TutorialStep {
   itemCount,
   generate,
 }
+
+class _GenerationLoadingOverlay extends StatefulWidget {
+  const _GenerationLoadingOverlay({required this.status});
+
+  final String status;
+
+  @override
+  State<_GenerationLoadingOverlay> createState() =>
+      _GenerationLoadingOverlayState();
+}
+
+class _GenerationLoadingOverlayState extends State<_GenerationLoadingOverlay> {
+  final math.Random _random = math.Random();
+  Timer? _tipTimer;
+  int _tipIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tipIndex = _random.nextInt(_learningTips.length);
+    _tipTimer = Timer.periodic(const Duration(seconds: 7), (_) {
+      if (!mounted) return;
+      var nextIndex = _tipIndex;
+      while (nextIndex == _tipIndex) {
+        nextIndex = _random.nextInt(_learningTips.length);
+      }
+      setState(() => _tipIndex = nextIndex);
+    });
+  }
+
+  @override
+  void dispose() {
+    _tipTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tip = _learningTips[_tipIndex];
+    return ColoredBox(
+      color: const Color(0xFFF9F5F0),
+      child: Semantics(
+        container: true,
+        liveRegion: true,
+        label: 'Preparing your study session',
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: _border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _heading.withValues(alpha: 0.08),
+                      blurRadius: 32,
+                      offset: const Offset(0, 14),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 68,
+                      height: 68,
+                      decoration: BoxDecoration(
+                        color: _inputFill,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: _primary,
+                        size: 34,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    const Text(
+                      'Preparing your study session',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _heading,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: Semantics(
+                        key: ValueKey(widget.status),
+                        liveRegion: true,
+                        child: Text(
+                          widget.status,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: _subtle,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: const LinearProgressIndicator(
+                        minHeight: 7,
+                        backgroundColor: _inputFill,
+                        valueColor: AlwaysStoppedAnimation<Color>(_primary),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8F0),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFF5E7D7)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.lightbulb_outline_rounded,
+                                color: _primary,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'A QUICK LEARNING TIP',
+                                  style: TextStyle(
+                                    color: _primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.9,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 400),
+                            transitionBuilder: (child, animation) =>
+                                FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, 0.08),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                ),
+                            child: Column(
+                              key: ValueKey(_tipIndex),
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  tip.title,
+                                  style: const TextStyle(
+                                    color: _heading,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  tip.description,
+                                  style: const TextStyle(
+                                    color: _subtle,
+                                    fontSize: 13,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LearningTip {
+  const _LearningTip(this.title, this.description);
+
+  final String title;
+  final String description;
+}
+
+const _learningTips = [
+  _LearningTip(
+    'Try recalling, not just rereading',
+    'Close your notes and try to explain the main idea from memory.',
+  ),
+  _LearningTip(
+    'Space out your practice',
+    'Short study sessions spread over time can help knowledge stick.',
+  ),
+  _LearningTip(
+    'Teach it in your own words',
+    'Explaining a concept simply can reveal what you understand and what to revisit.',
+  ),
+  _LearningTip(
+    'Mix up your practice',
+    'Switching between related topics helps you practice choosing the right approach.',
+  ),
+  _LearningTip(
+    'Break big topics into steps',
+    'Focus on one manageable piece at a time, then connect the pieces together.',
+  ),
+  _LearningTip(
+    'Use examples you can picture',
+    'Connecting an abstract idea to a concrete example makes it easier to work with.',
+  ),
+  _LearningTip(
+    'Take a short reset',
+    'A brief break between focused study blocks can help you return with fresh attention.',
+  ),
+  _LearningTip(
+    'Ask yourself: why?',
+    'Linking new ideas to what you already know makes them more meaningful.',
+  ),
+  _LearningTip(
+    'Sleep is part of studying',
+    'Rest supports memory and attention, so make room for it in your routine.',
+  ),
+  _LearningTip(
+    'Set one clear study goal',
+    'Decide what you want to understand before you begin to keep your session focused.',
+  ),
+];
 
 class _TutorialGuideCard extends StatelessWidget {
   const _TutorialGuideCard({
