@@ -4,6 +4,7 @@ import '../../models/admin_overview.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/admin_overview_service.dart';
+import '../../widgets/app_glass_surface.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -528,13 +529,8 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AppGlassCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE8D7C2)),
-        borderRadius: BorderRadius.circular(18),
-      ),
       child: Row(
         children: [
           Container(
@@ -585,9 +581,8 @@ class _RecentUpdatesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (updates.isEmpty) {
-      return Container(
+      return AppGlassCard(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-        decoration: _cardDecoration,
         child: const Center(
           child: Text(
             'No recent updates yet.',
@@ -597,8 +592,7 @@ class _RecentUpdatesCard extends StatelessWidget {
       );
     }
 
-    return Container(
-      decoration: _cardDecoration,
+    return AppGlassCard(
       child: Column(
         children: [
           for (var index = 0; index < updates.length; index++) ...[
@@ -704,12 +698,6 @@ class _OverviewError extends StatelessWidget {
     ),
   );
 }
-
-final _cardDecoration = BoxDecoration(
-  color: Colors.white,
-  border: Border.all(color: const Color(0xFFE8D7C2)),
-  borderRadius: BorderRadius.circular(18),
-);
 
 String _formatUpdateDate(DateTime date) {
   const months = [

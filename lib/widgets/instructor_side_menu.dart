@@ -26,7 +26,6 @@ class InstructorSideMenu extends StatelessWidget {
     required this.selectedMenu,
     required this.onMenuSelected,
     required this.onAboutSelected,
-    required this.onSettingsSelected,
     required this.onLogoutSelected,
     super.key,
   });
@@ -37,14 +36,15 @@ class InstructorSideMenu extends StatelessWidget {
   final InstructorMenuItem selectedMenu;
   final ValueChanged<InstructorMenuItem> onMenuSelected;
   final VoidCallback onAboutSelected;
-  final VoidCallback onSettingsSelected;
   final VoidCallback onLogoutSelected;
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      color: Color(0xFFFFFCF8),
-      border: Border(right: BorderSide(color: Color(0xFFE8D7C2))),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFFCF8).withValues(alpha: 0.6),
+      border: Border(
+        right: BorderSide(color: Colors.white.withValues(alpha: 0.8)),
+      ),
     ),
     child: SafeArea(
       child: Column(
@@ -101,11 +101,6 @@ class InstructorSideMenu extends StatelessWidget {
                   label: 'About',
                   icon: Icons.info_outline,
                   onTap: onAboutSelected,
-                ),
-                _InstructorMenuTile(
-                  label: 'Settings',
-                  icon: Icons.settings_outlined,
-                  onTap: onSettingsSelected,
                 ),
                 _InstructorMenuTile(
                   label: 'Logout',

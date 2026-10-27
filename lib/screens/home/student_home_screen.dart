@@ -22,6 +22,7 @@ import '../quiz_screen.dart';
 import '../study_activity_screens.dart';
 import '../../widgets/student_performance_radar_chart.dart';
 import '../../widgets/student_side_menu.dart';
+import '../../widgets/app_glass_surface.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({
@@ -662,13 +663,15 @@ class _LearningStreakCalendarState extends State<_LearningStreakCalendar> {
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
                                     color: isActive
-                                        ? const Color(0xFFFFE5D5)
+                                        ? const Color(0xFFFF7434)
                                         : Colors.transparent,
                                     shape: BoxShape.circle,
                                     border: isToday
                                         ? Border.all(
-                                            color: const Color(0xFFF4773C),
-                                            width: 1.5,
+                                            color: isActive
+                                                ? const Color(0xFFB64E20)
+                                                : const Color(0xFFFF7434),
+                                            width: 2,
                                           )
                                         : null,
                                   ),
@@ -676,7 +679,7 @@ class _LearningStreakCalendarState extends State<_LearningStreakCalendar> {
                                     '$day',
                                     style: TextStyle(
                                       color: isActive
-                                          ? const Color(0xFFB64E20)
+                                          ? Colors.white
                                           : const Color(0xFF4B352A),
                                       fontSize: 11,
                                       fontWeight: isActive || isToday
@@ -699,8 +702,8 @@ class _LearningStreakCalendarState extends State<_LearningStreakCalendar> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       const _CalendarLegendDot(
-                        color: Color(0xFFFFE5D5),
-                        borderColor: Color(0xFFFFE5D5),
+                        color: Color(0xFFFF7434),
+                        borderColor: Color(0xFFFF7434),
                         label: 'Learning day',
                       ),
                       const _CalendarLegendDot(
@@ -775,20 +778,10 @@ class _DashboardSectionPanel extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => AppGlassSurface(
+    borderRadius: 20,
     padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: const Color(0xFFE8D7C2)),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x12000000),
-          blurRadius: 18,
-          offset: Offset(0, 6),
-        ),
-      ],
-    ),
+    width: double.infinity,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1892,21 +1885,10 @@ class _DashboardPanel extends StatelessWidget {
         secondaryActionLabel != null && onSecondaryAction != null;
     final hasAction = hasPrimaryAction || hasSecondaryAction;
 
-    return Container(
-      width: double.infinity,
+    return AppGlassSurface(
+      borderRadius: 16,
       padding: EdgeInsets.all(hasAction || content != null ? 18 : 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE8D7C2)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A3B2419),
-            blurRadius: 18,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
+      width: double.infinity,
       child: Column(
         mainAxisSize: hasAction ? MainAxisSize.min : MainAxisSize.max,
         mainAxisAlignment: centerContent && !titleAtTop

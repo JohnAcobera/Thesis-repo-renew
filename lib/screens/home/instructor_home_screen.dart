@@ -20,6 +20,7 @@ import '../profile_screen.dart';
 import '../instructor_todo_section.dart';
 import '../../widgets/instructor_side_menu.dart';
 import '../../widgets/student_nav_bar.dart';
+import '../../widgets/app_glass_surface.dart';
 import '../../widgets/student_side_menu.dart' show StudentMenuItem;
 import '../auth/login_screen.dart';
 
@@ -114,7 +115,7 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
     final user = widget.user;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF8EE),
+      backgroundColor: Colors.transparent,
       appBar: StudentNavBar(
         roleLabel: _displayRole,
         title: _selectedMenu == InstructorMenuItem.classroom
@@ -142,7 +143,6 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
             ),
           ),
         ),
-        onSettingsSelected: () {},
         onLogoutSelected: _logout,
         leading: IconButton(
           tooltip: _isMenuOpen ? 'Close menu' : 'Open menu',
@@ -243,7 +243,6 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
                           selectedMenu: _selectedMenu,
                           onMenuSelected: _selectMenuItem,
                           onAboutSelected: _closeMenu,
-                          onSettingsSelected: _closeMenu,
                           onLogoutSelected: _logout,
                         ),
                       ),
@@ -510,68 +509,60 @@ class _MetricCard extends StatelessWidget {
   final String? value;
 
   @override
-  Widget build(BuildContext context) => Container(
-    height: 156,
+  Widget build(BuildContext context) => AppGlassSurface(
+    borderRadius: 16,
     padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFE8D7C2)),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x0A3B2419),
-          blurRadius: 18,
-          offset: Offset(0, 6),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: tint,
-                borderRadius: BorderRadius.circular(12),
+    child: SizedBox(
+      height: 156,
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: tint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 21),
               ),
-              child: Icon(icon, color: iconColor, size: 21),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF765C4F),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF765C4F),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        Text(
-          value ?? '—',
-          style: const TextStyle(
-            color: Color(0xFF3B2419),
-            fontSize: 30,
-            fontWeight: FontWeight.w700,
-            height: 1,
+            ],
           ),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          caption,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Color(0xFF765C4F), fontSize: 11),
-        ),
-      ],
+          const SizedBox(height: 18),
+          Text(
+            value ?? '—',
+            style: const TextStyle(
+              color: Color(0xFF3B2419),
+              fontSize: 30,
+              fontWeight: FontWeight.w700,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(0xFF765C4F), fontSize: 11),
+          ),
+        ],
+      ),
     ),
   );
 }

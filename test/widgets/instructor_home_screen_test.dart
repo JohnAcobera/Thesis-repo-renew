@@ -149,11 +149,11 @@ void main() {
         'Learning Materials',
         'Reports',
         'About',
-        'Settings',
         'Logout',
       ]) {
         expect(find.text(menuItem), findsOneWidget);
       }
+      expect(find.text('Settings'), findsNothing);
       expect(find.text('INSTRUCTOR'), findsOneWidget);
       final profileDetailsCount = size.width >= 600 ? 2 : 1;
       expect(find.text('Instructor Name'), findsNWidgets(profileDetailsCount));

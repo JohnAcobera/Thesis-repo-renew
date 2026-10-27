@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/admin/admin_login_screen.dart';
 import 'screens/landing/landing_screen.dart';
+import 'widgets/app_background.dart';
 
 const _buttonColor = Color(0xFFFF7434);
 
@@ -43,22 +44,33 @@ class MainApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
         final mediaQuery = MediaQuery.of(context);
-        if (mediaQuery.size.width >= 600) {
-          return child ?? const SizedBox.shrink();
-        }
+        final content = mediaQuery.size.width < 600
+            ? MediaQuery(
+                data: mediaQuery.copyWith(
+                  textScaler: _ScaledTextScaler(mediaQuery.textScaler, 0.9),
+                ),
+                child: child ?? const SizedBox.shrink(),
+              )
+            : child ?? const SizedBox.shrink();
 
-        return MediaQuery(
-          data: mediaQuery.copyWith(
-            textScaler: _ScaledTextScaler(mediaQuery.textScaler, 0.9),
-          ),
-          child: child ?? const SizedBox.shrink(),
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            const Positioned.fill(child: AppBackground()),
+            content,
+          ],
         );
       },
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _buttonColor,
-          brightness: Brightness.light,
-        ).copyWith(primary: _buttonColor),
+        colorScheme:
+            ColorScheme.fromSeed(
+              seedColor: _buttonColor,
+              brightness: Brightness.light,
+            ).copyWith(
+              primary: _buttonColor,
+              surface: const Color(0xFFFFFCF8),
+              onSurface: const Color(0xFF3B2419),
+            ),
         pageTransitionsTheme: PageTransitionsTheme(
           builders: {
             for (final platform in TargetPlatform.values)
@@ -69,28 +81,80 @@ class MainApp extends StatelessWidget {
           style: FilledButton.styleFrom(
             backgroundColor: _buttonColor,
             foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: _buttonColor,
             foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             foregroundColor: _buttonColor,
             side: const BorderSide(color: _buttonColor),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
         ),
         textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(foregroundColor: _buttonColor),
+          style: TextButton.styleFrom(
+            foregroundColor: _buttonColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
         ),
-        scaffoldBackgroundColor: const Color(0xFFFFF8EE),
+        scaffoldBackgroundColor: Colors.transparent,
         fontFamily: 'sans',
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Color(0xFF3B2419),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+        ),
+        cardTheme: CardThemeData(
+          color: Colors.white.withValues(alpha: 0.6),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: Colors.white.withValues(alpha: 0.78),
+              width: 1.2,
+            ),
+          ),
+        ),
+        dialogTheme: DialogThemeData(
+          backgroundColor: const Color(0xFFFFFCF8).withValues(alpha: 0.96),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: BorderSide(
+              color: Colors.white.withValues(alpha: 0.88),
+              width: 1.2,
+            ),
+          ),
+        ),
+        bottomSheetTheme: BottomSheetThemeData(
+          backgroundColor: const Color(0xFFFFFCF8).withValues(alpha: 0.96),
+          surfaceTintColor: Colors.transparent,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+        ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFFFFF1DF),
+          fillColor: const Color(0xFFFFF1DF).withValues(alpha: 0.88),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
             borderSide: const BorderSide(color: Color(0xFFE8D7C2)),

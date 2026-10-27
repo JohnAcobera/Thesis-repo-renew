@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/leaderboard_service.dart';
+import '../widgets/app_glass_surface.dart';
 
 const _primary = Color(0xFFFF7434);
 const _heading = Color(0xFF3B2419);
@@ -161,13 +162,9 @@ class _StandingsCard extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => AppGlassSurface(
+    borderRadius: 24,
     padding: const EdgeInsets.all(22),
-    decoration: BoxDecoration(
-      color: _surface,
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: _border),
-    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

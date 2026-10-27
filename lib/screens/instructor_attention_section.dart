@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/instructor_report.dart';
 import '../services/instructor_reports_service.dart';
+import '../widgets/app_glass_surface.dart';
 
 const _attentionAccent = Color(0xFFF4773C);
 const _attentionInk = Color(0xFF3B2419);
@@ -255,15 +256,11 @@ class _AttentionStudentCard extends StatelessWidget {
   final _AttentionStudent student;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => AppGlassSurface(
     key: ValueKey('attention-student-${student.id}'),
     width: double.infinity,
+    borderRadius: 12,
     padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFFCF8),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: _attentionBorder),
-    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

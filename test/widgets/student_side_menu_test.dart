@@ -24,6 +24,11 @@ void main() {
 
     expect(find.byTooltip('Import'), findsNothing);
     expect(find.byTooltip('Open profile menu'), findsOneWidget);
+    await tester.tap(find.byTooltip('Open profile menu'));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Logout'), findsOneWidget);
+    expect(find.text('Settings'), findsNothing);
   });
 
   testWidgets('student scaffold keeps a back action beside the menu', (
@@ -191,6 +196,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Settings'), findsNothing);
     expect(find.text('STUDENT'), findsOneWidget);
     expect(find.text('Student'), findsNothing);
 

@@ -38,7 +38,6 @@ class StudentScaffold extends StatefulWidget {
     this.role = 'Student',
     this.selectedMenu,
     this.onMenuSelected,
-    this.onSettingsSelected,
     this.onBack,
     this.trailingAction,
     this.notificationRepository,
@@ -53,7 +52,6 @@ class StudentScaffold extends StatefulWidget {
   final Widget body;
   final StudentMenuItem? selectedMenu;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
-  final VoidCallback? onSettingsSelected;
   final VoidCallback? onBack;
   final Widget? trailingAction;
   final StudentNotificationRepository? notificationRepository;
@@ -168,14 +166,13 @@ class _StudentScaffoldState extends State<StudentScaffold> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFFFFF8EE),
+    backgroundColor: Colors.transparent,
     appBar: StudentNavBar(
       title: widget.title,
       roleLabel: widget.role,
       username: widget.username,
       email: widget.email,
       onProfileSelected: () => _selectMenuItem(StudentMenuItem.profile),
-      onSettingsSelected: widget.onSettingsSelected,
       trailingAction: widget.trailingAction,
       notificationRepository: widget.notificationRepository,
       onNotificationSelected:
@@ -280,7 +277,6 @@ class _StudentScaffoldState extends State<StudentScaffold> {
                           role: widget.role,
                           selectedMenu: _selectedMenu,
                           onMenuSelected: _selectMenuItem,
-                          onSettingsSelected: widget.onSettingsSelected,
                           onLogoutSelected: _logout,
                         ),
                       ),
@@ -303,7 +299,6 @@ class _StudentSideMenu extends StatelessWidget {
     required this.role,
     required this.selectedMenu,
     required this.onMenuSelected,
-    required this.onSettingsSelected,
     required this.onLogoutSelected,
   });
 
@@ -312,14 +307,15 @@ class _StudentSideMenu extends StatelessWidget {
   final String role;
   final StudentMenuItem? selectedMenu;
   final ValueChanged<StudentMenuItem> onMenuSelected;
-  final VoidCallback? onSettingsSelected;
   final VoidCallback onLogoutSelected;
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      color: Color(0xFFFFFCF8),
-      border: Border(right: BorderSide(color: Color(0xFFE8D7C2))),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFFCF8).withValues(alpha: 0.8),
+      border: Border(
+        right: BorderSide(color: Colors.white.withValues(alpha: 0.8)),
+      ),
     ),
     child: SafeArea(
       child: Column(
@@ -371,11 +367,6 @@ class _StudentSideMenu extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
             child: Column(
               children: [
-                _MenuFooterAction(
-                  icon: Icons.settings_outlined,
-                  label: 'Settings',
-                  onTap: onSettingsSelected,
-                ),
                 _MenuFooterAction(
                   icon: Icons.logout,
                   label: 'Logout',

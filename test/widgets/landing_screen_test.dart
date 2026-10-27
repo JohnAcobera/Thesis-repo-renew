@@ -54,7 +54,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('landing page explains study features in plain language', (
+  testWidgets('landing page lists available student study features', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 1600);
@@ -67,12 +67,23 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Practice Questions'), findsOneWidget);
-    expect(find.text('Printable Study Guides'), findsOneWidget);
-    expect(find.text('Study Anywhere'), findsOneWidget);
-    expect(find.text('Track Your Progress'), findsOneWidget);
+    expect(find.text('Create Practice Quizzes'), findsOneWidget);
+    expect(find.text('Review with Flashcards'), findsOneWidget);
+    expect(find.text('Practice Matching'), findsOneWidget);
+    expect(find.text('Your Learning Library'), findsOneWidget);
+    expect(find.text('Find Activities Easily'), findsOneWidget);
+    expect(find.text('Keep Favorites Close'), findsOneWidget);
+    expect(find.text('See Your Progress'), findsOneWidget);
+    expect(find.text('Build a Learning Streak'), findsOneWidget);
+    expect(find.text('Check the Weekly Leaderboard'), findsOneWidget);
+    expect(find.byType(BackdropFilter), findsNWidgets(10));
+    expect(find.text('Classroom Activities'), findsNothing);
+    expect(find.text('Classrooms for Teachers'), findsNothing);
+    expect(find.text('Teacher Dashboard'), findsNothing);
+    expect(find.text('Printable Study Guides'), findsNothing);
+    expect(find.text('Study Anywhere'), findsNothing);
+    expect(find.text('Achievements'), findsNothing);
     expect(find.text('AI Quiz Generation'), findsNothing);
-    expect(find.text('Export to PDF'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

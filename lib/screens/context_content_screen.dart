@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show TextInputFormatter;
 
 import '../services/handout_pdf_exporter.dart';
 import '../services/handout_service.dart';
+import '../widgets/app_glass_surface.dart';
 
 class ContextContentScreen extends StatefulWidget {
   const ContextContentScreen({this.generator, this.pdfExporter, super.key});
@@ -178,231 +179,170 @@ class _ContextContentScreenState extends State<ContextContentScreen> {
           height: constraints.maxHeight,
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFFE8D7C2)),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF3B2419).withValues(alpha: 0.05),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF1DF),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(
-                              Icons.auto_awesome_rounded,
-                              color: Color(0xFFFF7434),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 11,
-                              vertical: 7,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF1DF),
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: const Text(
-                              'STUDY CONTENT',
-                              style: TextStyle(
-                                color: Color(0xFFFF7434),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1,
-                              ),
-                            ),
+            child: LayoutBuilder(
+              builder: (context, contentConstraints) {
+                final isWide = contentConstraints.maxWidth >= 600;
+                final palettePanel = _buildPalettePanel();
+                final previewPanel = _handout == null
+                    ? _buildExamplePreview()
+                    : _buildGeneratedPreview();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: const Color(0xFFE8D7C2)),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF3B2419,
+                            ).withValues(alpha: 0.05),
+                            blurRadius: 18,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
-                      const Text(
-                        'Start with an idea',
-                        style: TextStyle(
-                          color: Color(0xFF3B2419),
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Share a topic, question, or class notes. We will turn it '
-                        'into a clear handout with organized sections and key '
-                        'terms.',
-                        style: TextStyle(color: Color(0xFF725F53), height: 1.5),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Your topic or notes',
-                  style: TextStyle(
-                    color: Color(0xFF3B2419),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _contextController,
-                  minLines: 4,
-                  maxLines: 6,
-                  inputFormatters: [
-                    TextInputFormatter.withFunction((oldValue, newValue) {
-                      final value = _limitToServiceLength(newValue.text);
-                      if (value == newValue.text) return newValue;
-                      final cursor = newValue.selection.extentOffset
-                          .clamp(0, value.length)
-                          .toInt();
-                      return newValue.copyWith(
-                        text: value,
-                        selection: TextSelection.collapsed(offset: cursor),
-                        composing: TextRange.empty,
-                      );
-                    }),
-                  ],
-                  textCapitalization: TextCapitalization.sentences,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: 'Your context',
-                    hintText: 'e.g. Explain the water cycle for beginners',
-                    alignLabelWithHint: true,
-                    counterText: '${_contextController.text.length}/200',
-                    filled: true,
-                    fillColor: const Color(0xFFFFF8F1),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFFE8D7C2)),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Customize your handout',
-                        style: TextStyle(
-                          color: Color(0xFF3B2419),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Choose colors for each part of your content.',
-                        style: TextStyle(
-                          color: Color(0xFF725F53),
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _ColorSettingRow(
-                        label: 'Title',
-                        color: _titleColor,
-                        onTap: () => _chooseColor(
-                          label: 'Title',
-                          selectedColor: _titleColor,
-                          onSelected: (color) =>
-                              _updateStyle(titleColor: color),
-                        ),
-                      ),
-                      _ColorSettingRow(
-                        label: 'Terms',
-                        color: _termsColor,
-                        onTap: () => _chooseColor(
-                          label: 'Terms',
-                          selectedColor: _termsColor,
-                          onSelected: (color) =>
-                              _updateStyle(termsColor: color),
-                        ),
-                      ),
-                      _ColorSettingRow(
-                        label: 'Definitions',
-                        color: _definitionsColor,
-                        onTap: () => _chooseColor(
-                          label: 'Definitions',
-                          selectedColor: _definitionsColor,
-                          onSelected: (color) =>
-                              _updateStyle(definitionsColor: color),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (_handout == null)
-                  Card(
-                    color: const Color(0xFFFFF8F1),
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Preview',
+                          Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF1DF),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.auto_awesome_rounded,
+                                  color: Color(0xFFFF7434),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 11,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF1DF),
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                child: const Text(
+                                  'STUDY CONTENT',
+                                  style: TextStyle(
+                                    color: Color(0xFFFF7434),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+                          const Text(
+                            'Start with an idea',
                             style: TextStyle(
-                              color: _titleColor,
-                              fontSize: 21,
+                              color: Color(0xFF3B2419),
+                              fontSize: 26,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Example term',
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Share a topic, question, or class notes. We will turn it '
+                            'into a clear handout with organized sections and key '
+                            'terms.',
                             style: TextStyle(
-                              color: _termsColor,
-                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF725F53),
+                              height: 1.5,
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'A sample definition will appear here.',
-                            style: TextStyle(color: _definitionsColor),
                           ),
                         ],
                       ),
                     ),
-                  )
-                else
-                  SizedBox(
-                    height: (MediaQuery.sizeOf(context).height * 0.38)
-                        .clamp(160.0, 360.0)
-                        .toDouble(),
-                    child: SingleChildScrollView(
-                      key: const ValueKey('generated-handout-scroll'),
-                      child: _GeneratedHandoutPreview(handout: _handout!),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Your topic or notes',
+                      style: TextStyle(
+                        color: Color(0xFF3B2419),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-              ],
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _contextController,
+                      minLines: 4,
+                      maxLines: 6,
+                      inputFormatters: [
+                        TextInputFormatter.withFunction((oldValue, newValue) {
+                          final value = _limitToServiceLength(newValue.text);
+                          if (value == newValue.text) return newValue;
+                          final cursor = newValue.selection.extentOffset
+                              .clamp(0, value.length)
+                              .toInt();
+                          return newValue.copyWith(
+                            text: value,
+                            selection: TextSelection.collapsed(offset: cursor),
+                            composing: TextRange.empty,
+                          );
+                        }),
+                      ],
+                      textCapitalization: TextCapitalization.sentences,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        labelText: 'Your context',
+                        hintText: 'e.g. Explain the water cycle for beginners',
+                        alignLabelWithHint: true,
+                        counterText: '${_contextController.text.length}/200',
+                        filled: true,
+                        fillColor: const Color(0xFFFFF8F1),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    if (_handout == null) ...[
+                      if (isWide)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: previewPanel),
+                            const SizedBox(width: 12),
+                            Expanded(child: palettePanel),
+                          ],
+                        )
+                      else ...[
+                        previewPanel,
+                        const SizedBox(height: 12),
+                        palettePanel,
+                      ],
+                    ] else if (isWide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: previewPanel),
+                          const SizedBox(width: 16),
+                          SizedBox(width: 240, child: palettePanel),
+                        ],
+                      )
+                    else ...[
+                      previewPanel,
+                      const SizedBox(height: 12),
+                      palettePanel,
+                    ],
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -466,6 +406,91 @@ class _ContextContentScreenState extends State<ContextContentScreen> {
       ),
     ),
   );
+
+  Widget _buildPalettePanel() => AppGlassCard(
+    key: const ValueKey('handout-palette-panel'),
+    padding: const EdgeInsets.all(12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Customize your handout',
+          style: TextStyle(
+            color: Color(0xFF3B2419),
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        _ColorSettingRow(
+          label: 'Title',
+          color: _titleColor,
+          onTap: () => _chooseColor(
+            label: 'Title',
+            selectedColor: _titleColor,
+            onSelected: (color) => _updateStyle(titleColor: color),
+          ),
+        ),
+        _ColorSettingRow(
+          label: 'Terms',
+          color: _termsColor,
+          onTap: () => _chooseColor(
+            label: 'Terms',
+            selectedColor: _termsColor,
+            onSelected: (color) => _updateStyle(termsColor: color),
+          ),
+        ),
+        _ColorSettingRow(
+          label: 'Definitions',
+          color: _definitionsColor,
+          onTap: () => _chooseColor(
+            label: 'Definitions',
+            selectedColor: _definitionsColor,
+            onSelected: (color) => _updateStyle(definitionsColor: color),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildExamplePreview() => AppGlassCard(
+    key: const ValueKey('handout-example-preview'),
+    padding: const EdgeInsets.all(18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Preview',
+          style: TextStyle(
+            color: _titleColor,
+            fontSize: 21,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Example term',
+          style: TextStyle(color: _termsColor, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'A sample definition will appear here.',
+          style: TextStyle(color: _definitionsColor),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildGeneratedPreview() => SizedBox(
+    key: const ValueKey('generated-handout-panel'),
+    height: (MediaQuery.sizeOf(context).height * 0.38)
+        .clamp(160.0, 360.0)
+        .toDouble(),
+    child: SingleChildScrollView(
+      key: const ValueKey('generated-handout-scroll'),
+      child: _GeneratedHandoutPreview(handout: _handout!),
+    ),
+  );
 }
 
 String _limitToServiceLength(String value) {
@@ -486,115 +511,115 @@ class _GeneratedHandoutPreview extends StatelessWidget {
   final StudyHandout handout;
 
   @override
-  Widget build(BuildContext context) => Card(
-    color: const Color(0xFFFFF8F1),
-    child: Padding(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            handout.title,
-            style: TextStyle(
-              color: handout.style.titleColor,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
+  Widget build(BuildContext context) => AppGlassCard(
+    padding: const EdgeInsets.all(18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          handout.title,
+          style: TextStyle(
+            color: handout.style.titleColor,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
           ),
-          const SizedBox(height: 8),
-          Text(handout.summary),
-          for (final section in handout.sections) ...[
-            const SizedBox(height: 18),
-            Text(
-              section.heading,
-              style: TextStyle(
-                color: handout.style.titleColor,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            if (section.overview.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(section.overview),
-            ],
-            for (final subsection in section.subsections) ...[
-              const SizedBox(height: 10),
-              Text(
-                subsection.heading,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              if (subsection.explanation.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(subsection.explanation),
-              ],
-              for (var index = 0; index < subsection.items.length; index++)
-                Padding(
-                  padding: const EdgeInsets.only(left: 12, top: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 22,
-                        child: Text(
-                          subsection.style == HandoutListStyle.numbered
-                              ? '${index + 1}.'
-                              : '•',
-                        ),
-                      ),
-                      Expanded(child: Text(subsection.items[index])),
-                    ],
-                  ),
-                ),
-            ],
-          ],
+        ),
+        const SizedBox(height: 8),
+        Text(handout.summary),
+        for (final section in handout.sections) ...[
           const SizedBox(height: 18),
           Text(
-            'Key terms',
+            section.heading,
             style: TextStyle(
               color: handout.style.titleColor,
               fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
           ),
-          for (final term in handout.terms) ...[
+          if (section.overview.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(section.overview),
+          ],
+          for (final subsection in section.subsections) ...[
             const SizedBox(height: 10),
             Text(
-              term.term,
-              style: TextStyle(
-                color: handout.style.termsColor,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              term.definition,
-              style: TextStyle(color: handout.style.definitionsColor),
-            ),
-          ],
-          if (handout.keyTakeaways.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            Text(
-              'Key takeaways',
+              subsection.heading,
               style: TextStyle(
                 color: handout.style.titleColor,
-                fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
             ),
-            for (final takeaway in handout.keyTakeaways)
+            if (subsection.explanation.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(subsection.explanation),
+            ],
+            for (var index = 0; index < subsection.items.length; index++)
               Padding(
-                padding: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.only(left: 12, top: 4),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(width: 22, child: Text('•')),
-                    Expanded(child: Text(takeaway)),
+                    SizedBox(
+                      width: 22,
+                      child: Text(
+                        subsection.style == HandoutListStyle.numbered
+                            ? '${index + 1}.'
+                            : '•',
+                      ),
+                    ),
+                    Expanded(child: Text(subsection.items[index])),
                   ],
                 ),
               ),
           ],
         ],
-      ),
+        const SizedBox(height: 18),
+        Text(
+          'Key terms',
+          style: TextStyle(
+            color: handout.style.titleColor,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        for (final term in handout.terms) ...[
+          const SizedBox(height: 10),
+          Text(
+            term.term,
+            style: TextStyle(
+              color: handout.style.termsColor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            term.definition,
+            style: TextStyle(color: handout.style.definitionsColor),
+          ),
+        ],
+        if (handout.keyTakeaways.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          Text(
+            'Key takeaways',
+            style: TextStyle(
+              color: handout.style.titleColor,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          for (final takeaway in handout.keyTakeaways)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(width: 22, child: Text('•')),
+                  Expanded(child: Text(takeaway)),
+                ],
+              ),
+            ),
+        ],
+      ],
     ),
   );
 }
@@ -612,22 +637,32 @@ class _ColorSettingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
+    padding: const EdgeInsets.symmetric(vertical: 1),
     child: Row(
       children: [
         Expanded(
           child: Text(
-            '$label text color',
+            label,
             style: const TextStyle(
               color: Color(0xFF3B2419),
               fontWeight: FontWeight.w600,
+              fontSize: 13,
             ),
           ),
         ),
-        OutlinedButton.icon(
-          onPressed: onTap,
-          icon: Icon(Icons.palette_outlined, color: color),
-          label: const Text('Palette'),
+        SizedBox(
+          height: 30,
+          child: OutlinedButton.icon(
+            onPressed: onTap,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            icon: Icon(Icons.palette_outlined, color: color, size: 18),
+            label: const Text('Palette'),
+          ),
         ),
       ],
     ),

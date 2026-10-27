@@ -65,6 +65,14 @@ void main() {
 
     expect(find.text('Start with an idea'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
+    final paletteRect = tester.getRect(
+      find.byKey(const ValueKey('handout-palette-panel')),
+    );
+    final previewRect = tester.getRect(
+      find.byKey(const ValueKey('handout-example-preview')),
+    );
+    expect(paletteRect.left, greaterThan(previewRect.left));
+    expect(paletteRect.width, closeTo(previewRect.width, 1));
     final paletteButton = find.widgetWithText(OutlinedButton, 'Palette').first;
     await _selectColor(tester, paletteButton, 'Green');
 
@@ -95,9 +103,22 @@ void main() {
     expect(generator.style?.titleColor, const Color(0xFF388343));
     expect(find.text('Water Cycle'), findsOneWidget);
     expect(find.text('Evaporation'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('Main stages')).style?.color,
+      const Color(0xFF388343),
+    );
     expect(find.text('Water balance'), findsOneWidget);
     expect(find.text('Key takeaways'), findsOneWidget);
     expect(find.text('Solar energy drives the cycle.'), findsOneWidget);
+
+    final paletteRect = tester.getRect(
+      find.byKey(const ValueKey('handout-palette-panel')),
+    );
+    final outputRect = tester.getRect(
+      find.byKey(const ValueKey('generated-handout-panel')),
+    );
+    expect(paletteRect.left, greaterThan(outputRect.left));
+    expect(paletteRect.left, greaterThanOrEqualTo(outputRect.right));
 
     final termsPalette = find.widgetWithText(OutlinedButton, 'Palette').at(1);
     await _selectColor(tester, termsPalette, 'Red');

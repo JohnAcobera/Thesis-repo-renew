@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/instructor_report.dart';
 import '../services/instructor_reports_service.dart';
+import '../widgets/app_glass_surface.dart';
 import '../widgets/student_performance_radar_chart.dart';
 
 class InstructorReportsScreen extends StatefulWidget {
@@ -243,12 +244,8 @@ class _ClassroomReportCard extends StatelessWidget {
   final ValueChanged<InstructorReportStudent> onStudentSelected;
 
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFFCF8),
-      border: Border.all(color: const Color(0xFFE8D7C2)),
-      borderRadius: BorderRadius.circular(18),
-    ),
+  Widget build(BuildContext context) => AppGlassSurface(
+    borderRadius: 18,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

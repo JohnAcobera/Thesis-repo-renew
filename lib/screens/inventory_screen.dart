@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/learning_mode_service.dart';
 import '../services/quiz_service.dart';
+import '../widgets/app_glass_surface.dart';
 import '../widgets/student_side_menu.dart';
 import 'quiz_screen.dart';
 import 'study_activity_screens.dart';
@@ -166,7 +167,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             children: [
               Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1100),
+                  constraints: const BoxConstraints(maxWidth: 1000),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -525,93 +526,93 @@ class _InventoryTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(18),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(color: _inventoryBorder),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: _inventoryFill,
-                borderRadius: BorderRadius.circular(14),
+  Widget build(BuildContext context) => AppGlassSurface(
+    borderRadius: 18,
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _inventoryFill,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(record.icon, color: _inventoryPrimary),
               ),
-              child: Icon(record.icon, color: _inventoryPrimary),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          record.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: _inventoryHeading,
-                            fontWeight: FontWeight.w800,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            record.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _inventoryHeading,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        _TypeBadge(label: record.label),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${record.itemCount} items · ${record.sourceFile}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _inventorySubtle,
+                        fontSize: 12,
                       ),
-                      const SizedBox(width: 8),
-                      _TypeBadge(label: record.label),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    '${record.itemCount} items · ${record.sourceFile}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _inventorySubtle,
-                      fontSize: 12,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_formatDate(record.lastActivity)} · ${record.attemptCount} ${record.attemptCount == 1 ? 'attempt' : 'attempts'} · ${record.bestScore}% best',
-                    style: const TextStyle(
-                      color: _inventoryPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_formatDate(record.lastActivity)} · ${record.attemptCount} ${record.attemptCount == 1 ? 'attempt' : 'attempts'} · ${record.bestScore}% best',
+                      style: const TextStyle(
+                        color: _inventoryPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            IconButton(
-              tooltip: isFavorite
-                  ? 'Remove from favorites'
-                  : 'Add to favorites',
-              onPressed: isFavoritePending ? null : onFavorite,
-              icon: isFavoritePending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      isFavorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      color: isFavorite ? _inventoryPrimary : _inventorySubtle,
-                    ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: _inventorySubtle),
-          ],
+              IconButton(
+                tooltip: isFavorite
+                    ? 'Remove from favorites'
+                    : 'Add to favorites',
+                onPressed: isFavoritePending ? null : onFavorite,
+                icon: isFavoritePending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        isFavorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        color: isFavorite
+                            ? _inventoryPrimary
+                            : _inventorySubtle,
+                      ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: _inventorySubtle),
+            ],
+          ),
         ),
       ),
     ),

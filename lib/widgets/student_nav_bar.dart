@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
@@ -14,7 +16,6 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     this.username = '',
     this.email = '',
     this.onProfileSelected,
-    this.onSettingsSelected,
     this.onLogoutSelected,
     this.trailingAction,
     this.notificationRepository,
@@ -30,7 +31,6 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
   final String username;
   final String email;
   final VoidCallback? onProfileSelected;
-  final VoidCallback? onSettingsSelected;
   final VoidCallback? onLogoutSelected;
   final Widget? trailingAction;
   final StudentNotificationRepository? notificationRepository;
@@ -59,10 +59,17 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       automaticallyImplyLeading: false,
       toolbarHeight: 73,
-      backgroundColor: const Color(0xFFFFFCF8),
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
-      elevation: 2,
-      shadowColor: const Color(0x1F3B2419),
+      elevation: 0,
+      flexibleSpace: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: ColoredBox(
+            color: const Color(0xFFFFFCF8).withValues(alpha: 0.6),
+          ),
+        ),
+      ),
       iconTheme: const IconThemeData(color: Color(0xFFF4773C)),
       titleSpacing: 12,
       bottom: PreferredSize(
@@ -147,8 +154,6 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
               switch (action) {
                 case _StudentNavAction.profile:
                   onProfileSelected?.call();
-                case _StudentNavAction.settings:
-                  onSettingsSelected?.call();
                 case _StudentNavAction.logout:
                   if (onLogoutSelected case final onLogoutSelected?) {
                     onLogoutSelected();
@@ -174,15 +179,6 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
                 child: _StudentNavMenuItem(
                   icon: Icons.person_outline,
                   label: 'Profile',
-                ),
-              ),
-              const PopupMenuItem(
-                value: _StudentNavAction.settings,
-                height: 48,
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: _StudentNavMenuItem(
-                  icon: Icons.settings_outlined,
-                  label: 'Settings',
                 ),
               ),
               const PopupMenuItem(
@@ -381,4 +377,4 @@ class _StudentNavMenuItem extends StatelessWidget {
   );
 }
 
-enum _StudentNavAction { profile, settings, logout }
+enum _StudentNavAction { profile, logout }

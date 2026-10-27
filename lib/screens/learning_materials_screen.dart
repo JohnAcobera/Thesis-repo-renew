@@ -4,6 +4,7 @@ import '../models/classroom_model.dart';
 import '../models/learning_material_model.dart';
 import '../services/classroom_service.dart';
 import '../services/instructor_learning_materials_service.dart';
+import '../widgets/app_glass_surface.dart';
 
 const _materialsPrimary = Color(0xFFFF7434);
 const _materialsHeading = Color(0xFF3B2419);
@@ -676,20 +677,9 @@ class _LearningMaterialCard extends StatelessWidget {
   final VoidCallback onPost;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => AppGlassSurface(
+    borderRadius: 18,
     padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      border: Border.all(color: _materialsBorder),
-      borderRadius: BorderRadius.circular(18),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x083B2419),
-          blurRadius: 12,
-          offset: Offset(0, 3),
-        ),
-      ],
-    ),
     child: LayoutBuilder(
       builder: (context, constraints) {
         final actions = Wrap(

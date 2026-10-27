@@ -16,6 +16,7 @@ import '../models/classroom_model.dart';
 import '../services/classroom_service.dart';
 import '../services/learning_mode_service.dart';
 import '../services/quiz_service.dart';
+import '../widgets/app_glass_surface.dart';
 import '../widgets/student_side_menu.dart';
 
 const _primary = Color(0xFFFF7434);
@@ -2043,21 +2044,10 @@ class _SettingsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AppGlassSurface(
       width: double.infinity,
+      borderRadius: 20,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 18,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

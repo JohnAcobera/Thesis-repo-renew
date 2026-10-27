@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../widgets/app_glass_surface.dart';
 import '../widgets/student_side_menu.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -133,20 +134,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(color: Color(0xFF765C4F)),
                 ),
                 const SizedBox(height: 24),
-                Container(
+                AppGlassSurface(
+                  width: double.infinity,
+                  borderRadius: 20,
                   padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE8D7C2)),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x12000000),
-                        blurRadius: 18,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -330,20 +321,10 @@ class _StreakCalendarState extends State<_StreakCalendar> {
     final weekCount = ((leadingDays + daysInMonth) / 7).ceil();
     final today = DateTime.now();
 
-    return Container(
+    return AppGlassSurface(
+      width: double.infinity,
+      borderRadius: 20,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE8D7C2)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 18,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

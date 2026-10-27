@@ -6,11 +6,11 @@ import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
 import '../home/instructor_home_screen.dart';
 import '../home/student_home_screen.dart';
+import '../../widgets/app_background.dart';
+import '../../widgets/app_glass_surface.dart';
 
 const _primary = Color(0xFFFF7434);
-const _scaffold = Color(0xFFFFF8EE);
 const _inputFill = Color(0xFFFFF1DF);
-const _border = Color(0xFFE8D7C2);
 const _heading = Color(0xFF3B2419);
 const _body = Color(0xFF725F53);
 
@@ -71,33 +71,35 @@ class _LandingScreenState extends State<LandingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _scaffold,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1200),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  children: [
-                    if (_sessionRestoreFailed) ...[
-                      const Padding(
-                        padding: EdgeInsets.only(top: 16),
-                        child: Text(
-                          'Could not restore your saved session. You can still '
-                          'log in.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Color(0xFFA33A2B)),
+      backgroundColor: Colors.transparent,
+      body: AppBackground(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      if (_sessionRestoreFailed) ...[
+                        const Padding(
+                          padding: EdgeInsets.only(top: 16),
+                          child: Text(
+                            'Could not restore your saved session. You can still '
+                            'log in.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Color(0xFFA33A2B)),
+                          ),
                         ),
-                      ),
+                      ],
+                      LandingTopNav(onLogin: _openLogin),
+                      _HeroSection(onSignUp: _openRegister),
+                      const _FeatureCarousel(),
+                      const _WhyQuizForgeSection(),
+                      const SizedBox(height: 40),
                     ],
-                    LandingTopNav(onLogin: _openLogin),
-                    _HeroSection(onSignUp: _openRegister),
-                    const _FeatureCarousel(),
-                    const _WhyQuizForgeSection(),
-                    const SizedBox(height: 40),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -201,35 +203,35 @@ class _HeroSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 24, bottom: 52),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF3E5),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0xFFF0DDC5)),
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 720;
-            final copy = _HeroCopy(compact: compact, onSignUp: onSignUp);
-            if (compact) {
-              return Column(
-                children: [
-                  const _StudyIllustration(compact: true),
-                  const SizedBox(height: 28),
-                  copy,
-                ],
-              );
-            }
-            return Row(
-              children: [
-                Expanded(flex: 6, child: copy),
-                const SizedBox(width: 40),
-                const Expanded(flex: 5, child: _StudyIllustration()),
-              ],
-            );
-          },
+      child: AppGlassSurface(
+        borderRadius: 28,
+        child: SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 720;
+                final copy = _HeroCopy(compact: compact, onSignUp: onSignUp);
+                if (compact) {
+                  return Column(
+                    children: [
+                      const _StudyIllustration(compact: true),
+                      const SizedBox(height: 28),
+                      copy,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(flex: 6, child: copy),
+                    const SizedBox(width: 40),
+                    const Expanded(flex: 5, child: _StudyIllustration()),
+                  ],
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -374,20 +376,20 @@ class _FeatureCarousel extends StatelessWidget {
   Widget build(BuildContext context) {
     const features = [
       (
-        title: 'Practice Questions',
+        title: 'Create Practice Quizzes',
         description:
-            'Create helpful practice questions from your notes in seconds.',
+            'Generate a quiz from your study materials and practice at your pace.',
         icon: Icons.auto_awesome,
       ),
       (
-        title: 'Flashcards',
-        description: 'Review key ideas with simple, focused study cards.',
+        title: 'Review with Flashcards',
+        description: 'Turn study materials into cards for focused review.',
         icon: Icons.style_outlined,
       ),
       (
-        title: 'Classroom Activities',
-        description: 'Learn and practice together with your classmates.',
-        icon: Icons.groups_outlined,
+        title: 'Practice Matching',
+        description: 'Match related terms and ideas in a study activity.',
+        icon: Icons.compare_arrows_rounded,
       ),
     ];
     return LayoutBuilder(
@@ -402,8 +404,7 @@ class _FeatureCarousel extends StatelessWidget {
           children: [
             const _LandingSectionHeading(
               title: 'A simple way to keep learning',
-              subtitle:
-                  'Tools to help you practice, review, and learn together.',
+              subtitle: 'Tools to help you create, practice, and review.',
             ),
             const SizedBox(height: 24),
             Wrap(
@@ -472,47 +473,40 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: _border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: _inputFill,
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Icon(icon, color: _primary, size: 23),
+    return AppGlassCard(
+      borderRadius: 20,
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: _inputFill.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(15),
             ),
-            const SizedBox(height: 18),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _heading,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
+            child: Icon(icon, color: _primary, size: 23),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _heading,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
             ),
-            const SizedBox(height: 6),
-            Text(
-              description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: _body, height: 1.4),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: _body, height: 1.4),
+          ),
+        ],
       ),
     );
   }
@@ -525,40 +519,39 @@ class _WhyQuizForgeSection extends StatelessWidget {
   Widget build(BuildContext context) {
     const benefits = [
       (
-        icon: Icons.picture_as_pdf,
-        title: 'Printable Study Guides',
+        icon: Icons.inventory_2_outlined,
+        title: 'Your Learning Library',
         description:
-            'Prepare clear copies of quizzes and flashcards for review.',
+            'Revisit saved quizzes, flashcards, and matching activities in Inventory.',
       ),
       (
-        icon: Icons.offline_bolt_outlined,
-        title: 'Study Anywhere',
-        description:
-            'Keep learning with saved activities, even when you are away from a connection.',
+        icon: Icons.search_rounded,
+        title: 'Find Activities Easily',
+        description: 'Search, filter, and sort your saved study activities.',
       ),
       (
-        icon: Icons.style_outlined,
-        title: 'Flashcards',
+        icon: Icons.favorite_border_rounded,
+        title: 'Keep Favorites Close',
         description:
-            'Make study cards from your notes and review important ideas.',
+            'Favorite activities to find the ones you want to practice again.',
+      ),
+      (
+        icon: Icons.insights_outlined,
+        title: 'See Your Progress',
+        description:
+            'Review your quiz performance and study habits on your dashboard.',
+      ),
+      (
+        icon: Icons.local_fire_department_outlined,
+        title: 'Build a Learning Streak',
+        description:
+            'Track the days you study and celebrate your learning consistency.',
       ),
       (
         icon: Icons.leaderboard_outlined,
-        title: 'Track Your Progress',
+        title: 'Check the Weekly Leaderboard',
         description:
-            'See how far you have come and celebrate each learning milestone.',
-      ),
-      (
-        icon: Icons.emoji_events_outlined,
-        title: 'Achievements',
-        description:
-            'Every study streak earns it. Collect badges and achievements as you master new topics.',
-      ),
-      (
-        icon: Icons.groups_outlined,
-        title: 'Classrooms for Teachers',
-        description:
-            'Set up a classroom, invite students, and share activities together.',
+            'See student rankings for this week and review previous weeks.',
       ),
     ];
     return Padding(
@@ -622,13 +615,9 @@ class _BenefitCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AppGlassCard(
+      borderRadius: 20,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -636,7 +625,7 @@ class _BenefitCard extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: _inputFill,
+              color: _inputFill.withValues(alpha: 0.72),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(icon, color: _primary, size: 22),

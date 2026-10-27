@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/instructor_todo_task.dart';
 import '../services/instructor_todo_service.dart';
+import '../widgets/app_glass_surface.dart';
 
 const _todoAccent = Color(0xFFF4773C);
 const _todoInk = Color(0xFF3B2419);
@@ -144,25 +145,16 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => SizedBox(
     key: const ValueKey('instructor-todo-panel'),
     height: widget.panelHeight,
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: _todoBorder),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x0A3B2419),
-          blurRadius: 18,
-          offset: Offset(0, 6),
-        ),
-      ],
-    ),
-    child: FutureBuilder<List<InstructorTodoTask>>(
-      future: _tasks,
-      builder: (context, snapshot) {
+    child: AppGlassSurface(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(18),
+      width: double.infinity,
+      child: FutureBuilder<List<InstructorTodoTask>>(
+        future: _tasks,
+        builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _TodoLoadError(onRetry: _retryLoading);
         }
@@ -496,7 +488,8 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
             ),
           ],
         );
-      },
+        },
+      ),
     ),
   );
 }
