@@ -13,7 +13,7 @@ void main() {
       id: 'task-1',
       title: 'Review submissions',
       notes: 'Focus on chapter two',
-      dueDate: DateTime(2026, 10, 21),
+      dueDate: DateTime(2026, 10, 21, 14, 30),
       priority: InstructorTodoPriority.high,
     );
 
@@ -42,5 +42,18 @@ void main() {
     await studentService.saveTasks(12, [task]);
     expect(await instructorService.listTasks(12), hasLength(1));
     expect(await studentService.listTasks(12), hasLength(1));
+  });
+
+  test('date-only tasks from existing storage remain readable', () async {
+    SharedPreferences.setMockInitialValues({
+      'instructor_todos_12':
+          '[{"id":"task-1","title":"Review submissions",'
+          '"due_date":"2026-10-21","priority":"normal","notes":"",'
+          '"is_completed":false}]',
+    });
+
+    final tasks = await const InstructorTodoService().listTasks(12);
+
+    expect(tasks.single.dueDate, DateTime(2026, 10, 21));
   });
 }

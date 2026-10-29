@@ -29,7 +29,7 @@ class InstructorTodoTask {
   Map<String, Object> toJson() => {
     'id': id,
     'title': title,
-    'due_date': _dateOnly(dueDate),
+    'due_date': dueDate.toIso8601String(),
     'priority': priority.name,
     'notes': notes,
     'is_completed': isCompleted,
@@ -53,8 +53,3 @@ class InstructorTodoTask {
     );
   }
 }
-
-String _dateOnly(DateTime date) =>
-    '${date.year.toString().padLeft(4, '0')}-'
-    '${date.month.toString().padLeft(2, '0')}-'
-    '${date.day.toString().padLeft(2, '0')}';

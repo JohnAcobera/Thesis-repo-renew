@@ -61,6 +61,11 @@ void main() {
       find.byKey(const ValueKey('instructor-task-title')),
       'Publish review guide',
     );
+    await tester.tap(find.byKey(const ValueKey('instructor-task-due-time')));
+    await tester.pumpAndSettle();
+    expect(find.byType(TimePickerDialog), findsOneWidget);
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(
       find.byKey(const ValueKey('save-instructor-task')),
     );
@@ -71,6 +76,7 @@ void main() {
     expect(repository.tasks, hasLength(1));
     expect(repository.tasks.single.title, 'Publish review guide');
     expect(repository.tasks.single.dueDate, isA<DateTime>());
+    expect(repository.tasks.single.dueDate.hour, 9);
     expect(tester.takeException(), isNull);
   });
 }
