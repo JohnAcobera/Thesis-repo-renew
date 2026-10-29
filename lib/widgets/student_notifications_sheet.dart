@@ -1,15 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/student_notification_service.dart';
 
 class StudentNotificationsButton extends StatefulWidget {
   const StudentNotificationsButton({
-    required this.repository,
+    this.repository,
     this.onNotificationSelected,
     super.key,
   });
 
-  final StudentNotificationRepository repository;
+  final StudentNotificationRepository? repository;
   final ValueChanged<StudentNotification>? onNotificationSelected;
 
   @override
@@ -19,16 +21,50 @@ class StudentNotificationsButton extends StatefulWidget {
 
 class _StudentNotificationsButtonState
     extends State<StudentNotificationsButton> {
+  late StudentNotificationRepository _repository;
   late Future<List<StudentNotification>> _notifications;
+  late Stream<List<StudentNotification>> _notificationUpdates;
+  StreamSubscription<List<StudentNotification>>? _notificationSubscription;
+  List<StudentNotification>? _latestNotifications;
 
   @override
   void initState() {
     super.initState();
-    _refresh();
+    _repository = widget.repository ?? StudentNotificationService();
+    _startWatching();
   }
 
-  void _refresh() {
-    _notifications = widget.repository.listNotifications();
+  @override
+  void didUpdateWidget(covariant StudentNotificationsButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository) {
+      unawaited(_notificationSubscription?.cancel());
+      _repository = widget.repository ?? StudentNotificationService();
+      _latestNotifications = null;
+      _startWatching();
+    }
+  }
+
+  void _startWatching() {
+    _notifications = _repository.listNotifications();
+    _notificationUpdates = _repository.watchNotifications();
+    _notificationSubscription = _notificationUpdates.listen(
+      (notifications) {
+        _latestNotifications = notifications;
+        if (mounted) {
+          setState(() {});
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    unawaited(_notificationSubscription?.cancel());
+    super.dispose();
   }
 
   Future<void> _openNotifications() async {
@@ -38,11 +74,13 @@ class _StudentNotificationsButtonState
           isScrollControlled: true,
           useSafeArea: true,
           backgroundColor: Colors.transparent,
-          builder: (_) =>
-              StudentNotificationsSheet(repository: widget.repository),
+          builder: (_) => StudentNotificationsSheet(
+            repository: _repository,
+            notifications: _notificationUpdates,
+            initialNotifications: _latestNotifications,
+          ),
         );
     if (mounted) {
-      setState(_refresh);
       if (selectedNotification != null) {
         widget.onNotificationSelected?.call(selectedNotification);
       }
@@ -55,7 +93,7 @@ class _StudentNotificationsButtonState
         future: _notifications,
         builder: (context, snapshot) {
           final unreadCount =
-              snapshot.data
+              (_latestNotifications ?? snapshot.data)
                   ?.where((notification) => !notification.isRead)
                   .length ??
               0;
@@ -99,9 +137,16 @@ class _StudentNotificationsButtonState
 }
 
 class StudentNotificationsSheet extends StatefulWidget {
-  const StudentNotificationsSheet({required this.repository, super.key});
+  const StudentNotificationsSheet({
+    required this.repository,
+    required this.notifications,
+    this.initialNotifications,
+    super.key,
+  });
 
   final StudentNotificationRepository repository;
+  final Stream<List<StudentNotification>> notifications;
+  final List<StudentNotification>? initialNotifications;
 
   @override
   State<StudentNotificationsSheet> createState() =>
@@ -109,20 +154,9 @@ class StudentNotificationsSheet extends StatefulWidget {
 }
 
 class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
-  late Future<List<StudentNotification>> _notifications;
   bool _isMarkingRead = false;
   String? _markingReadId;
   String? _markReadError;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  void _load() {
-    _notifications = widget.repository.listNotifications();
-  }
 
   Future<void> _markAllRead(List<StudentNotification> notifications) async {
     final unreadIds = notifications
@@ -137,9 +171,6 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
     });
     try {
       await widget.repository.markNotificationsRead(unreadIds);
-      if (mounted) {
-        setState(_load);
-      }
     } on StudentNotificationException catch (error) {
       if (mounted) {
         setState(() => _markReadError = error.message);
@@ -151,8 +182,15 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
     }
   }
 
-  void _retry() {
-    setState(_load);
+  Future<void> _retry() async {
+    try {
+      setState(() => _markReadError = null);
+      await widget.repository.refreshNotifications();
+    } on StudentNotificationException catch (error) {
+      if (mounted) {
+        setState(() => _markReadError = error.message);
+      }
+    }
   }
 
   Future<void> _onNotificationTap(
@@ -173,8 +211,6 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
       if (notification.type == StudentNotificationType.classroomActivity &&
           notification.classroomId != null) {
         Navigator.of(context).pop(notification);
-      } else {
-        setState(_load);
       }
     } on StudentNotificationException catch (error) {
       if (mounted) {
@@ -232,10 +268,12 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
             ),
           ),
           Expanded(
-            child: FutureBuilder<List<StudentNotification>>(
-              future: _notifications,
+            child: StreamBuilder<List<StudentNotification>>(
+              stream: widget.notifications,
+              initialData: widget.initialNotifications,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
                   return const Center(
                     child: CircularProgressIndicator(color: Color(0xFFF4773C)),
                   );
@@ -246,7 +284,7 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
                         ? (snapshot.error! as StudentNotificationException)
                               .message
                         : 'Your notifications could not be loaded.',
-                    onRetry: _retry,
+                    onRetry: () => _retry(),
                   );
                 }
                 final notifications = snapshot.data ?? const [];

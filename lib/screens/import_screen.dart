@@ -1225,7 +1225,7 @@ class _TutorialGuideCard extends StatelessWidget {
 
   String get _description => switch (step) {
     _TutorialStep.start =>
-      'Start from “Generate a quiz” on your dashboard. You’re already here, so let’s set up your first activity together.',
+      'You’re already here, so let’s set up your first quiz or practice activity together.',
     _TutorialStep.learningMode =>
       'Choose Quiz to test what you know, Flashcards to practice recall, or Matching to connect related ideas.',
     _TutorialStep.sourceFile =>

@@ -5,9 +5,7 @@ import 'package:thesis_repo_renew/models/instructor_todo_task.dart';
 import 'package:thesis_repo_renew/models/user_model.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
 import 'package:thesis_repo_renew/services/instructor_todo_service.dart';
-import 'package:thesis_repo_renew/models/learning_material_model.dart';
 import 'package:thesis_repo_renew/models/instructor_report.dart';
-import 'package:thesis_repo_renew/services/instructor_learning_materials_service.dart';
 import 'package:thesis_repo_renew/services/instructor_reports_service.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
 import 'package:thesis_repo_renew/screens/home/instructor_home_screen.dart';
@@ -31,8 +29,6 @@ void main() {
           home: InstructorHomeScreen(
             key: ValueKey(size),
             classroomService: _FakeClassroomRepository(),
-            learningMaterialsRepository:
-                _FakeInstructorLearningMaterialsRepository(),
             reportsRepository: _FakeInstructorReportsRepository(),
             todoRepository: _FakeInstructorTodoRepository(),
             user: UserModel(
@@ -47,95 +43,36 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      for (final heading in [
-        'Total students',
-        'Active classes',
-        'Quizzes created',
-        'Create learning materials',
-        'Generate a quiz',
-        'Generate content',
-        'Recent generated materials',
-        'Saved biology quiz',
-        'View all',
-        'My tasks',
-      ]) {
+      for (final heading in ['Total students', 'Active classes', 'My tasks']) {
         expect(find.text(heading), findsOneWidget);
       }
+      expect(find.text('Create activity'), findsNothing);
+      expect(find.text('Quizzes created'), findsNothing);
+      expect(find.text('Generate a quiz'), findsNothing);
       expect(find.text('Class performance'), findsNothing);
       expect(find.text('Students needing attention'), findsNothing);
-      expect(
-        tester
-            .getSize(
-              find.byKey(const ValueKey('instructor-activity-creation-panel')),
-            )
-            .height,
-        size.width < 600 ? 480 : 420,
-      );
       expect(
         tester
             .getSize(find.byKey(const ValueKey('instructor-todo-panel')))
             .height,
         size.width < 600 ? 480 : 420,
       );
-      if (size.width >= 900) {
-        expect(
-          tester
-              .getSize(
-                find.byKey(
-                  const ValueKey('instructor-activity-creation-panel'),
-                ),
-              )
-              .width,
-          tester
-              .getSize(find.byKey(const ValueKey('instructor-todo-panel')))
-              .width,
-        );
-        final panelWidth = tester
-            .getSize(
-              find.byKey(const ValueKey('instructor-activity-creation-panel')),
-            )
-            .width;
-        final quizButtonWidth = tester
-            .getSize(find.widgetWithText(FilledButton, 'Generate a quiz'))
-            .width;
-        final contentButtonWidth = tester
-            .getSize(find.widgetWithText(OutlinedButton, 'Generate content'))
-            .width;
-        expect(quizButtonWidth, contentButtonWidth);
-        expect(quizButtonWidth * 2 + 12, closeTo(panelWidth - 44, 2));
-      }
-
       for (final mockValue in ['128', '78%', 'Student A', 'Student B']) {
         expect(find.text(mockValue), findsNothing);
       }
 
       expect(find.text('3'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
-      expect(find.text('4'), findsOneWidget);
       expect(find.text('Average score'), findsNothing);
       expect(find.text('—'), findsNothing);
       if (size.width >= 600) {
         final metricLabelTops = [
           'Total students',
           'Active classes',
-          'Quizzes created',
         ].map((label) => tester.getTopLeft(find.text(label)).dy);
         expect(metricLabelTops.toSet(), hasLength(1));
       }
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.text('Generate content'));
-      await tester.tap(find.text('Generate content'));
-      await tester.pumpAndSettle();
-      expect(find.text('Generate study content'), findsOneWidget);
-      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Create activity'));
-      await tester.tap(find.text('Create activity'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Turn your notes into a focused study session'),
-        findsOneWidget,
-      );
       await tester.tap(find.byTooltip('Open menu'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Dashboard'));
@@ -146,13 +83,13 @@ void main() {
       for (final menuItem in [
         'Dashboard',
         'My Classroom',
-        'Learning Materials',
         'Reports',
-        'About',
         'Logout',
       ]) {
         expect(find.text(menuItem), findsOneWidget);
       }
+      expect(find.text('Learning Materials'), findsNothing);
+      expect(find.text('About'), findsNothing);
       expect(find.text('Settings'), findsNothing);
       expect(find.text('INSTRUCTOR'), findsOneWidget);
       final profileDetailsCount = size.width >= 600 ? 2 : 1;
@@ -164,35 +101,8 @@ void main() {
       await tester.tap(find.text('Reports'));
       await tester.pumpAndSettle();
       expect(find.text('Student performance'), findsOneWidget);
-      expect(find.text('Grade 11 - STEM A'), findsOneWidget);
+      expect(find.text('Grade 11 - STEM A'), findsNWidgets(2));
       expect(find.text('Report Student'), findsOneWidget);
-      await tester.tap(find.byTooltip('Open menu'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Dashboard'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Open menu'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Learning Materials'));
-      await tester.pumpAndSettle();
-      expect(find.text('Learning Materials'), findsWidgets);
-      expect(find.text('Saved biology quiz'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Create activity'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Turn your notes into a focused study session'),
-        findsOneWidget,
-      );
-      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      await tester.tap(find.byTooltip('Open menu'));
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull);
-
-      await tester.tap(find.byTooltip('Close menu'));
-      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Open menu'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('My Classroom'));
@@ -211,15 +121,8 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.ensureVisible(find.text('Create activity'));
-      await tester.tap(find.text('Create activity'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Turn your notes into a focused study session'),
-        findsOneWidget,
-      );
-      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
-      await tester.pumpAndSettle();
+      expect(find.text('Classroom quizzes'), findsNothing);
+      expect(find.text('Create quiz'), findsNothing);
       expect(find.byTooltip('Open menu'), findsOneWidget);
       await tester.tap(find.byTooltip('Open menu'));
       await tester.pumpAndSettle();
@@ -246,48 +149,6 @@ void main() {
       expect(tester.takeException(), isNull);
     }
   });
-}
-
-class _FakeInstructorLearningMaterialsRepository
-    implements InstructorLearningMaterialsRepository {
-  @override
-  Future<List<LearningMaterialModel>> listMaterials() async => [
-    LearningMaterialModel(
-      id: 'saved-quiz',
-      title: 'Saved biology quiz',
-      sourceFile: 'biology.pdf',
-      createdAt: DateTime.utc(2026),
-      questionCount: 10,
-      postedClassroomNames: const [],
-    ),
-  ];
-
-  @override
-  Future<List<LearningMaterialFolder>> listFolders() async => [];
-
-  @override
-  Future<LearningMaterialFolder> createFolder(String name) async =>
-      LearningMaterialFolder(
-        id: 'folder-1',
-        name: name,
-        createdAt: DateTime.utc(2026),
-      );
-
-  @override
-  Future<void> assignMaterialToFolder({
-    required String quizId,
-    required String? folderId,
-  }) async {}
-
-  @override
-  Future<void> deleteMaterial(String quizId) async {}
-
-  @override
-  Future<void> postMaterial({
-    required String quizId,
-    required List<String> classroomIds,
-    required DateTime startsAt,
-  }) async {}
 }
 
 class _FakeInstructorTodoRepository implements InstructorTodoRepository {

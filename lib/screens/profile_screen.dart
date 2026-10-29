@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/quiz_service.dart';
 import '../widgets/app_glass_surface.dart';
+import '../widgets/learning_metric_chart.dart';
 import '../widgets/student_side_menu.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -345,7 +346,7 @@ class _LearningMetricsGrid extends StatelessWidget {
         samples: _lastSamples(
           recentAttempts.map((attempt) => attempt.percentage),
         ),
-        kind: _MiniChartKind.line,
+        kind: LearningMetricChartKind.line,
         color: const Color(0xFFF4773C),
       ),
       _LearningMetric(
@@ -356,7 +357,7 @@ class _LearningMetricsGrid extends StatelessWidget {
         samples: _lastSamples(
           orderedRetention.map((quiz) => quiz.retentionPercentage!),
         ),
-        kind: _MiniChartKind.bars,
+        kind: LearningMetricChartKind.bars,
         color: const Color(0xFFF2C230),
       ),
       _LearningMetric(
@@ -367,7 +368,7 @@ class _LearningMetricsGrid extends StatelessWidget {
         samples: _lastSamples(
           orderedImprovement.map((quiz) => quiz.improvementPercentage!),
         ),
-        kind: _MiniChartKind.diverging,
+        kind: LearningMetricChartKind.diverging,
         color: const Color(0xFF2F8AB9),
       ),
       _LearningMetric(
@@ -376,7 +377,7 @@ class _LearningMetricsGrid extends StatelessWidget {
         description:
             'Percent of days you completed a quiz in the last 28 days (or since you joined, if newer). Green bars mark quiz days.',
         samples: consistencySamples,
-        kind: _MiniChartKind.activity,
+        kind: LearningMetricChartKind.activity,
         color: const Color(0xFF42A765),
       ),
       _LearningMetric(
@@ -387,7 +388,7 @@ class _LearningMetricsGrid extends StatelessWidget {
         samples: _lastSamples(
           orderedFocus.map((quiz) => quiz.firstAttempt!.percentage),
         ),
-        kind: _MiniChartKind.bars,
+        kind: LearningMetricChartKind.bars,
         color: const Color(0xFFD04FA2),
       ),
     ];
@@ -452,7 +453,7 @@ class _LearningMetric {
   final String value;
   final String description;
   final List<double> samples;
-  final _MiniChartKind kind;
+  final LearningMetricChartKind kind;
   final Color color;
 }
 
@@ -574,7 +575,7 @@ class _LearningMetricCard extends StatelessWidget {
             height: 42,
             width: double.infinity,
             child: CustomPaint(
-              painter: _MiniChartPainter(
+              painter: LearningMetricChartPainter(
                 samples: metric.samples,
                 kind: metric.kind,
                 color: metric.color,
@@ -585,171 +586,6 @@ class _LearningMetricCard extends StatelessWidget {
       ),
     ),
   );
-}
-
-enum _MiniChartKind { line, bars, diverging, activity }
-
-class _MiniChartPainter extends CustomPainter {
-  const _MiniChartPainter({
-    required this.samples,
-    required this.kind,
-    required this.color,
-  });
-
-  final List<double> samples;
-  final _MiniChartKind kind;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
-    final baseline = size.height - 2;
-    final basePaint = Paint()
-      ..color = const Color(0xFFE8D7C2)
-      ..strokeWidth = 1;
-    canvas.drawLine(
-      Offset(0, baseline),
-      Offset(size.width, baseline),
-      basePaint,
-    );
-    if (samples.isEmpty) {
-      canvas.restore();
-      return;
-    }
-
-    switch (kind) {
-      case _MiniChartKind.line:
-        _paintLine(canvas, size);
-      case _MiniChartKind.bars:
-        _paintBars(canvas, size, diverging: false);
-      case _MiniChartKind.diverging:
-        _paintBars(canvas, size, diverging: true);
-      case _MiniChartKind.activity:
-        _paintActivity(canvas, size);
-    }
-    canvas.restore();
-  }
-
-  void _paintLine(Canvas canvas, Size size) {
-    final points = _normalizedPoints(size, samples, 0, 100);
-    if (points.length == 1) {
-      canvas.drawCircle(points.first, 2.5, Paint()..color = color);
-      return;
-    }
-    final path = Path()..moveTo(points.first.dx, points.first.dy);
-    for (final point in points.skip(1)) {
-      path.lineTo(point.dx, point.dy);
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color
-        ..strokeWidth = 2
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..style = PaintingStyle.stroke,
-    );
-    for (final point in points) {
-      canvas.drawCircle(point, 2, Paint()..color = color);
-    }
-  }
-
-  void _paintBars(Canvas canvas, Size size, {required bool diverging}) {
-    final count = samples.length;
-    final gap = 3.0;
-    final barWidth = (size.width - gap * (count - 1)) / count;
-    final zeroY = diverging ? size.height / 2 : size.height - 2;
-    if (diverging) {
-      canvas.drawLine(
-        Offset(0, zeroY),
-        Offset(size.width, zeroY),
-        Paint()
-          ..color = const Color(0xFFCAB6A5)
-          ..strokeWidth = 1,
-      );
-    }
-    for (var index = 0; index < count; index++) {
-      final sample = samples[index];
-      final normalized = diverging
-          ? sample.clamp(-100.0, 100.0) / 100
-          : sample.clamp(0.0, 100.0) / 100;
-      final availableHeight = diverging ? size.height / 2 - 2 : size.height - 2;
-      final barHeight = (normalized.abs() * availableHeight).clamp(
-        2.0,
-        availableHeight,
-      );
-      final left = index * (barWidth + gap);
-      final top = diverging
-          ? normalized > 0
-                ? zeroY - barHeight
-                : zeroY
-          : zeroY - barHeight;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(left, top, barWidth, barHeight),
-          const Radius.circular(2),
-        ),
-        Paint()..color = color.withValues(alpha: 0.82),
-      );
-    }
-  }
-
-  void _paintActivity(Canvas canvas, Size size) {
-    final gap = 1.5;
-    final barWidth = (size.width - gap * (samples.length - 1)) / samples.length;
-    for (var index = 0; index < samples.length; index++) {
-      final active = samples[index] > 0;
-      final left = index * (barWidth + gap);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-            left,
-            active ? size.height * 0.35 : size.height * 0.78,
-            barWidth,
-            active ? size.height * 0.65 - 2 : size.height * 0.22,
-          ),
-          const Radius.circular(1.5),
-        ),
-        Paint()
-          ..color = active
-              ? color.withValues(alpha: 0.88)
-              : color.withValues(alpha: 0.16),
-      );
-    }
-  }
-
-  List<Offset> _normalizedPoints(
-    Size size,
-    List<double> values,
-    double minimum,
-    double maximum,
-  ) {
-    if (values.length == 1) {
-      return [
-        Offset(
-          size.width / 2,
-          size.height - 2 - (values.first / maximum) * (size.height - 4),
-        ),
-      ];
-    }
-    return List<Offset>.generate(values.length, (index) {
-      final x = size.width * index / (values.length - 1);
-      final normalized =
-          ((values[index].clamp(minimum, maximum) - minimum) /
-                  (maximum - minimum))
-              .toDouble();
-      return Offset(x, size.height - 2 - normalized * (size.height - 4));
-    });
-  }
-
-  @override
-  bool shouldRepaint(covariant _MiniChartPainter oldDelegate) =>
-      oldDelegate.samples != samples ||
-      oldDelegate.kind != kind ||
-      oldDelegate.color != color;
 }
 
 class _LearnerPointsBadge extends StatelessWidget {

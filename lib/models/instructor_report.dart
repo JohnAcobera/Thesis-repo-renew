@@ -50,6 +50,7 @@ class InstructorReportStudent {
     required this.generatedQuizCount,
     required this.personalAttemptCount,
     required this.personalAverageScore,
+    this.metricSamples = const {},
     this.accuracyPercentage,
     this.retentionPercentage,
     this.improvementPercentage,
@@ -70,6 +71,7 @@ class InstructorReportStudent {
   final int generatedQuizCount;
   final int personalAttemptCount;
   final double? personalAverageScore;
+  final Map<String, List<double>> metricSamples;
   final double? accuracyPercentage;
   final double? retentionPercentage;
   final double? improvementPercentage;
@@ -94,10 +96,22 @@ class InstructorReportStudent {
     generatedQuizCount: (json['generated_quiz_count'] as num).toInt(),
     personalAttemptCount: (json['personal_attempt_count'] as num).toInt(),
     personalAverageScore: (json['personal_average_score'] as num?)?.toDouble(),
+    metricSamples: _parseMetricSamples(json['metric_samples']),
     accuracyPercentage: (json['accuracy_percentage'] as num?)?.toDouble(),
     retentionPercentage: (json['retention_percentage'] as num?)?.toDouble(),
     improvementPercentage: (json['improvement_percentage'] as num?)?.toDouble(),
     consistencyPercentage: (json['consistency_percentage'] as num?)?.toDouble(),
     focusPercentage: (json['focus_percentage'] as num?)?.toDouble(),
   );
+
+  static Map<String, List<double>> _parseMetricSamples(Object? value) {
+    if (value == null) return const {};
+    final json = Map<String, dynamic>.from(value as Map);
+    return {
+      for (final entry in json.entries)
+        entry.key: (entry.value as List<dynamic>)
+            .map((sample) => (sample as num).toDouble())
+            .toList(growable: false),
+    };
+  }
 }

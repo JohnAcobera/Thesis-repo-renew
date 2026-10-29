@@ -2,9 +2,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/classroom_model.dart';
+import 'package:thesis_repo_renew/models/instructor_report.dart';
 import 'package:thesis_repo_renew/models/user_model.dart';
 import 'package:thesis_repo_renew/screens/classroom/classroom_screen.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
+import 'package:thesis_repo_renew/services/instructor_reports_service.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
 
 void main() {
@@ -67,8 +69,9 @@ void main() {
     expect(find.text('General Biology 1'), findsOneWidget);
     expect(find.text('0 students'), findsOneWidget);
     expect(find.text('Join code: ABCD2345'), findsOneWidget);
-    expect(find.text('Post Activities'), findsOneWidget);
-    expect(find.text('Nothing posted here yet'), findsOneWidget);
+    expect(find.text('Classroom quizzes'), findsNothing);
+    expect(find.text('No quizzes yet'), findsNothing);
+    expect(find.text('Create quiz'), findsNothing);
     await tester.tap(find.text('Your classrooms'));
     await tester.pumpAndSettle();
     expect(find.text('Grade 11 - STEM A'), findsOneWidget);
@@ -128,7 +131,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('12 students'), findsOneWidget);
-    expect(find.text('3 activities'), findsOneWidget);
+    expect(find.text('3 activities'), findsNothing);
     await tester.tap(find.byTooltip('Copy classroom code'));
     await tester.pumpAndSettle();
 
@@ -216,10 +219,6 @@ void main() {
           fullName: 'Ari Santos',
           email: 'ari@example.com',
           joinedAt: DateTime.utc(2026, 10, 1),
-          completedActivityCount: 2,
-          totalActivityCount: 3,
-          attemptCount: 4,
-          averageScore: 82.5,
         ),
       );
     await tester.pumpWidget(
@@ -233,6 +232,7 @@ void main() {
               role: 'instructor',
             ),
             classroomService: repository,
+            reportsRepository: _FakeInstructorReportsRepository(),
           ),
         ),
       ),
@@ -243,9 +243,22 @@ void main() {
 
     expect(find.text('Students'), findsOneWidget);
     expect(find.text('Ari Santos'), findsOneWidget);
-    expect(find.text('2 of 3 assignments'), findsOneWidget);
-    expect(find.text('Average 83%'), findsOneWidget);
-    expect(find.text('4 attempts'), findsOneWidget);
+    await tester.tap(find.text('Ari Santos'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Ari Santos'), findsNWidgets(2));
+    expect(find.text('PERSONAL STATS'), findsOneWidget);
+    expect(find.text('Quizzes generated'), findsOneWidget);
+    expect(find.text('All quiz attempts'), findsOneWidget);
+    expect(find.text('Overall average score'), findsOneWidget);
+    expect(find.text('YOUR STATS'), findsOneWidget);
+    expect(find.text('Joined classroom'), findsOneWidget);
+    expect(find.text('Assignments completed'), findsNothing);
+    expect(find.text('Average quiz score'), findsNothing);
+    expect(find.text('Quiz attempts'), findsNothing);
+    expect(find.text('Grade 11 - STEM A'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.byTooltip('Remove Ari Santos'));
     await tester.tap(find.byTooltip('Remove Ari Santos'));
     await tester.pumpAndSettle();
@@ -265,14 +278,13 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('instructor can create an activity from classroom activities', (
+  testWidgets('instructor classrooms do not show assignment controls', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1;
-    var createActivityPressed = false;
     final repository = _FakeClassroomRepository()
       ..classrooms.add(
         ClassroomModel(
@@ -283,6 +295,25 @@ void main() {
           createdAt: DateTime.utc(2026),
         ),
       );
+    repository.activities.add(
+      ClassroomActivity(
+        id: 'quiz-id',
+        classroomId: 'test-id',
+        classroomName: 'Grade 11 - STEM A',
+        quizId: 'saved-quiz-id',
+        title: 'Cell Structure',
+        sourceFile: 'biology.pdf',
+        questions: const [
+          QuizQuestion(
+            question: 'Which organelle stores DNA?',
+            options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
+            answerIndex: 0,
+            explanation: 'The nucleus contains the cell DNA.',
+          ),
+        ],
+        startsAt: DateTime.utc(2026),
+      ),
+    );
 
     await tester.pumpWidget(
       MaterialApp(
@@ -295,7 +326,6 @@ void main() {
               role: 'instructor',
             ),
             classroomService: repository,
-            onCreateActivity: () => createActivityPressed = true,
           ),
         ),
       ),
@@ -303,15 +333,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Grade 11 - STEM A'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Post Activities'));
-    expect(find.text('Create activity'), findsOneWidget);
-    expect(
-      tester.getCenter(find.text('Create activity')).dx,
-      greaterThan(tester.getCenter(find.byTooltip('Refresh activities')).dx),
-    );
-
-    await tester.tap(find.text('Create activity'));
-    expect(createActivityPressed, isTrue);
+    expect(find.text('Classroom quizzes'), findsNothing);
+    expect(find.text('Create quiz'), findsNothing);
+    expect(find.text('Post Activities'), findsNothing);
+    expect(find.text('Cell Structure'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -380,154 +405,42 @@ void main() {
     expect(find.text('Take your quiz'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
 
-  testWidgets('instructors can preview posted quiz questions', (tester) async {
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    tester.view.physicalSize = const Size(400, 800);
-    tester.view.devicePixelRatio = 1;
-
-    final now = DateTime.now();
-    final repository = _FakeClassroomRepository()
-      ..classrooms.add(
-        ClassroomModel(
-          id: 'test-id',
-          name: 'Grade 11 - STEM A',
-          subject: 'General Biology 1',
-          code: 'ABCD2345',
-          createdAt: DateTime.utc(2026),
+class _FakeInstructorReportsRepository implements InstructorReportsRepository {
+  @override
+  Future<List<InstructorReportClassroom>> loadReports() async => [
+    InstructorReportClassroom(
+      id: 'test-id',
+      name: 'Grade 11 - STEM A',
+      subject: 'General Biology 1',
+      studentCount: 1,
+      activityCount: 0,
+      averageScore: null,
+      students: [
+        InstructorReportStudent(
+          id: 12,
+          fullName: 'Ari Santos',
+          email: 'ari@example.com',
+          role: 'student',
+          joinedAt: DateTime.utc(2026, 10, 1),
+          createdAt: DateTime.utc(2026, 9, 1),
+          completedActivityCount: 0,
+          totalActivityCount: 0,
+          attemptCount: 0,
+          averageScore: null,
+          generatedQuizCount: 3,
+          personalAttemptCount: 7,
+          personalAverageScore: 85,
+          accuracyPercentage: 81,
+          retentionPercentage: 72,
+          improvementPercentage: 64,
+          consistencyPercentage: 59,
+          focusPercentage: 77,
         ),
-      )
-      ..activities.add(
-        ClassroomActivity(
-          id: 'activity-id',
-          classroomId: 'test-id',
-          classroomName: 'Grade 11 - STEM A',
-          quizId: 'quiz-id',
-          title: 'Cell Structure',
-          sourceFile: 'biology.pdf',
-          questions: const [
-            QuizQuestion(
-              question: 'Which organelle stores DNA?',
-              options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
-              answerIndex: 0,
-              explanation: 'The nucleus contains the cell DNA.',
-            ),
-          ],
-          startsAt: now.add(const Duration(minutes: 1)),
-          maxAttempts: null,
-        ),
-      );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ClassroomScreen(
-            user: const UserModel(
-              id: 1,
-              fullName: 'Instructor Name',
-              email: 'instructor@example.com',
-              role: 'instructor',
-            ),
-            classroomService: repository,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Grade 11 - STEM A'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Cell Structure'));
-    await tester.tap(find.text('Cell Structure'));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('Unlimited attempts'), findsOneWidget);
-    expect(find.textContaining('Due '), findsNothing);
-    expect(find.text('Which organelle stores DNA?'), findsOneWidget);
-    expect(find.text('Nucleus'), findsOneWidget);
-    expect(find.text('Correct answer'), findsOneWidget);
-    expect(
-      find.textContaining('The nucleus contains the cell DNA.'),
-      findsOneWidget,
-    );
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('instructors can cancel or confirm deleting a posted quiz', (
-    tester,
-  ) async {
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    tester.view.physicalSize = const Size(400, 800);
-    tester.view.devicePixelRatio = 1;
-    final now = DateTime.now();
-    final repository = _FakeClassroomRepository()
-      ..classrooms.add(
-        ClassroomModel(
-          id: 'test-id',
-          name: 'Grade 11 - STEM A',
-          subject: 'General Biology 1',
-          code: 'ABCD2345',
-          createdAt: DateTime.utc(2026),
-        ),
-      )
-      ..activities.add(
-        ClassroomActivity(
-          id: 'activity-id',
-          classroomId: 'test-id',
-          classroomName: 'Grade 11 - STEM A',
-          quizId: 'quiz-id',
-          title: 'Cell Structure',
-          sourceFile: 'biology.pdf',
-          questions: const [
-            QuizQuestion(
-              question: 'Which organelle stores DNA?',
-              options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
-              answerIndex: 0,
-              explanation: 'The nucleus contains the cell DNA.',
-            ),
-          ],
-          startsAt: now,
-        ),
-      );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ClassroomScreen(
-            user: const UserModel(
-              id: 1,
-              fullName: 'Instructor Name',
-              email: 'instructor@example.com',
-              role: 'instructor',
-            ),
-            classroomService: repository,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Grade 11 - STEM A'));
-    await tester.pumpAndSettle();
-
-    await tester.ensureVisible(find.byTooltip('Delete posted quiz'));
-    await tester.tap(find.byTooltip('Delete posted quiz'));
-    await tester.pumpAndSettle();
-    expect(find.text('Delete posted quiz?'), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    expect(repository.activities, hasLength(1));
-
-    await tester.ensureVisible(find.byTooltip('Delete posted quiz'));
-    await tester.tap(find.byTooltip('Delete posted quiz'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete quiz'));
-    await tester.pumpAndSettle();
-    expect(repository.activities, isEmpty);
-    expect(repository.deletedActivities, ['activity-id']);
-    expect(find.text('Posted quiz deleted'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      ],
+    ),
+  ];
 }
 
 class _FakeClassroomRepository implements ClassroomRepository {

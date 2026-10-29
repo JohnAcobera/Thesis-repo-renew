@@ -120,7 +120,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
         ?trailingAction,
         if (roleLabel.trim().toLowerCase() == 'student')
           StudentNotificationsButton(
-            repository: notificationRepository ?? StudentNotificationService(),
+            repository: notificationRepository,
             onNotificationSelected: onNotificationSelected,
           ),
         if (roleLabel.trim().toLowerCase() == 'instructor')

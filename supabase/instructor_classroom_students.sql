@@ -1,4 +1,4 @@
--- Run after classrooms.sql, classroom_activities.sql, and quiz_attempts.sql.
+-- Run after custom_auth.sql and classrooms.sql.
 
 create or replace function public.list_instructor_classroom_students(
   p_session_token text,
@@ -47,35 +47,12 @@ begin
         'id', student.id,
         'full_name', student.full_name,
         'email', student.email,
-        'joined_at', membership.joined_at,
-        'completed_activity_count', performance.completed_activity_count,
-        'total_activity_count', activity_totals.total_activity_count,
-        'attempt_count', performance.attempt_count,
-        'average_score', performance.average_score
+        'joined_at', membership.joined_at
       )
       order by student.full_name, student.id
     )
     from public.classroom_students membership
     join public.users student on student.id = membership.student_id
-    cross join lateral (
-      select count(*)::integer as total_activity_count
-      from public.classroom_activities activity
-      where activity.classroom_id = p_classroom_id
-    ) activity_totals
-    cross join lateral (
-      select
-        count(distinct attempt.classroom_activity_id)::integer
-          as completed_activity_count,
-        count(attempt.id)::integer as attempt_count,
-        avg(
-          100.0 * attempt.score / nullif(attempt.total_questions, 0)
-        ) as average_score
-      from public.quiz_attempts attempt
-      join public.classroom_activities activity
-        on activity.id = attempt.classroom_activity_id
-      where activity.classroom_id = p_classroom_id
-        and attempt.user_id = student.id
-    ) performance
     where membership.classroom_id = p_classroom_id
   ), '[]'::jsonb);
 end;

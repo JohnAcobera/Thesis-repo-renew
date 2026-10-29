@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
 
-enum InstructorMenuItem { dashboard, classroom, learningMaterials, reports }
+enum InstructorMenuItem { dashboard, classroom, reports }
 
 extension InstructorMenuItemPresentation on InstructorMenuItem {
   String get label => switch (this) {
     InstructorMenuItem.dashboard => 'Dashboard',
     InstructorMenuItem.classroom => 'My Classroom',
-    InstructorMenuItem.learningMaterials => 'Learning Materials',
     InstructorMenuItem.reports => 'Reports',
   };
 
   IconData get icon => switch (this) {
     InstructorMenuItem.dashboard => Icons.dashboard_outlined,
     InstructorMenuItem.classroom => Icons.class_outlined,
-    InstructorMenuItem.learningMaterials => Icons.menu_book_outlined,
     InstructorMenuItem.reports => Icons.bar_chart_outlined,
   };
 }
@@ -25,7 +23,6 @@ class InstructorSideMenu extends StatelessWidget {
     required this.role,
     required this.selectedMenu,
     required this.onMenuSelected,
-    required this.onAboutSelected,
     required this.onLogoutSelected,
     super.key,
   });
@@ -35,13 +32,12 @@ class InstructorSideMenu extends StatelessWidget {
   final String role;
   final InstructorMenuItem selectedMenu;
   final ValueChanged<InstructorMenuItem> onMenuSelected;
-  final VoidCallback onAboutSelected;
   final VoidCallback onLogoutSelected;
 
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: const Color(0xFFFFFCF8).withValues(alpha: 0.6),
+      color: const Color(0xFFFFFCF8).withValues(alpha: 0.8),
       border: Border(
         right: BorderSide(color: Colors.white.withValues(alpha: 0.8)),
       ),
@@ -97,11 +93,6 @@ class InstructorSideMenu extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
             child: Column(
               children: [
-                _InstructorMenuTile(
-                  label: 'About',
-                  icon: Icons.info_outline,
-                  onTap: onAboutSelected,
-                ),
                 _InstructorMenuTile(
                   label: 'Logout',
                   icon: Icons.logout,

@@ -142,20 +142,12 @@ class ClassroomStudentSummary {
     required this.fullName,
     required this.email,
     required this.joinedAt,
-    required this.completedActivityCount,
-    required this.totalActivityCount,
-    required this.attemptCount,
-    this.averageScore,
   });
 
   final int id;
   final String fullName;
   final String email;
   final DateTime joinedAt;
-  final int completedActivityCount;
-  final int totalActivityCount;
-  final int attemptCount;
-  final double? averageScore;
 
   factory ClassroomStudentSummary.fromJson(Map<String, dynamic> json) =>
       ClassroomStudentSummary(
@@ -163,11 +155,6 @@ class ClassroomStudentSummary {
         fullName: json['full_name'] as String,
         email: json['email'] as String,
         joinedAt: DateTime.parse(json['joined_at'] as String),
-        completedActivityCount: (json['completed_activity_count'] as num)
-            .toInt(),
-        totalActivityCount: (json['total_activity_count'] as num).toInt(),
-        attemptCount: (json['attempt_count'] as num).toInt(),
-        averageScore: (json['average_score'] as num?)?.toDouble(),
       );
 }
 

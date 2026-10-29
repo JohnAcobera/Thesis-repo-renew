@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_service.dart';
 
 abstract interface class StudentNotificationRepository {
   Future<List<StudentNotification>> listNotifications();
+
+  Stream<List<StudentNotification>> watchNotifications();
+
+  Future<void> refreshNotifications();
 
   Future<void> markNotificationsRead(List<String> notificationIds);
 }
@@ -72,9 +78,71 @@ class StudentNotificationService implements StudentNotificationRepository {
 
   final SupabaseClient? _client;
   final AuthService? _authService;
+  late final StreamController<List<StudentNotification>> _updates =
+      StreamController<List<StudentNotification>>.broadcast(
+        onListen: _startWatching,
+        onCancel: _stopWatching,
+      );
+  RealtimeChannel? _channel;
+  int _refreshRequest = 0;
 
   SupabaseClient get _supabase => _client ?? Supabase.instance.client;
   AuthService get _auth => _authService ?? AuthService();
+
+  @override
+  Stream<List<StudentNotification>> watchNotifications() => _updates.stream;
+
+  void _startWatching() {
+    _channel = _supabase
+        .channel('student-notifications')
+        .onBroadcast(
+          event: 'student_notifications_changed',
+          callback: (_) => unawaited(_reloadNotifications()),
+        )
+        .subscribe((status, error) {
+          if (status == RealtimeSubscribeStatus.subscribed) {
+            unawaited(_reloadNotifications());
+          } else if (status == RealtimeSubscribeStatus.channelError ||
+              status == RealtimeSubscribeStatus.timedOut) {
+            _updates.addError(
+              const StudentNotificationException(
+                'Live notification updates are temporarily unavailable.',
+              ),
+              StackTrace.current,
+            );
+          }
+        });
+    unawaited(_reloadNotifications());
+  }
+
+  void _stopWatching() {
+    final channel = _channel;
+    _channel = null;
+    if (channel != null) {
+      unawaited(_supabase.removeChannel(channel));
+    }
+  }
+
+  Future<void> _reloadNotifications() async {
+    final request = ++_refreshRequest;
+    try {
+      final notifications = await listNotifications();
+      if (request == _refreshRequest && _updates.hasListener) {
+        _updates.add(notifications);
+      }
+    } on Object catch (error, stackTrace) {
+      if (request == _refreshRequest && _updates.hasListener) {
+        _updates.addError(error, stackTrace);
+      }
+    }
+  }
+
+  @override
+  Future<void> refreshNotifications() async {
+    final request = ++_refreshRequest;
+    final notifications = await listNotifications();
+    if (request == _refreshRequest) _updates.add(notifications);
+  }
 
   @override
   Future<List<StudentNotification>> listNotifications() async {

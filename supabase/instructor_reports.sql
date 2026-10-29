@@ -69,7 +69,14 @@ begin
               'retention_percentage', radar_metrics.retention_percentage,
               'improvement_percentage', radar_metrics.improvement_percentage,
               'consistency_percentage', radar_metrics.consistency_percentage,
-              'focus_percentage', radar_metrics.focus_percentage
+              'focus_percentage', radar_metrics.focus_percentage,
+              'metric_samples', jsonb_build_object(
+                'accuracy', radar_metrics.accuracy_samples,
+                'retention', radar_metrics.retention_samples,
+                'improvement', radar_metrics.improvement_samples,
+                'consistency', radar_metrics.consistency_samples,
+                'focus', radar_metrics.focus_samples
+              )
             )
             order by student.full_name, student.id
           )
@@ -129,17 +136,43 @@ begin
               where quiz.user_id = student.id
             ),
             retention_by_quiz as (
-              select quiz_id, avg(percentage) as percentage
+              select
+                quiz_id,
+                avg(percentage) as percentage,
+                max(created_at) as latest_created_at
               from ranked_attempts
               where latest_rank <= 2
               group by quiz_id
               having count(*) >= 2
             ),
             improvement_by_quiz as (
-              select quiz_id, avg(percentage - previous_percentage) as percentage
+              select
+                quiz_id,
+                avg(percentage - previous_percentage) as percentage,
+                max(created_at) as latest_created_at
               from ranked_attempts
               where previous_percentage is not null
               group by quiz_id
+            ),
+            focus_by_quiz as (
+              select quiz_id, percentage, created_at
+              from ranked_attempts
+              where first_rank = 1
+            ),
+            consistency_by_day as (
+              select
+                calendar.activity_date,
+                case when count(attempt.created_at) > 0 then 1.0 else 0.0 end
+                  as active
+              from generate_series(
+                greatest(student.created_at::date, current_date - 27),
+                current_date,
+                interval '1 day'
+              ) as calendar(activity_date)
+              left join ranked_attempts attempt
+                on attempt.created_at::date = calendar.activity_date::date
+              where student.created_at::date <= current_date
+              group by calendar.activity_date
             )
             select
               100.0 * sum(score) filter (where latest_rank = 1)
@@ -169,7 +202,70 @@ begin
                 / nullif(
                   sum(total_questions) filter (where first_rank = 1),
                   0
-                ) as focus_percentage
+                ) as focus_percentage,
+              (
+                select coalesce(
+                  jsonb_agg(sample.percentage order by sample.created_at),
+                  '[]'::jsonb
+                )
+                from (
+                  select percentage, created_at
+                  from ranked_attempts
+                  where created_at::date between
+                    greatest(student.created_at::date, current_date - 27)
+                    and current_date
+                  order by created_at desc, quiz_id
+                  limit 12
+                ) sample
+              ) as accuracy_samples,
+              (
+                select coalesce(
+                  jsonb_agg(sample.percentage order by sample.latest_created_at),
+                  '[]'::jsonb
+                )
+                from (
+                  select percentage, latest_created_at
+                  from retention_by_quiz
+                  order by latest_created_at desc, quiz_id
+                  limit 12
+                ) sample
+              ) as retention_samples,
+              (
+                select coalesce(
+                  jsonb_agg(sample.percentage order by sample.latest_created_at),
+                  '[]'::jsonb
+                )
+                from (
+                  select percentage, latest_created_at
+                  from improvement_by_quiz
+                  order by latest_created_at desc, quiz_id
+                  limit 12
+                ) sample
+              ) as improvement_samples,
+              (
+                select coalesce(
+                  jsonb_agg(active order by activity_date),
+                  '[]'::jsonb
+                )
+                from (
+                  select activity_date, active
+                  from consistency_by_day
+                  order by activity_date desc
+                  limit 28
+                ) sample
+              ) as consistency_samples,
+              (
+                select coalesce(
+                  jsonb_agg(sample.percentage order by sample.created_at),
+                  '[]'::jsonb
+                )
+                from (
+                  select percentage, created_at
+                  from focus_by_quiz
+                  order by created_at desc, quiz_id
+                  limit 12
+                ) sample
+              ) as focus_samples
             from ranked_attempts
           ) radar_metrics
           where membership.classroom_id = classroom.id
