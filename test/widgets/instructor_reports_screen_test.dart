@@ -25,6 +25,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Student performance'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('instructor-summary-metrics-card')),
+      findsNothing,
+    );
+    expect(find.text('Student enrollments'), findsNothing);
     expect(find.text('Grade 11 - STEM A'), findsOneWidget);
     expect(find.text('General Biology 1'), findsNothing);
     expect(find.text('85%'), findsNothing);

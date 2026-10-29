@@ -65,6 +65,7 @@ class ClassroomScreen extends StatefulWidget {
     this.classroomService,
     this.reportsRepository,
     this.initialClassroomId,
+    this.onInstructorStatsChanged,
     super.key,
   });
 
@@ -72,6 +73,7 @@ class ClassroomScreen extends StatefulWidget {
   final ClassroomRepository? classroomService;
   final InstructorReportsRepository? reportsRepository;
   final String? initialClassroomId;
+  final VoidCallback? onInstructorStatsChanged;
 
   @override
   State<ClassroomScreen> createState() => _ClassroomScreenState();
@@ -170,6 +172,7 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
         _classrooms = [classroom, ..._classrooms];
         _loadError = null;
       });
+      widget.onInstructorStatsChanged?.call();
       await _showClassroomCode(classroom);
     }
   }
@@ -194,6 +197,7 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
         _selectedClassroom = null;
         _loadError = null;
       });
+      widget.onInstructorStatsChanged?.call();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Classroom deleted'),
@@ -292,7 +296,9 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
         classroom: classroom,
         user: widget.user,
         classroomService: widget.classroomService ?? ClassroomService(),
-        onBack: () => setState(() => _selectedClassroom = null),
+        onBack: () => setState(() {
+          _selectedClassroom = null;
+        }),
         onDelete: _deleteClassroom,
         isDeleting: _isDeletingClassroom,
         reportsRepository: widget.reportsRepository,
@@ -300,10 +306,13 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.symmetric(
+        horizontal: MediaQuery.sizeOf(context).width < 600 ? 16 : 32,
+        vertical: 24,
+      ),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1280),
+          constraints: const BoxConstraints(maxWidth: 1160),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

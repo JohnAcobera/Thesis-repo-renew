@@ -15,8 +15,7 @@ import '../profile_screen.dart';
 import '../instructor_todo_section.dart';
 import '../../widgets/instructor_side_menu.dart';
 import '../../widgets/student_nav_bar.dart';
-import '../../widgets/app_glass_surface.dart';
-import '../../widgets/student_side_menu.dart' show StudentMenuItem;
+import '../../widgets/instructor_summary_metrics.dart';
 import '../auth/login_screen.dart';
 
 class InstructorHomeScreen extends StatefulWidget {
@@ -42,6 +41,10 @@ class InstructorHomeScreen extends StatefulWidget {
 class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
   static const _animationDuration = Duration(milliseconds: 280);
 
+  late final ClassroomRepository _classroomService =
+      widget.classroomService ?? ClassroomService();
+  late Future<InstructorDashboardStats> _instructorStats = _classroomService
+      .getInstructorDashboardStats();
   bool _isMenuOpen = false;
   InstructorMenuItem _selectedMenu = InstructorMenuItem.dashboard;
 
@@ -59,6 +62,12 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
     setState(() {
       _selectedMenu = item;
       _isMenuOpen = false;
+    });
+  }
+
+  void _reloadInstructorStats() {
+    setState(() {
+      _instructorStats = _classroomService.getInstructorDashboardStats();
     });
   }
 
@@ -100,11 +109,7 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
               email: user.email,
               role: user.role,
               createdAt: user.createdAt,
-              onMenuSelected: (item) => _selectMenuItem(
-                item == StudentMenuItem.classroom
-                    ? InstructorMenuItem.classroom
-                    : InstructorMenuItem.dashboard,
-              ),
+              onInstructorMenuSelected: _selectMenuItem,
             ),
           ),
         ),
@@ -135,24 +140,53 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
             clipBehavior: Clip.hardEdge,
             children: [
               Positioned.fill(
-                child: _selectedMenu == InstructorMenuItem.classroom
-                    ? ClassroomScreen(
-                        user: user,
-                        classroomService: widget.classroomService,
-                        reportsRepository: widget.reportsRepository,
-                      )
-                    : _selectedMenu == InstructorMenuItem.reports
-                    ? InstructorReportsScreen(
-                        reportsRepository:
-                            widget.reportsRepository ??
-                            InstructorReportsService(),
-                      )
-                    : _InstructorDashboard(
-                        classroomService:
-                            widget.classroomService ?? ClassroomService(),
-                        instructorId: user.id,
-                        todoRepository: widget.todoRepository,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        constraints.maxWidth < 600 ? 16 : 32,
+                        24,
+                        constraints.maxWidth < 600 ? 16 : 32,
+                        0,
                       ),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1160),
+                          child: FutureBuilder<InstructorDashboardStats>(
+                            future: _instructorStats,
+                            builder: (context, snapshot) =>
+                                InstructorSummaryMetrics(
+                                  classroomCount:
+                                      snapshot.data?.activeClassCount,
+                                  studentCount: snapshot.data?.studentCount,
+                                  studentsUnavailable: snapshot.hasError,
+                                  onRetryStudents: _reloadInstructorStats,
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: _selectedMenu == InstructorMenuItem.classroom
+                          ? ClassroomScreen(
+                              user: user,
+                              classroomService: _classroomService,
+                              reportsRepository: widget.reportsRepository,
+                              onInstructorStatsChanged: _reloadInstructorStats,
+                            )
+                          : _selectedMenu == InstructorMenuItem.reports
+                          ? InstructorReportsScreen(
+                              reportsRepository:
+                                  widget.reportsRepository ??
+                                  InstructorReportsService(),
+                            )
+                          : _InstructorDashboard(
+                              instructorId: user.id,
+                              todoRepository: widget.todoRepository,
+                            ),
+                    ),
+                  ],
+                ),
               ),
               Positioned.fill(
                 child: IgnorePointer(
@@ -208,13 +242,8 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
 }
 
 class _InstructorDashboard extends StatefulWidget {
-  const _InstructorDashboard({
-    required this.classroomService,
-    required this.instructorId,
-    this.todoRepository,
-  });
+  const _InstructorDashboard({required this.instructorId, this.todoRepository});
 
-  final ClassroomRepository classroomService;
   final int instructorId;
   final InstructorTodoRepository? todoRepository;
 
@@ -223,237 +252,70 @@ class _InstructorDashboard extends StatefulWidget {
 }
 
 class _InstructorDashboardState extends State<_InstructorDashboard> {
-  late Future<InstructorDashboardStats> _stats;
-
   static const _accent = Color(0xFFF4773C);
   static const _ink = Color(0xFF3B2419);
   static const _muted = Color(0xFF765C4F);
-  static const _gap = 16.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _stats = widget.classroomService.getInstructorDashboardStats();
-  }
-
-  void _retryLoadingStats() {
-    setState(() {
-      _stats = widget.classroomService.getInstructorDashboardStats();
-    });
-  }
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final horizontalPadding = constraints.maxWidth < 600 ? 16.0 : 32.0;
       final contentWidth = constraints.maxWidth - horizontalPadding * 2;
-      final dashboardWidth = math.min(contentWidth, 1280.0);
-      final metricColumns = dashboardWidth >= 520 ? 2 : 1;
-      final metricWidth =
-          (dashboardWidth - _gap * (metricColumns - 1)) / metricColumns;
+      final dashboardWidth = math.min(contentWidth, 1160.0);
       final dashboardPanelHeight = dashboardWidth < 496 ? 480.0 : 420.0;
 
-      return FutureBuilder<InstructorDashboardStats>(
-        future: _stats,
-        builder: (context, snapshot) {
-          final stats = snapshot.data;
-          const heading = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'INSTRUCTOR OVERVIEW',
-                style: TextStyle(
-                  color: _accent,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.4,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Your teaching overview',
-                style: TextStyle(
-                  color: _ink,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'A clear view of your classes and student progress.',
-                style: TextStyle(color: _muted, fontSize: 14, height: 1.5),
-              ),
-            ],
-          );
-          return SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: horizontalPadding,
-              vertical: 32,
-            ),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1280),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    heading,
-                    if (snapshot.hasError) ...[
-                      const SizedBox(height: 16),
-                      _DashboardLoadError(onRetry: _retryLoadingStats),
-                    ],
-                    const SizedBox(height: 24),
-                    Wrap(
-                      spacing: _gap,
-                      runSpacing: _gap,
-                      children: [
-                        SizedBox(
-                          width: metricWidth,
-                          child: _MetricCard(
-                            label: 'Total students',
-                            caption: 'Across all your classes',
-                            icon: Icons.groups_outlined,
-                            tint: Color(0xFFFFE5D5),
-                            iconColor: _accent,
-                            value: stats?.studentCount.toString(),
-                          ),
-                        ),
-                        SizedBox(
-                          width: metricWidth,
-                          child: _MetricCard(
-                            label: 'Active classes',
-                            caption: 'Classes you are teaching',
-                            icon: Icons.menu_book_outlined,
-                            tint: Color(0xFFFFE5D5),
-                            iconColor: _accent,
-                            value: stats?.activeClassCount.toString(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    InstructorTodoSection(
-                      instructorId: widget.instructorId,
-                      repository: widget.todoRepository,
-                      panelHeight: dashboardPanelHeight,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    },
-  );
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.label,
-    required this.caption,
-    required this.icon,
-    required this.tint,
-    required this.iconColor,
-    this.value,
-  });
-
-  final String label;
-  final String caption;
-  final IconData icon;
-  final Color tint;
-  final Color iconColor;
-  final String? value;
-
-  @override
-  Widget build(BuildContext context) => AppGlassSurface(
-    borderRadius: 16,
-    padding: const EdgeInsets.all(18),
-    child: SizedBox(
-      height: 156,
-      width: double.infinity,
-      child: Column(
+      const heading = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: tint,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: iconColor, size: 21),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF765C4F),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
           Text(
-            value ?? '—',
-            style: const TextStyle(
-              color: Color(0xFF3B2419),
-              fontSize: 30,
+            'INSTRUCTOR OVERVIEW',
+            style: TextStyle(
+              color: _accent,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
-              height: 1,
+              letterSpacing: 1.4,
             ),
           ),
-          const SizedBox(height: 7),
+          SizedBox(height: 8),
           Text(
-            caption,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFF765C4F), fontSize: 11),
+            'Your teaching overview',
+            style: TextStyle(
+              color: _ink,
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'A clear view of your classes and student progress.',
+            style: TextStyle(color: _muted, fontSize: 14, height: 1.5),
           ),
         ],
-      ),
-    ),
-  );
-}
-
-class _DashboardLoadError extends StatelessWidget {
-  const _DashboardLoadError({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFE5D5),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFF2C4A7)),
-    ),
-    child: Row(
-      children: [
-        const Icon(Icons.error_outline, color: Color(0xFFB84E25), size: 20),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            'Could not load classroom statistics. Please try again.',
-            style: const TextStyle(color: Color(0xFF6C3C28), fontSize: 12),
+      );
+      return SingleChildScrollView(
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: 24,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1160),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                heading,
+                const SizedBox(height: 24),
+                InstructorTodoSection(
+                  instructorId: widget.instructorId,
+                  repository: widget.todoRepository,
+                  panelHeight: dashboardPanelHeight,
+                ),
+              ],
+            ),
           ),
         ),
-        TextButton.icon(
-          onPressed: onRetry,
-          icon: const Icon(Icons.refresh_rounded, size: 18),
-          label: const Text('Retry'),
-        ),
-      ],
-    ),
+      );
+    },
   );
 }

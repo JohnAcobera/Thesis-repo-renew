@@ -30,7 +30,7 @@ class InstructorSideMenu extends StatelessWidget {
   final String username;
   final String email;
   final String role;
-  final InstructorMenuItem selectedMenu;
+  final InstructorMenuItem? selectedMenu;
   final ValueChanged<InstructorMenuItem> onMenuSelected;
   final VoidCallback onLogoutSelected;
 

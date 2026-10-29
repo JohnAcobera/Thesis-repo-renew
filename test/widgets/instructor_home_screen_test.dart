@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/classroom_model.dart';
@@ -9,8 +11,141 @@ import 'package:thesis_repo_renew/models/instructor_report.dart';
 import 'package:thesis_repo_renew/services/instructor_reports_service.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
 import 'package:thesis_repo_renew/screens/home/instructor_home_screen.dart';
+import 'package:thesis_repo_renew/screens/profile_screen.dart';
+import 'package:thesis_repo_renew/widgets/instructor_side_menu.dart';
 
 void main() {
+  testWidgets('summary panel stays fixed while instructor screens change', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final classroomRepository = _PendingDashboardStatsClassroomRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: InstructorHomeScreen(
+          classroomService: classroomRepository,
+          reportsRepository: _FakeInstructorReportsRepository(),
+          todoRepository: _FakeInstructorTodoRepository(),
+          user: const UserModel(
+            id: 1,
+            fullName: 'Instructor Name',
+            email: 'instructor@example.com',
+            role: 'instructor',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final summaryPanel = find.byKey(
+      const ValueKey('instructor-summary-metrics-card'),
+    );
+    final initialRect = tester.getRect(summaryPanel);
+    expect(find.text('—'), findsNWidgets(2));
+
+    classroomRepository.statsCompleter.complete(
+      await _FakeClassroomRepository().getInstructorDashboardStats(),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(summaryPanel), initialRect);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+
+    for (final section in ['My Classroom', 'Reports', 'Dashboard']) {
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(section).first);
+      await tester.pumpAndSettle();
+
+      expect(summaryPanel, findsOneWidget);
+      expect(tester.getRect(summaryPanel), initialRect);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+    }
+  });
+
+  testWidgets('instructor overview shows classroom and student totals', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: InstructorHomeScreen(
+          classroomService: _FakeClassroomRepository(),
+          todoRepository: _FakeInstructorTodoRepository(),
+          user: const UserModel(
+            id: 1,
+            fullName: 'Instructor Name',
+            email: 'instructor@example.com',
+            role: 'instructor',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Classrooms'), findsOneWidget);
+    expect(find.text('Total students'), findsOneWidget);
+    expect(find.text('Active classes'), findsNothing);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(
+      tester
+          .getRect(
+            find.byKey(const ValueKey('instructor-summary-metrics-card')),
+          )
+          .left,
+      tester.getRect(find.text('INSTRUCTOR OVERVIEW')).left,
+    );
+    expect(
+      tester
+          .getRect(
+            find.byKey(const ValueKey('instructor-summary-metrics-card')),
+          )
+          .top,
+      lessThan(tester.getTopLeft(find.text('INSTRUCTOR OVERVIEW')).dy),
+    );
+    expect(
+      tester
+          .getRect(
+            find.byKey(const ValueKey('instructor-summary-metrics-card')),
+          )
+          .right,
+      tester.getRect(find.byKey(const ValueKey('instructor-todo-panel'))).right,
+    );
+  });
+
+  testWidgets('instructor profile shows only instructor menu items', (
+    tester,
+  ) async {
+    InstructorMenuItem? selectedItem;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProfileScreen(
+          username: 'Instructor Name',
+          email: 'instructor@example.com',
+          role: 'instructor',
+          onInstructorMenuSelected: (item) => selectedItem = item,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Open menu'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.text('My Classroom'), findsOneWidget);
+    expect(find.text('Reports'), findsOneWidget);
+    expect(find.text('Leaderboard'), findsNothing);
+    expect(find.text('Inventory'), findsNothing);
+
+    await tester.tap(find.text('Reports'));
+    await tester.pumpAndSettle();
+    expect(selectedItem, InstructorMenuItem.reports);
+  });
+
   testWidgets('instructor dashboard and reusable side menu render', (
     tester,
   ) async {
@@ -43,9 +178,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      for (final heading in ['Total students', 'Active classes', 'My tasks']) {
+      for (final heading in ['Total students', 'Classrooms', 'My tasks']) {
         expect(find.text(heading), findsOneWidget);
       }
+      expect(find.text('Active classes'), findsNothing);
       expect(find.text('Create activity'), findsNothing);
       expect(find.text('Quizzes created'), findsNothing);
       expect(find.text('Generate a quiz'), findsNothing);
@@ -68,7 +204,7 @@ void main() {
       if (size.width >= 600) {
         final metricLabelTops = [
           'Total students',
-          'Active classes',
+          'Classrooms',
         ].map((label) => tester.getTopLeft(find.text(label)).dy);
         expect(metricLabelTops.toSet(), hasLength(1));
       }
@@ -101,8 +237,8 @@ void main() {
       await tester.tap(find.text('Reports'));
       await tester.pumpAndSettle();
       expect(find.text('Student performance'), findsOneWidget);
-      expect(find.text('Grade 11 - STEM A'), findsNWidgets(2));
-      expect(find.text('Report Student'), findsOneWidget);
+      expect(find.text('Grade 11 - STEM A'), findsOneWidget);
+      expect(find.text('Support Needed Student'), findsOneWidget);
       await tester.tap(find.byTooltip('Open menu'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('My Classroom'));
@@ -322,4 +458,13 @@ class _FakeClassroomRepository implements ClassroomRepository {
     required String classroomId,
     required String activityId,
   }) async {}
+}
+
+class _PendingDashboardStatsClassroomRepository
+    extends _FakeClassroomRepository {
+  final statsCompleter = Completer<InstructorDashboardStats>();
+
+  @override
+  Future<InstructorDashboardStats> getInstructorDashboardStats() =>
+      statsCompleter.future;
 }

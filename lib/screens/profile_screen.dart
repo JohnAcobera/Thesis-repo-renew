@@ -1,10 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import 'auth/login_screen.dart';
 import '../services/auth_service.dart';
 import '../services/quiz_service.dart';
 import '../widgets/app_glass_surface.dart';
+import '../widgets/instructor_side_menu.dart';
 import '../widgets/learning_metric_chart.dart';
 import '../widgets/student_side_menu.dart';
+import '../widgets/student_nav_bar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -13,6 +18,7 @@ class ProfileScreen extends StatefulWidget {
     this.role = 'student',
     this.createdAt,
     this.onMenuSelected,
+    this.onInstructorMenuSelected,
     this.streakDays,
     this.authService,
     super.key,
@@ -23,6 +29,7 @@ class ProfileScreen extends StatefulWidget {
   final String role;
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
+  final ValueChanged<InstructorMenuItem>? onInstructorMenuSelected;
   final Set<DateTime>? streakDays;
   final ProfileDataService? authService;
 
@@ -31,19 +38,14 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  static const _menuAnimationDuration = Duration(milliseconds: 280);
+
   late final ProfileDataService _authService =
       widget.authService ?? AuthService();
-  late Future<int> _learnerPointsFuture;
-  late Future<int?> _weeklyRankingFuture;
-  late Future<List<QuizActivity>> _quizMetricsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _learnerPointsFuture = _loadLearnerPoints();
-    _weeklyRankingFuture = _loadWeeklyRanking();
-    _quizMetricsFuture = _loadQuizMetrics();
-  }
+  late Future<int> _learnerPointsFuture = _loadLearnerPoints();
+  late Future<int?> _weeklyRankingFuture = _loadWeeklyRanking();
+  late Future<List<QuizActivity>> _quizMetricsFuture = _loadQuizMetrics();
+  bool _isInstructorMenuOpen = false;
 
   Future<int> _loadLearnerPoints() async => await _authService.learnerPoints();
 
@@ -53,82 +55,176 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await QuizService().recentAttempts();
 
   @override
-  Widget build(BuildContext context) => StudentScaffold(
-    title: 'Profile',
-    username: widget.username,
-    email: widget.email,
-    role: _displayRole,
-    selectedMenu: StudentMenuItem.profile,
-    onMenuSelected: (item) {
-      if (item == StudentMenuItem.dashboard ||
-          item == StudentMenuItem.classroom ||
-          item == StudentMenuItem.leaderboard ||
-          item == StudentMenuItem.inventory) {
-        final callback = widget.onMenuSelected;
-        Navigator.of(context).popUntil((route) => route.isFirst);
-        callback?.call(item);
-      }
-    },
-    body: SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 800),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Your profile',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: const Color(0xFF3B2419),
-                    fontWeight: FontWeight.w600,
+  Widget build(BuildContext context) => _isInstructor
+      ? _buildInstructorScaffold()
+      : StudentScaffold(
+          title: 'Profile',
+          username: widget.username,
+          email: widget.email,
+          role: _displayRole,
+          selectedMenu: StudentMenuItem.profile,
+          onMenuSelected: (item) {
+            if (item == StudentMenuItem.dashboard ||
+                item == StudentMenuItem.classroom ||
+                item == StudentMenuItem.leaderboard ||
+                item == StudentMenuItem.inventory) {
+              final callback = widget.onMenuSelected;
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              callback?.call(item);
+            }
+          },
+          body: _buildProfileContent(),
+        );
+
+  Widget _buildInstructorScaffold() => Scaffold(
+    backgroundColor: Colors.transparent,
+    appBar: StudentNavBar(
+      title: 'Profile',
+      username: widget.username,
+      email: widget.email,
+      roleLabel: _displayRole,
+      onLogoutSelected: _logout,
+      leading: IconButton(
+        tooltip: _isInstructorMenuOpen ? 'Close menu' : 'Open menu',
+        onPressed: () =>
+            setState(() => _isInstructorMenuOpen = !_isInstructorMenuOpen),
+        icon: const Icon(Icons.menu),
+      ),
+    ),
+    body: LayoutBuilder(
+      builder: (context, constraints) {
+        final emailStyle = Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF765C4F));
+        final emailPainter = TextPainter(
+          text: TextSpan(text: widget.email, style: emailStyle),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        final drawerWidth = math.min(
+          math.max(220.0, emailPainter.width + 98),
+          constraints.maxWidth * 0.82,
+        );
+
+        return Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            Positioned.fill(child: _buildProfileContent()),
+            Positioned.fill(
+              child: IgnorePointer(
+                ignoring: !_isInstructorMenuOpen,
+                child: AnimatedOpacity(
+                  duration: _menuAnimationDuration,
+                  curve: Curves.easeInOut,
+                  opacity: _isInstructorMenuOpen ? 1 : 0,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _isInstructorMenuOpen = false),
+                    child: const ColoredBox(color: Color(0x26000000)),
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'View your account information.',
-                  style: TextStyle(color: Color(0xFF765C4F)),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: drawerWidth,
+              child: AnimatedSlide(
+                duration: _menuAnimationDuration,
+                curve: Curves.easeInOutCubic,
+                offset: _isInstructorMenuOpen
+                    ? Offset.zero
+                    : const Offset(-1, 0),
+                child: AnimatedOpacity(
+                  duration: _menuAnimationDuration,
+                  curve: Curves.easeInOut,
+                  opacity: _isInstructorMenuOpen ? 1 : 0,
+                  child: IgnorePointer(
+                    ignoring: !_isInstructorMenuOpen,
+                    child: ExcludeSemantics(
+                      excluding: !_isInstructorMenuOpen,
+                      child: InstructorSideMenu(
+                        username: widget.username,
+                        email: widget.email,
+                        role: _displayRole,
+                        selectedMenu: null,
+                        onMenuSelected: _selectInstructorMenuItem,
+                        onLogoutSelected: _logout,
+                      ),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 24),
-                AppGlassSurface(
-                  width: double.infinity,
-                  borderRadius: 20,
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Column(
-                          children: [
-                            const CircleAvatar(
-                              radius: 40,
-                              backgroundColor: Color(0xFFFFE5D5),
-                              child: Icon(
-                                Icons.account_circle,
-                                size: 56,
-                                color: Color(0xFFF4773C),
-                              ),
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+
+  Widget _buildProfileContent() => SafeArea(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Your profile',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: const Color(0xFF3B2419),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'View your account information.',
+                style: TextStyle(color: Color(0xFF765C4F)),
+              ),
+              const SizedBox(height: 24),
+              AppGlassSurface(
+                width: double.infinity,
+                borderRadius: 20,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Column(
+                        children: [
+                          const CircleAvatar(
+                            radius: 40,
+                            backgroundColor: Color(0xFFFFE5D5),
+                            child: Icon(
+                              Icons.account_circle,
+                              size: 56,
+                              color: Color(0xFFF4773C),
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              widget.username,
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: const Color(0xFF3B2419),
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            widget.username,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: const Color(0xFF3B2419),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _displayRole,
+                            style: const TextStyle(
+                              color: Color(0xFF765C4F),
+                              fontWeight: FontWeight.w500,
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _displayRole,
-                              style: const TextStyle(
-                                color: Color(0xFF765C4F),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
+                          ),
+                          const SizedBox(height: 12),
+                          if (!_isInstructor) ...[
                             _LearnerPointsBadge(
                               pointsFuture: _learnerPointsFuture,
                               onRetry: () => setState(
@@ -145,47 +241,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                      const SizedBox(height: 28),
-                      const Divider(color: Color(0xFFE8D7C2)),
-                      const SizedBox(height: 16),
-                      _ProfileDetail(
-                        label: 'Full name',
-                        value: widget.username,
-                        icon: Icons.person_outline,
-                      ),
-                      const SizedBox(height: 20),
-                      _ProfileDetail(
-                        label: 'Email address',
-                        value: widget.email,
-                        icon: Icons.email_outlined,
-                      ),
-                      const SizedBox(height: 20),
-                      _ProfileDetail(
-                        label: 'Joined',
-                        value: widget.createdAt == null
-                            ? 'Not available'
-                            : _formatDate(widget.createdAt!),
-                        icon: Icons.calendar_today_outlined,
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 28),
+                    const Divider(color: Color(0xFFE8D7C2)),
+                    const SizedBox(height: 16),
+                    _ProfileDetail(
+                      label: 'Full name',
+                      value: widget.username,
+                      icon: Icons.person_outline,
+                    ),
+                    const SizedBox(height: 20),
+                    _ProfileDetail(
+                      label: 'Email address',
+                      value: widget.email,
+                      icon: Icons.email_outlined,
+                    ),
+                    const SizedBox(height: 20),
+                    _ProfileDetail(
+                      label: 'Joined',
+                      value: widget.createdAt == null
+                          ? 'Not available'
+                          : _formatDate(widget.createdAt!),
+                      icon: Icons.calendar_today_outlined,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 24),
-                _buildMetricsPanel(),
-              ],
-            ),
+              ),
+              const SizedBox(height: 24),
+              if (!_isInstructor) _buildMetricsPanel(),
+            ],
           ),
         ),
       ),
     ),
   );
 
+  void _selectInstructorMenuItem(InstructorMenuItem item) {
+    final callback = widget.onInstructorMenuSelected;
+    setState(() => _isInstructorMenuOpen = false);
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    callback?.call(item);
+  }
+
+  Future<void> _logout() async {
+    await AuthService().logout();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
+  }
+
   String get _displayRole => widget.role.isEmpty
       ? widget.role
       : '${widget.role[0].toUpperCase()}'
             '${widget.role.substring(1).toLowerCase()}';
+
+  bool get _isInstructor => widget.role.trim().toLowerCase() == 'instructor';
 
   String _formatDate(DateTime date) {
     const monthNames = [

@@ -693,6 +693,25 @@ void main() {
     );
   });
 
+  testWidgets('instructor profile omits learner-only sections', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProfileScreen(
+          username: 'Instructor Name',
+          email: 'instructor@example.com',
+          role: 'INSTRUCTOR',
+          authService: _LearnerPointsAuthService(1000, ranking: 2),
+        ),
+      ),
+    );
+
+    expect(find.text('Instructor'), findsOneWidget);
+    expect(find.text('LP'), findsNothing);
+    expect(find.byIcon(Icons.diamond_outlined), findsNothing);
+    expect(find.text('Weekly ranking #2'), findsNothing);
+    expect(find.text('Your learning stats'), findsNothing);
+  });
+
   testWidgets('profile displays the loaded learner point balance with commas', (
     tester,
   ) async {

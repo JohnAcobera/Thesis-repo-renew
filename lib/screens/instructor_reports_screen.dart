@@ -74,10 +74,6 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
     future: _reports,
     builder: (context, snapshot) {
       final reports = snapshot.data;
-      final totalStudents = reports?.fold<int>(
-        0,
-        (total, classroom) => total + classroom.studentCount,
-      );
       final insights =
           <
             ({
@@ -170,12 +166,6 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
                     else if (reports == null || reports.isEmpty)
                       const _ReportsEmpty()
                     else ...[
-                      _ReportSummary(
-                        width: contentWidth,
-                        classroomCount: reports.length,
-                        studentCount: totalStudents ?? 0,
-                      ),
-                      const SizedBox(height: 24),
                       _StudentInsights(
                         insights: insights,
                         onStudentSelected: (student, metrics) =>
@@ -201,80 +191,6 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
     builder: (context) =>
         _StudentMetricInsightsDialog(student: student, metrics: metrics),
   );
-}
-
-class _ReportSummary extends StatelessWidget {
-  const _ReportSummary({
-    required this.width,
-    required this.classroomCount,
-    required this.studentCount,
-  });
-
-  final double width;
-  final int classroomCount;
-  final int studentCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final columns = width >= 520 ? 2 : 1;
-    final gap = 12.0;
-    final cardWidth = (width - gap * (columns - 1)) / columns;
-    final summaries = [
-      ('Classrooms', classroomCount, Icons.class_outlined),
-      ('Student enrollments', studentCount, Icons.people_outline),
-    ];
-
-    return Wrap(
-      spacing: gap,
-      runSpacing: gap,
-      children: [
-        for (final (label, count, icon) in summaries)
-          Container(
-            width: cardWidth,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFCF8),
-              border: Border.all(color: const Color(0xFFE8D7C2)),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFE9DA),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: const Color(0xFFF4773C)),
-                ),
-                const SizedBox(width: 13),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$count',
-                      style: const TextStyle(
-                        color: Color(0xFF3B2419),
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        color: Color(0xFF765C4F),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
 }
 
 class _StudentInsights extends StatelessWidget {

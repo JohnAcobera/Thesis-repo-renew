@@ -10,6 +10,73 @@ import 'package:thesis_repo_renew/services/instructor_reports_service.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
 
 void main() {
+  testWidgets('instructor classroom screen shows the classroom list', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeClassroomRepository()
+      ..totalStudentCount = 5
+      ..classrooms.addAll([
+        ClassroomModel(
+          id: 'class-1',
+          name: 'Biology',
+          subject: 'Science',
+          code: 'BIO12345',
+          createdAt: DateTime.utc(2026),
+          studentCount: 3,
+        ),
+        ClassroomModel(
+          id: 'class-2',
+          name: 'Chemistry',
+          subject: 'Science',
+          code: 'CHE12345',
+          createdAt: DateTime.utc(2026),
+          studentCount: 4,
+        ),
+      ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ClassroomScreen(
+          user: const UserModel(
+            id: 1,
+            fullName: 'Instructor Name',
+            email: 'instructor@example.com',
+            role: 'instructor',
+          ),
+          classroomService: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your classrooms'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('instructor-summary-metrics-card')),
+      findsNothing,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ClassroomScreen(
+          user: const UserModel(
+            id: 2,
+            fullName: 'Student Name',
+            email: 'student@example.com',
+            role: 'student',
+          ),
+          classroomService: repository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Your classrooms'), findsOneWidget);
+  });
+
   testWidgets('instructor can create a classroom and view its saved code', (
     tester,
   ) async {
@@ -448,6 +515,7 @@ class _FakeClassroomRepository implements ClassroomRepository {
   final List<ClassroomActivity> activities = [];
   final List<ClassroomStudentSummary> students = [];
   final List<int> removedStudents = [];
+  int totalStudentCount = 0;
   String? createdName;
   String? createdSubject;
   String? createdIconKey;
@@ -476,7 +544,10 @@ class _FakeClassroomRepository implements ClassroomRepository {
 
   @override
   Future<InstructorDashboardStats> getInstructorDashboardStats() async =>
-      const InstructorDashboardStats(studentCount: 0, activeClassCount: 0);
+      InstructorDashboardStats(
+        studentCount: totalStudentCount,
+        activeClassCount: classrooms.length,
+      );
 
   @override
   Future<ClassroomModel> createClassroom({
