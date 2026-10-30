@@ -5,14 +5,9 @@ import 'package:flutter/material.dart';
 import '../services/student_notification_service.dart';
 
 class StudentNotificationsButton extends StatefulWidget {
-  const StudentNotificationsButton({
-    this.repository,
-    this.onNotificationSelected,
-    super.key,
-  });
+  const StudentNotificationsButton({this.repository, super.key});
 
   final StudentNotificationRepository? repository;
-  final ValueChanged<StudentNotification>? onNotificationSelected;
 
   @override
   State<StudentNotificationsButton> createState() =>
@@ -68,23 +63,17 @@ class _StudentNotificationsButtonState
   }
 
   Future<void> _openNotifications() async {
-    final selectedNotification =
-        await showModalBottomSheet<StudentNotification>(
-          context: context,
-          isScrollControlled: true,
-          useSafeArea: true,
-          backgroundColor: Colors.transparent,
-          builder: (_) => StudentNotificationsSheet(
-            repository: _repository,
-            notifications: _notificationUpdates,
-            initialNotifications: _latestNotifications,
-          ),
-        );
-    if (mounted) {
-      if (selectedNotification != null) {
-        widget.onNotificationSelected?.call(selectedNotification);
-      }
-    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StudentNotificationsSheet(
+        repository: _repository,
+        notifications: _notificationUpdates,
+        initialNotifications: _latestNotifications,
+      ),
+    );
   }
 
   @override
@@ -171,6 +160,7 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
     });
     try {
       await widget.repository.markNotificationsRead(unreadIds);
+      await _refreshAfterMark();
     } on StudentNotificationException catch (error) {
       if (mounted) {
         setState(() => _markReadError = error.message);
@@ -206,12 +196,9 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
     try {
       if (!notification.isRead) {
         await widget.repository.markNotificationsRead([notification.id]);
+        await _refreshAfterMark();
       }
       if (!context.mounted) return;
-      if (notification.type == StudentNotificationType.classroomActivity &&
-          notification.classroomId != null) {
-        Navigator.of(context).pop(notification);
-      }
     } on StudentNotificationException catch (error) {
       if (mounted) {
         setState(() => _markReadError = error.message);
@@ -222,6 +209,20 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
           _isMarkingRead = false;
           _markingReadId = null;
         });
+      }
+    }
+  }
+
+  Future<void> _refreshAfterMark() async {
+    try {
+      await widget.repository.refreshNotifications();
+    } on StudentNotificationException catch (error) {
+      if (mounted) {
+        setState(
+          () => _markReadError =
+              'Marked as read, but the notification list could not be '
+              'refreshed. ${error.message}',
+        );
       }
     }
   }
@@ -331,16 +332,9 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final notification = notifications[index];
-                          final canOpenReadClassroomActivity =
-                              notification.type ==
-                                  StudentNotificationType.classroomActivity &&
-                              notification.classroomId != null;
                           return _NotificationTile(
                             notification: notification,
-                            onTap:
-                                _isMarkingRead ||
-                                    (notification.isRead &&
-                                        !canOpenReadClassroomActivity)
+                            onTap: _isMarkingRead || notification.isRead
                                 ? null
                                 : () =>
                                       _onNotificationTap(context, notification),
@@ -438,17 +432,6 @@ class _NotificationTile extends StatelessWidget {
                             dimension: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
-                        )
-                      else if (notification.type ==
-                              StudentNotificationType.classroomActivity &&
-                          notification.classroomId != null)
-                        const Padding(
-                          padding: EdgeInsets.only(left: 8),
-                          child: Icon(
-                            Icons.open_in_new_rounded,
-                            size: 16,
-                            color: Color(0xFFF4773C),
-                          ),
                         ),
                     ],
                   ),
@@ -483,9 +466,9 @@ class _NotificationTile extends StatelessWidget {
     StudentNotificationType.streakEnded => Icons.heart_broken_outlined,
     StudentNotificationType.quizPoints => Icons.quiz_outlined,
     StudentNotificationType.weeklyRank => Icons.emoji_events_outlined,
-    StudentNotificationType.classroomActivity => Icons.campaign_outlined,
     StudentNotificationType.classroomJoined => Icons.group_add_outlined,
     StudentNotificationType.classroomRemoved => Icons.person_remove_outlined,
+    StudentNotificationType.legacy => Icons.notifications_outlined,
   };
 
   String _formatDate(DateTime date) {

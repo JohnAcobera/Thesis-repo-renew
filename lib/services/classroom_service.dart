@@ -2,19 +2,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/classroom_model.dart';
 import 'auth_service.dart';
-import 'quiz_service.dart';
 
 abstract interface class ClassroomRepository {
   Future<InstructorDashboardStats> getInstructorDashboardStats();
 
   Future<List<ClassroomStudentSummary>> classroomStudents(String classroomId);
 
+  Future<List<ClassroomStudentSummary>> classroomClassmates(String classroomId);
+
   Future<void> removeClassroomStudent({
     required String classroomId,
     required int studentId,
   });
-
-  Future<List<ClassroomActivity>> classroomActivities(String classroomId);
 
   Future<List<ClassroomModel>> listClassrooms();
 
@@ -29,11 +28,6 @@ abstract interface class ClassroomRepository {
   });
 
   Future<void> deleteClassroom(String classroomId);
-
-  Future<void> deleteClassroomActivity({
-    required String classroomId,
-    required String activityId,
-  });
 }
 
 class ClassroomService implements ClassroomRepository {
@@ -81,6 +75,42 @@ class ClassroomService implements ClassroomRepository {
   }
 
   @override
+  Future<List<ClassroomStudentSummary>> classroomClassmates(
+    String classroomId,
+  ) async {
+    final token = await _requireSessionToken();
+    try {
+      final response = await _client.rpc<List<dynamic>>(
+        'list_student_classroom_classmates',
+        params: {'p_session_token': token, 'p_classroom_id': classroomId},
+      );
+      return response
+          .map(
+            (student) => ClassroomStudentSummary.fromJson(
+              Map<String, dynamic>.from(student as Map),
+            ),
+          )
+          .toList(growable: false);
+    } on PostgrestException catch (error) {
+      throw ClassroomServiceException(
+        _databaseMessage(
+          error,
+          failureMessage:
+              'The classroom classmates could not be loaded. Please try again.',
+        ),
+      );
+    } on FormatException {
+      throw const ClassroomServiceException(
+        'The classroom classmates could not be read. Please try again.',
+      );
+    } on TypeError {
+      throw const ClassroomServiceException(
+        'The classroom classmates could not be read. Please try again.',
+      );
+    }
+  }
+
+  @override
   Future<void> removeClassroomStudent({
     required String classroomId,
     required int studentId,
@@ -101,42 +131,6 @@ class ClassroomService implements ClassroomRepository {
           error,
           failureMessage: 'The student could not be removed. Please try again.',
         ),
-      );
-    }
-  }
-
-  @override
-  Future<List<ClassroomActivity>> classroomActivities(
-    String classroomId,
-  ) async {
-    final token = await _requireSessionToken();
-    try {
-      final response = await _client.rpc<List<dynamic>>(
-        'list_classroom_activities',
-        params: {'p_session_token': token, 'p_classroom_id': classroomId},
-      );
-      return response
-          .map(
-            (activity) => ClassroomActivity.fromJson(
-              Map<String, dynamic>.from(activity as Map),
-            ),
-          )
-          .toList(growable: false);
-    } on PostgrestException catch (error) {
-      throw ClassroomServiceException(
-        _databaseMessage(
-          error,
-          failureMessage:
-              'Activities for this classroom could not be loaded. Please try again.',
-        ),
-      );
-    } on FormatException {
-      throw const ClassroomServiceException(
-        'Classroom activities could not be read.',
-      );
-    } on TypeError {
-      throw const ClassroomServiceException(
-        'Classroom activities could not be read.',
       );
     }
   }
@@ -315,32 +309,6 @@ class ClassroomService implements ClassroomRepository {
           error,
           failureMessage:
               'The classroom could not be deleted. Please try again.',
-        ),
-      );
-    }
-  }
-
-  @override
-  Future<void> deleteClassroomActivity({
-    required String classroomId,
-    required String activityId,
-  }) async {
-    final token = await _requireSessionToken();
-    try {
-      await _client.rpc<void>(
-        'delete_classroom_activity',
-        params: {
-          'p_session_token': token,
-          'p_classroom_id': classroomId,
-          'p_activity_id': activityId,
-        },
-      );
-    } on PostgrestException catch (error) {
-      throw ClassroomServiceException(
-        _databaseMessage(
-          error,
-          failureMessage:
-              'The posted quiz could not be deleted. Please try again.',
         ),
       );
     }

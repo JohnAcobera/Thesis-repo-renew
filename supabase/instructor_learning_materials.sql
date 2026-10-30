@@ -1,4 +1,4 @@
--- Run after custom_auth.sql, quiz_attempts.sql, and classroom_activities.sql.
+-- Run after custom_auth.sql and quiz_attempts.sql.
 
 create table if not exists public.instructor_learning_material_folders (
   id uuid primary key default gen_random_uuid(),
@@ -64,18 +64,7 @@ begin
         'created_at', quiz.created_at,
         'question_count', jsonb_array_length(quiz.questions),
         'folder_id', folder.id,
-        'folder_name', folder.name,
-        'posted_classrooms', coalesce((
-          select jsonb_agg(classrooms.name order by classrooms.name)
-          from (
-            select distinct classroom.name
-            from public.classroom_activities activity
-            join public.classrooms classroom
-              on classroom.id = activity.classroom_id
-            where activity.quiz_id = quiz.id
-              and classroom.instructor_id = verified_user_id
-          ) classrooms
-        ), '[]'::jsonb)
+        'folder_name', folder.name
       )
       order by quiz.created_at desc, quiz.id
     )

@@ -1,5 +1,4 @@
--- Run after custom_auth.sql, classrooms.sql, quiz_attempts.sql, and
--- classroom_activities.sql.
+-- Run after custom_auth.sql, classrooms.sql, and quiz_attempts.sql.
 create or replace function public.get_instructor_reports(
   p_session_token text
 ) returns jsonb
@@ -42,8 +41,8 @@ begin
           from public.classroom_students membership
           where membership.classroom_id = classroom.id
         ),
-        'activity_count', activity_totals.activity_count,
-        'average_score', classroom_performance.average_score,
+        'activity_count', 0,
+        'average_score', null,
         'students', coalesce((
           select jsonb_agg(
             jsonb_build_object(
@@ -53,9 +52,8 @@ begin
               'role', student.role,
               'joined_at', membership.joined_at,
               'created_at', student.created_at,
-              'completed_activity_count',
-                student_performance.completed_activity_count,
-              'total_activity_count', activity_totals.started_activity_count,
+              'completed_activity_count', 0,
+              'total_activity_count', 0,
               'attempt_count', student_performance.attempt_count,
               'average_score', student_performance.average_score,
               'generated_quiz_count', (
@@ -84,18 +82,9 @@ begin
           join public.users student on student.id = membership.student_id
           cross join lateral (
             select
-              count(distinct attempt.classroom_activity_id)::integer
-                as completed_activity_count,
-              count(attempt.id)::integer as attempt_count,
-              avg(
-                100.0 * attempt.score / nullif(attempt.total_questions, 0)
-              ) as average_score
-            from public.quiz_attempts attempt
-            join public.classroom_activities activity
-              on activity.id = attempt.classroom_activity_id
-            where activity.classroom_id = classroom.id
-              and activity.starts_at <= now()
-              and attempt.user_id = student.id
+              0::integer as completed_activity_count,
+              0::integer as attempt_count,
+              null::numeric as average_score
           ) student_performance
           cross join lateral (
             select
@@ -275,23 +264,6 @@ begin
       order by classroom.name, classroom.id
     )
     from public.classrooms classroom
-    cross join lateral (
-      select
-        count(*)::integer as activity_count,
-        count(*) filter (where activity.starts_at <= now())::integer
-          as started_activity_count
-      from public.classroom_activities activity
-      where activity.classroom_id = classroom.id
-    ) activity_totals
-    cross join lateral (
-      select
-        avg(100.0 * attempt.score / nullif(attempt.total_questions, 0))
-          as average_score
-      from public.quiz_attempts attempt
-      join public.classroom_activities activity
-        on activity.id = attempt.classroom_activity_id
-      where activity.classroom_id = classroom.id
-    ) classroom_performance
     where classroom.instructor_id = verified_user_id
   ), '[]'::jsonb);
 end;
@@ -300,3 +272,5 @@ $$;
 revoke all on function public.get_instructor_reports(text) from public;
 grant execute on function public.get_instructor_reports(text)
   to anon, authenticated;
+
+notify pgrst, 'reload schema';

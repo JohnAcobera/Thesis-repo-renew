@@ -58,7 +58,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   StudentMenuItem _selectedMenu = StudentMenuItem.dashboard;
   bool _isRecordingActivityDay = false;
   bool _hasOpenedFirstLoginTutorial = false;
-  String? _notificationClassroomId;
+  late final StudentNotificationRepository _defaultNotificationRepository =
+      StudentNotificationService();
+  StudentNotificationRepository get _notificationRepository =>
+      widget.notificationRepository ?? _defaultNotificationRepository;
 
   @override
   void initState() {
@@ -84,6 +87,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           role: user.role,
           createdAt: user.createdAt,
           onMenuSelected: _selectMenuItem,
+          notificationRepository: _notificationRepository,
           showTutorialOnOpen: true,
         ),
       ),
@@ -152,6 +156,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
             role: user.role,
             createdAt: user.createdAt,
             onMenuSelected: _selectMenuItem,
+            notificationRepository: _notificationRepository,
             showTutorialOnOpen: previewTutorial,
           ),
         ),
@@ -206,16 +211,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
               icon: const Icon(Icons.tips_and_updates_outlined),
             )
           : null,
-      notificationRepository: widget.notificationRepository,
-      onNotificationSelected: _openNotificationClassroom,
+      notificationRepository: _notificationRepository,
       body: _selectedMenu == StudentMenuItem.inventory
-          ? InventoryScreen(user: user, onMenuSelected: onMenuSelected)
+          ? InventoryScreen(
+              user: user,
+              onMenuSelected: onMenuSelected,
+              notificationRepository: _notificationRepository,
+            )
           : _selectedMenu == StudentMenuItem.classroom
           ? ClassroomScreen(
-              key: ValueKey<String?>(_notificationClassroomId),
               user: user,
               classroomService: widget.classroomService,
-              initialClassroomId: _notificationClassroomId,
             )
           : _selectedMenu == StudentMenuItem.leaderboard
           ? LeaderboardScreen(repository: widget.leaderboardRepository)
@@ -246,6 +252,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                                 onMenuSelected: _selectMenuItem,
                                 quizRepository: widget.quizRepository,
                                 learningModeService: widget.learningModeService,
+                                notificationRepository: _notificationRepository,
                               ),
                             )
                           else
@@ -259,6 +266,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                               onMenuSelected: _selectMenuItem,
                               quizRepository: widget.quizRepository,
                               learningModeService: widget.learningModeService,
+                              notificationRepository: _notificationRepository,
                             ),
                           const SizedBox(height: 20),
                           SizedBox(
@@ -288,22 +296,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
         item == StudentMenuItem.inventory) {
       setState(() {
         _selectedMenu = item;
-        _notificationClassroomId = null;
       });
     }
-  }
-
-  void _openNotificationClassroom(StudentNotification notification) {
-    final classroomId = notification.classroomId;
-    if (notification.type != StudentNotificationType.classroomActivity ||
-        classroomId == null) {
-      return;
-    }
-    Navigator.of(context).popUntil((route) => route.isFirst);
-    setState(() {
-      _selectedMenu = StudentMenuItem.classroom;
-      _notificationClassroomId = classroomId;
-    });
   }
 
   String _displayRole(String role) => role.isEmpty
@@ -823,6 +817,7 @@ class _WideStudentDashboard extends StatelessWidget {
     required this.onMenuSelected,
     required this.quizRepository,
     required this.learningModeService,
+    required this.notificationRepository,
   });
 
   final UserModel user;
@@ -833,6 +828,7 @@ class _WideStudentDashboard extends StatelessWidget {
   final ValueChanged<StudentMenuItem> onMenuSelected;
   final QuizRepository? quizRepository;
   final LearningModeService? learningModeService;
+  final StudentNotificationRepository notificationRepository;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -895,6 +891,7 @@ class _WideStudentDashboard extends StatelessWidget {
             onMenuSelected: onMenuSelected,
             quizRepository: quizRepository,
             learningModeService: learningModeService,
+            notificationRepository: notificationRepository,
             scrollable: true,
           ),
           expandContent: true,
@@ -914,6 +911,7 @@ class _StackedStudentDashboard extends StatelessWidget {
     required this.onMenuSelected,
     required this.quizRepository,
     required this.learningModeService,
+    required this.notificationRepository,
   });
 
   final UserModel user;
@@ -924,6 +922,7 @@ class _StackedStudentDashboard extends StatelessWidget {
   final ValueChanged<StudentMenuItem> onMenuSelected;
   final QuizRepository? quizRepository;
   final LearningModeService? learningModeService;
+  final StudentNotificationRepository notificationRepository;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -970,6 +969,7 @@ class _StackedStudentDashboard extends StatelessWidget {
             onMenuSelected: onMenuSelected,
             quizRepository: quizRepository,
             learningModeService: learningModeService,
+            notificationRepository: notificationRepository,
             scrollable: true,
           ),
           expandContent: true,
@@ -986,6 +986,7 @@ class _RecentActivityContent extends StatefulWidget {
     required this.onMenuSelected,
     required this.quizRepository,
     required this.learningModeService,
+    required this.notificationRepository,
     this.scrollable = false,
     super.key,
   });
@@ -995,6 +996,7 @@ class _RecentActivityContent extends StatefulWidget {
   final ValueChanged<StudentMenuItem> onMenuSelected;
   final QuizRepository? quizRepository;
   final LearningModeService? learningModeService;
+  final StudentNotificationRepository notificationRepository;
   final bool scrollable;
 
   @override
@@ -1198,26 +1200,17 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
           ),
         ),
         const SizedBox(width: 8),
-        if (_canRetake(activity))
-          FilledButton(
-            onPressed: () => _retakeQuiz(activity),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              visualDensity: VisualDensity.compact,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+        FilledButton(
+          onPressed: () => _retakeQuiz(activity),
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            visualDensity: VisualDensity.compact,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text('Retake'),
-          )
-        else if (activity.classroomActivityId != null &&
-            activity.maxAttempts != null &&
-            activity.attempts.length >= activity.maxAttempts!)
-          const Icon(
-            Icons.check_circle_outline_rounded,
-            color: Color(0xFF578258),
-            semanticLabel: 'Attempt limit reached',
           ),
+          child: const Text('Retake'),
+        ),
       ],
     ),
   );
@@ -1297,8 +1290,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
   ) {
     final candidates = <_ReviewSuggestion>[
       for (final quiz in quizzes)
-        if (quiz.classroomActivityId == null && quiz.latestAttempt != null)
-          _ReviewSuggestion.quiz(quiz),
+        if (quiz.latestAttempt != null) _ReviewSuggestion.quiz(quiz),
       for (final item in studyItems)
         if (item.attempts.isNotEmpty) _ReviewSuggestion.learning(item),
     ];
@@ -1602,9 +1594,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        activity.maxAttempts == null
-                            ? '${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}'
-                            : '${activity.attempts.length} of ${activity.maxAttempts} attempts',
+                        '${activity.attempts.length} ${activity.attempts.length == 1 ? 'attempt' : 'attempts'}',
                         style: const TextStyle(
                           color: Color(0xFF9A512F),
                           fontSize: 12,
@@ -1709,37 +1699,25 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
                       child: const Text('Close'),
                     ),
                     const SizedBox(width: 8),
-                    if (_canRetake(activity))
-                      FilledButton.icon(
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop();
-                          _retakeQuiz(activity);
-                        },
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF7434),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 13,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                    FilledButton.icon(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop();
+                        _retakeQuiz(activity);
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF7434),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 13,
                         ),
-                        icon: const Icon(Icons.replay_rounded, size: 19),
-                        label: const Text('Retake'),
-                      )
-                    else if (activity.classroomActivityId != null)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 8),
-                        child: Text(
-                          'Retake from the classroom while it is open.',
-                          style: TextStyle(
-                            color: Color(0xFF725F53),
-                            fontSize: 12,
-                          ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
+                      icon: const Icon(Icons.replay_rounded, size: 19),
+                      label: const Text('Retake'),
+                    ),
                   ],
                 ),
               ],
@@ -1765,15 +1743,12 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
           questions: activity.questions,
           quizId: activity.id,
           previousAttempts: activity.attempts,
-          classroomActivityId: activity.classroomActivityId,
+          notificationRepository: widget.notificationRepository,
         ),
       ),
     );
     if (completed == true && mounted) widget.onQuizCompleted();
   }
-
-  bool _canRetake(QuizActivity activity) =>
-      activity.classroomActivityId == null;
 }
 
 class _ReviewSuggestion {

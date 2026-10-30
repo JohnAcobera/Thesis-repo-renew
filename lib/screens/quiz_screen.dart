@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/quiz_service.dart';
+import '../services/student_notification_service.dart';
 import '../widgets/student_side_menu.dart';
 import 'profile_screen.dart';
 
@@ -18,12 +19,12 @@ class QuizScreen extends StatefulWidget {
     required this.sourceFile,
     required this.questions,
     this.quizId,
-    this.classroomActivityId,
     this.previousAttempts = const [],
     this.role = 'student',
     this.createdAt,
     this.onMenuSelected,
     this.quizService,
+    this.notificationRepository,
     this.isPracticeRound = false,
     super.key,
   });
@@ -34,12 +35,12 @@ class QuizScreen extends StatefulWidget {
   final String sourceFile;
   final List<QuizQuestion> questions;
   final String? quizId;
-  final String? classroomActivityId;
   final List<QuizScore> previousAttempts;
   final String role;
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
   final QuizService? quizService;
+  final StudentNotificationRepository? notificationRepository;
   final bool isPracticeRound;
 
   @override
@@ -89,25 +90,18 @@ class _QuizScreenState extends State<QuizScreen> {
 
     try {
       final service = widget.quizService ?? QuizService();
-      _savedQuizId = widget.classroomActivityId == null
-          ? await service.saveAttempt(
-              title: widget.title,
-              sourceFile: widget.sourceFile,
-              score: _score,
-              totalQuestions: _questions.length,
-              questions: _questions,
-              quizId: _savedQuizId ?? widget.quizId,
-            )
-          : await service.saveClassroomActivityAttempt(
-              activityId: widget.classroomActivityId!,
-              score: _score,
-              totalQuestions: _questions.length,
-            );
+      _savedQuizId = await service.saveAttempt(
+        title: widget.title,
+        sourceFile: widget.sourceFile,
+        score: _score,
+        totalQuestions: _questions.length,
+        questions: _questions,
+        quizId: _savedQuizId ?? widget.quizId,
+      );
 
       try {
         _pointsGained = await service.learnerPointsForAttempt(
           quizId: _savedQuizId!,
-          classroomActivityId: widget.classroomActivityId,
         );
       } on QuizServiceException catch (error) {
         _pointsError = error.message;
@@ -164,6 +158,7 @@ class _QuizScreenState extends State<QuizScreen> {
       username: widget.username,
       email: widget.email,
       role: _displayRole(widget.role),
+      notificationRepository: widget.notificationRepository,
       onBack: () => Navigator.of(context).maybePop(_isSaved),
       onMenuSelected: (item) {
         if (item == StudentMenuItem.dashboard) {
@@ -609,6 +604,7 @@ class _QuizScreenState extends State<QuizScreen> {
           createdAt: widget.createdAt,
           onMenuSelected: widget.onMenuSelected,
           quizService: widget.quizService,
+          notificationRepository: widget.notificationRepository,
           isPracticeRound: true,
         ),
       ),

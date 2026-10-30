@@ -4,8 +4,41 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:thesis_repo_renew/screens/quiz_screen.dart';
 import 'package:thesis_repo_renew/services/auth_service.dart';
 import 'package:thesis_repo_renew/services/quiz_service.dart';
+import 'package:thesis_repo_renew/services/student_notification_service.dart';
 
 void main() {
+  testWidgets('quiz screen uses the injected notification repository', (
+    tester,
+  ) async {
+    final notifications = _FakeStudentNotificationRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QuizScreen(
+          username: 'Student',
+          email: 'student@example.com',
+          title: 'Science review',
+          sourceFile: 'science.txt',
+          questions: const [
+            QuizQuestion(
+              question: 'The Earth orbits the Sun.',
+              options: ['True', 'False'],
+              answerIndex: 0,
+              explanation: 'Earth travels around the Sun.',
+            ),
+          ],
+          notificationRepository: notifications,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(notifications.listCalls, 1);
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    expect(find.text('Quiz update'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('quiz results review the selected and correct answers', (
     tester,
   ) async {
@@ -34,6 +67,7 @@ void main() {
             ),
           ],
           quizService: _TestQuizService(client),
+          notificationRepository: _FakeStudentNotificationRepository(),
         ),
       ),
     );
@@ -80,6 +114,7 @@ void main() {
               ),
             ],
             quizService: service,
+            notificationRepository: _FakeStudentNotificationRepository(),
           ),
         ),
       );
@@ -154,6 +189,8 @@ void main() {
                               explanation: 'Earth travels around the Sun.',
                             ),
                           ],
+                          notificationRepository:
+                              _FakeStudentNotificationRepository(),
                         ),
                       ),
                     ),
@@ -214,6 +251,7 @@ void main() {
           sourceFile: 'science.txt',
           questions: questions,
           quizService: _TestQuizService(client),
+          notificationRepository: _FakeStudentNotificationRepository(),
         ),
       ),
     );
@@ -270,11 +308,37 @@ class _TestQuizService extends QuizService {
   }
 
   @override
-  Future<int> learnerPointsForAttempt({
-    required String quizId,
-    String? classroomActivityId,
-  }) async {
+  Future<int> learnerPointsForAttempt({required String quizId}) async {
     pointsCalls++;
     return 0;
   }
+}
+
+class _FakeStudentNotificationRepository
+    implements StudentNotificationRepository {
+  int listCalls = 0;
+  final notification = StudentNotification(
+    id: 'quiz-update',
+    type: StudentNotificationType.quizPoints,
+    title: 'Quiz update',
+    message: 'A quiz notification.',
+    createdAt: DateTime(2026, 10, 19),
+    isRead: false,
+  );
+
+  @override
+  Future<List<StudentNotification>> listNotifications() async {
+    listCalls++;
+    return [notification];
+  }
+
+  @override
+  Stream<List<StudentNotification>> watchNotifications() =>
+      Stream.value([notification]).asBroadcastStream();
+
+  @override
+  Future<void> refreshNotifications() async {}
+
+  @override
+  Future<void> markNotificationsRead(List<String> notificationIds) async {}
 }

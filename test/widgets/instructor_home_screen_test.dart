@@ -9,13 +9,12 @@ import 'package:thesis_repo_renew/services/classroom_service.dart';
 import 'package:thesis_repo_renew/services/instructor_todo_service.dart';
 import 'package:thesis_repo_renew/models/instructor_report.dart';
 import 'package:thesis_repo_renew/services/instructor_reports_service.dart';
-import 'package:thesis_repo_renew/services/quiz_service.dart';
 import 'package:thesis_repo_renew/screens/home/instructor_home_screen.dart';
 import 'package:thesis_repo_renew/screens/profile_screen.dart';
 import 'package:thesis_repo_renew/widgets/instructor_side_menu.dart';
 
 void main() {
-  testWidgets('summary panel stays fixed while instructor screens change', (
+  testWidgets('summary panel remains visible across instructor sections', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 900);
@@ -44,14 +43,12 @@ void main() {
     final summaryPanel = find.byKey(
       const ValueKey('instructor-summary-metrics-card'),
     );
-    final initialRect = tester.getRect(summaryPanel);
     expect(find.text('—'), findsNWidgets(2));
 
     classroomRepository.statsCompleter.complete(
       await _FakeClassroomRepository().getInstructorDashboardStats(),
     );
     await tester.pumpAndSettle();
-    expect(tester.getRect(summaryPanel), initialRect);
     expect(find.text('2'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
 
@@ -62,10 +59,44 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(summaryPanel, findsOneWidget);
-      expect(tester.getRect(summaryPanel), initialRect);
       expect(find.text('2'), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
     }
+  });
+
+  testWidgets('summary panel scrolls with dashboard content', (tester) async {
+    tester.view.physicalSize = const Size(400, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: InstructorHomeScreen(
+          classroomService: _FakeClassroomRepository(),
+          todoRepository: _FakeInstructorTodoRepository(),
+          user: const UserModel(
+            id: 1,
+            fullName: 'Instructor Name',
+            email: 'instructor@example.com',
+            role: 'instructor',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final summaryPanel = find.byKey(
+      const ValueKey('instructor-summary-metrics-card'),
+    );
+    final dashboardHeading = find.text('Your teaching overview');
+    final summaryRect = tester.getRect(summaryPanel);
+    final headingY = tester.getTopLeft(dashboardHeading).dy;
+    await tester.drag(dashboardHeading, const Offset(0, -200));
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(summaryPanel).dy, lessThan(summaryRect.top));
+    expect(tester.getTopLeft(dashboardHeading).dy, lessThan(headingY));
   });
 
   testWidgets('instructor overview shows classroom and student totals', (
@@ -376,15 +407,15 @@ class _FakeClassroomRepository implements ClassroomRepository {
   ) async => [];
 
   @override
+  Future<List<ClassroomStudentSummary>> classroomClassmates(
+    String classroomId,
+  ) async => [];
+
+  @override
   Future<void> removeClassroomStudent({
     required String classroomId,
     required int studentId,
   }) async {}
-
-  @override
-  Future<List<ClassroomActivity>> classroomActivities(
-    String classroomId,
-  ) async => [];
 
   @override
   Future<InstructorDashboardStats> getInstructorDashboardStats() async =>
@@ -397,21 +428,18 @@ class _FakeClassroomRepository implements ClassroomRepository {
             name: 'Computer Networks',
             subject: 'Networking',
             studentCount: 32,
-            activityCount: 4,
             averageScore: 82,
           ),
           ClassroomPerformance(
             name: 'Programming',
             subject: 'Computer Science',
             studentCount: 25,
-            activityCount: 2,
             averageScore: 75,
           ),
           ClassroomPerformance(
             name: 'Database Systems',
             subject: 'Information Technology',
             studentCount: 28,
-            activityCount: 3,
             averageScore: 68,
           ),
         ],
@@ -452,12 +480,6 @@ class _FakeClassroomRepository implements ClassroomRepository {
 
   @override
   Future<void> deleteClassroom(String classroomId) async {}
-
-  @override
-  Future<void> deleteClassroomActivity({
-    required String classroomId,
-    required String activityId,
-  }) async {}
 }
 
 class _PendingDashboardStatsClassroomRepository

@@ -19,9 +19,9 @@ enum StudentNotificationType {
   streakEnded,
   quizPoints,
   weeklyRank,
-  classroomActivity,
   classroomJoined,
   classroomRemoved,
+  legacy,
 }
 
 class StudentNotification {
@@ -32,7 +32,6 @@ class StudentNotification {
     required this.message,
     required this.createdAt,
     required this.isRead,
-    this.classroomId,
   });
 
   final String id;
@@ -41,15 +40,17 @@ class StudentNotification {
   final String message;
   final DateTime createdAt;
   final bool isRead;
-  final String? classroomId;
 
   factory StudentNotification.fromJson(Map<String, dynamic> json) {
     final typeName = json['type'] as String;
-    final type = StudentNotificationType.values.firstWhere(
-      (value) => value.name == typeName,
-      orElse: () =>
-          throw FormatException('Unknown student notification type: $typeName'),
-    );
+    final type = typeName == 'classroomActivity'
+        ? StudentNotificationType.legacy
+        : StudentNotificationType.values.firstWhere(
+            (value) => value.name == typeName,
+            orElse: () => throw FormatException(
+              'Unknown student notification type: $typeName',
+            ),
+          );
     return StudentNotification(
       id: json['id'] as String,
       type: type,
@@ -57,7 +58,6 @@ class StudentNotification {
       message: json['message'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
       isRead: json['is_read'] as bool,
-      classroomId: json['classroom_id'] as String?,
     );
   }
 }

@@ -1,5 +1,4 @@
--- Run after custom_auth.sql, classrooms.sql, classroom_activities.sql, and
--- quiz_attempts.sql.
+-- Run after custom_auth.sql and classrooms.sql.
 
 create table if not exists public.instructor_notification_reads (
   user_id bigint not null references public.users(id) on delete cascade,
@@ -45,45 +44,18 @@ begin
   return coalesce((
     with notifications as (
       select
-        'quiz-answered:' || attempt.id::text as notification_id,
-        'quizAnswered'::text as notification_type,
-        'Quiz completed'::text as title,
-        format(
-          '%s completed "%s" in %s and scored %s out of %s.',
-          student.full_name,
-          quiz.title,
-          classroom.name,
-          attempt.score,
-          attempt.total_questions
-        ) as message,
-        attempt.created_at,
-        classroom.id as classroom_id
-      from public.quiz_attempts attempt
-      join public.classroom_activities activity
-        on activity.id = attempt.classroom_activity_id
-      join public.classrooms classroom
-        on classroom.id = activity.classroom_id
-      join public.student_generated_quizzes quiz
-        on quiz.id = activity.quiz_id
-      join public.users student on student.id = attempt.user_id
-      where classroom.instructor_id = verified_user_id
-        and attempt.created_at >= now() - interval '90 days'
-
-      union all
-
-      select
         'student-joined:' || membership.classroom_id::text || ':' ||
           membership.student_id::text || ':' ||
-          extract(epoch from membership.joined_at)::text,
-        'studentJoined'::text,
-        'A student joined your classroom'::text,
+          extract(epoch from membership.joined_at)::text as notification_id,
+        'studentJoined'::text as notification_type,
+        'A student joined your classroom'::text as title,
         format(
           '%s joined %s.',
           student.full_name,
           classroom.name
-        ),
-        membership.joined_at,
-        classroom.id
+        ) as message,
+        membership.joined_at as created_at,
+        classroom.id as classroom_id
       from public.classroom_students membership
       join public.classrooms classroom
         on classroom.id = membership.classroom_id

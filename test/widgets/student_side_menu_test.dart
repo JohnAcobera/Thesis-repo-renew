@@ -6,7 +6,6 @@ import 'package:thesis_repo_renew/models/classroom_model.dart';
 import 'package:thesis_repo_renew/services/auth_service.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
 import 'package:thesis_repo_renew/services/leaderboard_service.dart';
-import 'package:thesis_repo_renew/services/quiz_service.dart';
 import 'package:thesis_repo_renew/screens/import_screen.dart';
 import 'package:thesis_repo_renew/screens/home/student_home_screen.dart';
 import 'package:thesis_repo_renew/models/user_model.dart';
@@ -978,15 +977,15 @@ class _FakeStudentClassroomRepository implements ClassroomRepository {
   ) async => [];
 
   @override
+  Future<List<ClassroomStudentSummary>> classroomClassmates(
+    String classroomId,
+  ) async => [];
+
+  @override
   Future<void> removeClassroomStudent({
     required String classroomId,
     required int studentId,
   }) async {}
-
-  @override
-  Future<List<ClassroomActivity>> classroomActivities(
-    String classroomId,
-  ) async => [];
 
   @override
   Future<InstructorDashboardStats> getInstructorDashboardStats() async =>
@@ -1014,10 +1013,4 @@ class _FakeStudentClassroomRepository implements ClassroomRepository {
 
   @override
   Future<void> deleteClassroom(String classroomId) async {}
-
-  @override
-  Future<void> deleteClassroomActivity({
-    required String classroomId,
-    required String activityId,
-  }) async {}
 }

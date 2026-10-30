@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../services/learning_mode_service.dart';
 import '../services/quiz_service.dart';
+import '../services/student_notification_service.dart';
 import '../widgets/app_glass_surface.dart';
 import '../widgets/student_side_menu.dart';
 import 'quiz_screen.dart';
@@ -34,6 +35,7 @@ class InventoryScreen extends StatefulWidget {
     required this.onMenuSelected,
     this.quizRepository,
     this.learningModeService,
+    this.notificationRepository,
     super.key,
   });
 
@@ -41,6 +43,7 @@ class InventoryScreen extends StatefulWidget {
   final ValueChanged<StudentMenuItem> onMenuSelected;
   final QuizRepository? quizRepository;
   final LearningModeService? learningModeService;
+  final StudentNotificationRepository? notificationRepository;
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
@@ -80,8 +83,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final preferences = results[3] as SharedPreferences;
     return _InventoryData(
       records: [
-        for (final quiz in quizzes)
-          if (quiz.classroomActivityId == null) _InventoryRecord.quiz(quiz),
+        for (final quiz in quizzes) _InventoryRecord.quiz(quiz),
         for (final item in learningItems) _InventoryRecord.learning(item),
       ],
       favoriteKeys: results[2] as Set<String>,
@@ -451,6 +453,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             role: widget.user.role,
             createdAt: widget.user.createdAt,
             onMenuSelected: widget.onMenuSelected,
+            notificationRepository: widget.notificationRepository,
             title: record.quiz!.title,
             sourceFile: record.quiz!.sourceFile,
             questions: record.quiz!.questions,

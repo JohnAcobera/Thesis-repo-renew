@@ -8,7 +8,7 @@ abstract interface class InstructorNotificationRepository {
   Future<void> markNotificationsRead(List<String> notificationIds);
 }
 
-enum InstructorNotificationType { quizAnswered, studentJoined }
+enum InstructorNotificationType { studentJoined, legacy }
 
 class InstructorNotification {
   const InstructorNotification({
@@ -31,12 +31,14 @@ class InstructorNotification {
 
   factory InstructorNotification.fromJson(Map<String, dynamic> json) {
     final typeName = json['type'] as String;
-    final type = InstructorNotificationType.values.firstWhere(
-      (value) => value.name == typeName,
-      orElse: () => throw FormatException(
-        'Unknown instructor notification type: $typeName',
-      ),
-    );
+    final type = typeName == 'quizAnswered'
+        ? InstructorNotificationType.legacy
+        : InstructorNotificationType.values.firstWhere(
+            (value) => value.name == typeName,
+            orElse: () => throw FormatException(
+              'Unknown instructor notification type: $typeName',
+            ),
+          );
     return InstructorNotification(
       id: json['id'] as String,
       type: type,

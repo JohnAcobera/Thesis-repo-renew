@@ -7,7 +7,6 @@ import 'package:thesis_repo_renew/models/user_model.dart';
 import 'package:thesis_repo_renew/screens/classroom/classroom_screen.dart';
 import 'package:thesis_repo_renew/services/classroom_service.dart';
 import 'package:thesis_repo_renew/services/instructor_reports_service.dart';
-import 'package:thesis_repo_renew/services/quiz_service.dart';
 
 void main() {
   testWidgets('instructor classroom screen shows the classroom list', (
@@ -188,7 +187,6 @@ void main() {
                   createdAt: DateTime.utc(2026),
                   iconKey: 'science',
                   studentCount: 12,
-                  activityCount: 3,
                 ),
               ),
           ),
@@ -198,7 +196,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('12 students'), findsOneWidget);
-    expect(find.text('3 activities'), findsNothing);
     await tester.tap(find.byTooltip('Copy classroom code'));
     await tester.pumpAndSettle();
 
@@ -345,69 +342,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('instructor classrooms do not show assignment controls', (
-    tester,
-  ) async {
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    tester.view.physicalSize = const Size(400, 800);
-    tester.view.devicePixelRatio = 1;
-    final repository = _FakeClassroomRepository()
-      ..classrooms.add(
-        ClassroomModel(
-          id: 'test-id',
-          name: 'Grade 11 - STEM A',
-          subject: 'General Biology 1',
-          code: 'ABCD2345',
-          createdAt: DateTime.utc(2026),
-        ),
-      );
-    repository.activities.add(
-      ClassroomActivity(
-        id: 'quiz-id',
-        classroomId: 'test-id',
-        classroomName: 'Grade 11 - STEM A',
-        quizId: 'saved-quiz-id',
-        title: 'Cell Structure',
-        sourceFile: 'biology.pdf',
-        questions: const [
-          QuizQuestion(
-            question: 'Which organelle stores DNA?',
-            options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
-            answerIndex: 0,
-            explanation: 'The nucleus contains the cell DNA.',
-          ),
-        ],
-        startsAt: DateTime.utc(2026),
-      ),
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ClassroomScreen(
-            user: const UserModel(
-              id: 1,
-              fullName: 'Instructor Name',
-              email: 'instructor@example.com',
-              role: 'instructor',
-            ),
-            classroomService: repository,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Grade 11 - STEM A'));
-    await tester.pumpAndSettle();
-    expect(find.text('Classroom quizzes'), findsNothing);
-    expect(find.text('Create quiz'), findsNothing);
-    expect(find.text('Post Activities'), findsNothing);
-    expect(find.text('Cell Structure'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('students can open an available classroom activity', (
+  testWidgets('students see only their classmates after opening a classroom', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -415,7 +350,6 @@ void main() {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1;
 
-    final now = DateTime.now();
     final repository = _FakeClassroomRepository()
       ..classrooms.add(
         ClassroomModel(
@@ -427,23 +361,12 @@ void main() {
           studentCount: 1,
         ),
       )
-      ..activities.add(
-        ClassroomActivity(
-          id: 'activity-id',
-          classroomId: 'test-id',
-          classroomName: 'Grade 11 - STEM A',
-          quizId: 'quiz-id',
-          title: 'Cell Structure',
-          sourceFile: 'biology.pdf',
-          questions: const [
-            QuizQuestion(
-              question: 'Which organelle stores DNA?',
-              options: ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
-              answerIndex: 0,
-              explanation: 'The nucleus contains the cell DNA.',
-            ),
-          ],
-          startsAt: now.subtract(const Duration(minutes: 1)),
+      ..students.add(
+        ClassroomStudentSummary(
+          id: 12,
+          fullName: 'Ari Santos',
+          email: 'ari@example.com',
+          joinedAt: DateTime.utc(2026, 10, 1),
         ),
       );
 
@@ -464,12 +387,16 @@ void main() {
     await tester.tap(find.text('Grade 11 - STEM A'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Post Activities'), findsOneWidget);
-    expect(find.text('Cell Structure'), findsOneWidget);
-    expect(find.text('Take activity'), findsOneWidget);
-    await tester.tap(find.text('Take activity'));
+    expect(find.text('Classmates'), findsOneWidget);
+    expect(find.text('Ari Santos'), findsOneWidget);
+    expect(find.text('ari@example.com'), findsNothing);
+    expect(find.text('Grade 11 - STEM A'), findsNothing);
+    expect(find.text('General Biology 1'), findsNothing);
+    expect(find.text('Join code: ABCD2345'), findsNothing);
+    expect(find.byTooltip('Remove Ari Santos'), findsNothing);
+    await tester.tap(find.text('Your classrooms'));
     await tester.pumpAndSettle();
-    expect(find.text('Take your quiz'), findsOneWidget);
+    expect(find.text('Grade 11 - STEM A'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
@@ -512,17 +439,20 @@ class _FakeInstructorReportsRepository implements InstructorReportsRepository {
 
 class _FakeClassroomRepository implements ClassroomRepository {
   final List<ClassroomModel> classrooms = [];
-  final List<ClassroomActivity> activities = [];
   final List<ClassroomStudentSummary> students = [];
   final List<int> removedStudents = [];
   int totalStudentCount = 0;
   String? createdName;
   String? createdSubject;
   String? createdIconKey;
-  final List<String> deletedActivities = [];
 
   @override
   Future<List<ClassroomStudentSummary>> classroomStudents(
+    String classroomId,
+  ) async => students;
+
+  @override
+  Future<List<ClassroomStudentSummary>> classroomClassmates(
     String classroomId,
   ) async => students;
 
@@ -534,13 +464,6 @@ class _FakeClassroomRepository implements ClassroomRepository {
     removedStudents.add(studentId);
     students.removeWhere((student) => student.id == studentId);
   }
-
-  @override
-  Future<List<ClassroomActivity>> classroomActivities(
-    String classroomId,
-  ) async => activities
-      .where((activity) => activity.classroomId == classroomId)
-      .toList();
 
   @override
   Future<InstructorDashboardStats> getInstructorDashboardStats() async =>
@@ -580,15 +503,6 @@ class _FakeClassroomRepository implements ClassroomRepository {
   @override
   Future<void> deleteClassroom(String classroomId) async {
     classrooms.removeWhere((classroom) => classroom.id == classroomId);
-  }
-
-  @override
-  Future<void> deleteClassroomActivity({
-    required String classroomId,
-    required String activityId,
-  }) async {
-    deletedActivities.add(activityId);
-    activities.removeWhere((activity) => activity.id == activityId);
   }
 
   @override

@@ -74,7 +74,7 @@ class MainApp extends StatelessWidget {
         pageTransitionsTheme: PageTransitionsTheme(
           builders: {
             for (final platform in TargetPlatform.values)
-              platform: const FadeUpwardsPageTransitionsBuilder(),
+              platform: const _SmoothPageTransitionsBuilder(),
           },
         ),
         filledButtonTheme: FilledButtonThemeData(
@@ -188,6 +188,36 @@ class MainApp extends StatelessWidget {
                 ? const AdminLoginScreen()
                 : const LandingScreen()
           : const _ConfigurationScreen(),
+    );
+  }
+}
+
+class _SmoothPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _SmoothPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curvedAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    return FadeTransition(
+      opacity: curvedAnimation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.015, 0),
+          end: Offset.zero,
+        ).animate(curvedAnimation),
+        child: child,
+      ),
     );
   }
 }

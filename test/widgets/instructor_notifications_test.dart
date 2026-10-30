@@ -4,6 +4,20 @@ import 'package:thesis_repo_renew/services/instructor_notification_service.dart'
 import 'package:thesis_repo_renew/widgets/student_nav_bar.dart';
 
 void main() {
+  test('legacy quiz-answer notifications are parsed as generic notices', () {
+    final notification = InstructorNotification.fromJson({
+      'id': 'legacy-notification',
+      'type': 'quizAnswered',
+      'title': 'Quiz completed',
+      'message': 'A legacy notification.',
+      'created_at': DateTime(2026, 10, 17).toIso8601String(),
+      'is_read': true,
+      'classroom_id': 'classroom-id',
+    });
+
+    expect(notification.type, InstructorNotificationType.legacy);
+  });
+
   testWidgets('instructor notifications use the shared navbar bell and panel', (
     tester,
   ) async {
@@ -37,6 +51,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('A student joined your classroom'), findsOneWidget);
+    await tester.tap(find.text('Quiz completed'));
+    await tester.pumpAndSettle();
+    expect(notifications.markedIds, ['quiz-answered:attempt-1']);
+    expect(find.text('Mark all as read'), findsOneWidget);
+
     await tester.tap(find.text('Mark all as read'));
     await tester.pumpAndSettle();
     expect(notifications.markedIds, [
@@ -57,7 +76,7 @@ class _FakeInstructorNotificationRepository
   Future<List<InstructorNotification>> listNotifications() async => [
     InstructorNotification(
       id: 'quiz-answered:attempt-1',
-      type: InstructorNotificationType.quizAnswered,
+      type: InstructorNotificationType.legacy,
       title: 'Quiz completed',
       message:
           'Ari Santos completed "Cell Structure" in Biology and scored 8 out of 10.',

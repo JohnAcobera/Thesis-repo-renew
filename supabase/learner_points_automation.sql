@@ -201,10 +201,13 @@ create trigger user_login_days_award_learner_points
 after insert on public.user_login_days
 for each row execute function public.award_login_day_learner_points();
 
+drop function if exists public.get_quiz_attempt_learner_points(
+  text, uuid, uuid
+);
+
 create or replace function public.get_quiz_attempt_learner_points(
   p_session_token text,
-  p_quiz_id uuid,
-  p_classroom_activity_id uuid
+  p_quiz_id uuid
 ) returns integer
 language plpgsql
 security definer
@@ -228,7 +231,6 @@ begin
   from public.quiz_attempts
   where user_id = verified_user_id
     and quiz_id = p_quiz_id
-    and classroom_activity_id is not distinct from p_classroom_activity_id
   order by created_at desc, id desc
   limit 1;
 
@@ -249,8 +251,10 @@ end;
 $$;
 
 revoke all on function public.get_quiz_attempt_learner_points(
-  text, uuid, uuid
+  text, uuid
 ) from public;
 grant execute on function public.get_quiz_attempt_learner_points(
-  text, uuid, uuid
+  text, uuid
 ) to anon, authenticated;
+
+notify pgrst, 'reload schema';

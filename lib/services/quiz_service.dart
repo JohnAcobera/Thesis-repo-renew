@@ -137,9 +137,7 @@ class QuizActivity {
     required this.createdAt,
     required this.questions,
     required this.attempts,
-    this.classroomActivityId,
     this.classroomName,
-    this.maxAttempts,
   });
 
   final String id;
@@ -148,9 +146,7 @@ class QuizActivity {
   final DateTime createdAt;
   final List<QuizQuestion> questions;
   final List<QuizScore> attempts;
-  final String? classroomActivityId;
   final String? classroomName;
-  final int? maxAttempts;
 
   int get totalQuestions => questions.length;
 
@@ -204,9 +200,7 @@ class QuizActivity {
       createdAt: DateTime.parse(json['created_at'] as String),
       questions: questions,
       attempts: attempts,
-      classroomActivityId: json['classroom_activity_id'] as String?,
       classroomName: json['classroom_name'] as String?,
-      maxAttempts: (json['max_attempts'] as num?)?.toInt(),
     );
   }
 }
@@ -415,75 +409,6 @@ double? _improvementPercentage(Iterable<QuizScore> attempts) {
   return totalChange / (chronologicalAttempts.length - 1);
 }
 
-class ClassroomActivity {
-  const ClassroomActivity({
-    required this.id,
-    required this.classroomId,
-    required this.classroomName,
-    required this.quizId,
-    required this.title,
-    required this.sourceFile,
-    required this.questions,
-    required this.startsAt,
-    this.maxAttempts,
-    this.attemptCount = 0,
-    this.attempts = const [],
-  });
-
-  final String id;
-  final String classroomId;
-  final String classroomName;
-  final String quizId;
-  final String title;
-  final String sourceFile;
-  final List<QuizQuestion> questions;
-  final DateTime startsAt;
-  final int? maxAttempts;
-  final int attemptCount;
-  final List<QuizScore> attempts;
-
-  bool get isAvailable {
-    final now = DateTime.now().toUtc();
-    return (maxAttempts == null || attemptCount < maxAttempts!) &&
-        !now.isBefore(startsAt.toUtc());
-  }
-
-  String get status {
-    final now = DateTime.now().toUtc();
-    if (maxAttempts != null && attemptCount >= maxAttempts!) {
-      return 'Completed';
-    }
-    if (now.isBefore(startsAt.toUtc())) return 'Upcoming';
-    return attemptCount == 0 ? 'Open' : 'In progress';
-  }
-
-  factory ClassroomActivity.fromJson(Map<String, dynamic> json) =>
-      ClassroomActivity(
-        id: json['id'] as String,
-        classroomId: json['classroom_id'] as String,
-        classroomName: json['classroom_name'] as String,
-        quizId: json['quiz_id'] as String,
-        title: json['title'] as String,
-        sourceFile: json['source_file'] as String,
-        questions: (json['questions'] as List<dynamic>)
-            .map(
-              (question) => QuizQuestion.fromJson(
-                Map<String, dynamic>.from(question as Map),
-              ),
-            )
-            .toList(growable: false),
-        startsAt: DateTime.parse(json['starts_at'] as String),
-        maxAttempts: (json['max_attempts'] as num?)?.toInt(),
-        attemptCount: (json['attempt_count'] as num?)?.toInt() ?? 0,
-        attempts: (json['attempts'] as List<dynamic>? ?? const [])
-            .map(
-              (attempt) =>
-                  QuizScore.fromJson(Map<String, dynamic>.from(attempt as Map)),
-            )
-            .toList(growable: false),
-      );
-}
-
 class QuizScore {
   const QuizScore({
     required this.score,
@@ -519,25 +444,21 @@ class QuizService implements QuizRepository {
   final SupabaseClient _client;
   final AuthService _authService;
 
-  Future<int> learnerPointsForAttempt({
-    required String quizId,
-    String? classroomActivityId,
-  }) async {
+  Future<int> learnerPointsForAttempt({required String quizId}) async {
     final token = await _requireSessionToken();
     try {
       return await _client.rpc<int>(
         'get_quiz_attempt_learner_points',
-        params: {
-          'p_session_token': token,
-          'p_quiz_id': quizId,
-          'p_classroom_activity_id': classroomActivityId,
-        },
+        params: {'p_session_token': token, 'p_quiz_id': quizId},
       );
     } on PostgrestException catch (error) {
       throw QuizServiceException(
         _databaseMessage(
           error,
-          failureMessage: 'Learner points could not be loaded.',
+          failureMessage: error.code == 'PGRST202' || error.code == '42883'
+              ? 'Learner points are not configured. Run the learner-points '
+                    'SQL migrations, then try again.'
+              : 'Learner points could not be loaded.',
         ),
       );
     }
@@ -566,62 +487,6 @@ class QuizService implements QuizRepository {
         _databaseMessage(
           error,
           failureMessage: 'The quiz could not be saved. Please try again.',
-        ),
-      );
-    }
-  }
-
-  Future<void> postToClassrooms({
-    required String quizId,
-    required List<String> classroomIds,
-    required DateTime startsAt,
-  }) async {
-    if (classroomIds.isEmpty) {
-      throw const QuizServiceException('Choose at least one classroom.');
-    }
-    final token = await _requireSessionToken();
-    try {
-      await _client.rpc<int>(
-        'post_classroom_activity',
-        params: {
-          'p_session_token': token,
-          'p_quiz_id': quizId,
-          'p_classroom_ids': classroomIds,
-          'p_starts_at': startsAt.toUtc().toIso8601String(),
-          'p_max_attempts': null,
-        },
-      );
-    } on PostgrestException catch (error) {
-      throw QuizServiceException(
-        _databaseMessage(
-          error,
-          failureMessage: 'The activity could not be posted. Please try again.',
-        ),
-      );
-    }
-  }
-
-  Future<String> saveClassroomActivityAttempt({
-    required String activityId,
-    required int score,
-    required int totalQuestions,
-  }) async {
-    final token = await _requireSessionToken();
-    try {
-      return await _client.rpc<String>(
-        'submit_classroom_activity_attempt',
-        params: {
-          'p_session_token': token,
-          'p_activity_id': activityId,
-          'p_score': score,
-          'p_total_questions': totalQuestions,
-        },
-      );
-    } on PostgrestException catch (error) {
-      throw QuizServiceException(
-        _databaseMessage(
-          error,
-          failureMessage: 'Your activity result could not be saved.',
         ),
       );
     }

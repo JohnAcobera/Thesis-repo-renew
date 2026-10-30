@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -10,8 +8,6 @@ import '../../services/classroom_service.dart';
 import '../../services/instructor_reports_service.dart';
 import '../../widgets/app_glass_surface.dart';
 import '../../widgets/instructor_student_profile_dialog.dart';
-import '../../services/quiz_service.dart';
-import '../quiz_screen.dart';
 
 const _primary = Color(0xFFFF7434);
 const _heading = Color(0xFF3B2419);
@@ -64,16 +60,16 @@ class ClassroomScreen extends StatefulWidget {
     required this.user,
     this.classroomService,
     this.reportsRepository,
-    this.initialClassroomId,
     this.onInstructorStatsChanged,
+    this.header,
     super.key,
   });
 
   final UserModel user;
   final ClassroomRepository? classroomService;
   final InstructorReportsRepository? reportsRepository;
-  final String? initialClassroomId;
   final VoidCallback? onInstructorStatsChanged;
+  final Widget? header;
 
   @override
   State<ClassroomScreen> createState() => _ClassroomScreenState();
@@ -105,16 +101,9 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
           ? await _classroomService.listStudentClassrooms()
           : await _classroomService.listClassrooms();
       if (!mounted) return;
-      ClassroomModel? initialClassroom;
-      for (final classroom in classrooms) {
-        if (classroom.id == widget.initialClassroomId) {
-          initialClassroom = classroom;
-          break;
-        }
-      }
       setState(() {
         _classrooms = classrooms;
-        _selectedClassroom = initialClassroom;
+        _selectedClassroom = null;
         _isLoading = false;
       });
     } on ClassroomServiceException catch (error) {
@@ -295,6 +284,7 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
       return ClassroomDetailScreen(
         classroom: classroom,
         user: widget.user,
+        header: widget.header,
         classroomService: widget.classroomService ?? ClassroomService(),
         onBack: () => setState(() {
           _selectedClassroom = null;
@@ -316,6 +306,10 @@ class _ClassroomScreenState extends State<ClassroomScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (widget.header != null) ...[
+                widget.header!,
+                const SizedBox(height: 24),
+              ],
               Row(
                 children: [
                   const Expanded(
@@ -827,17 +821,6 @@ class _ClassroomCard extends StatelessWidget {
                           '${classroom.studentCount == 1 ? 'student' : 'students'}',
                     ),
                   ),
-                  if (!isInstructor) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _ClassroomSummaryChip(
-                        icon: Icons.assignment_outlined,
-                        label:
-                            '${classroom.activityCount} '
-                            '${classroom.activityCount == 1 ? 'activity' : 'activities'}',
-                      ),
-                    ),
-                  ],
                 ],
               ),
               const Spacer(),
@@ -920,6 +903,7 @@ class ClassroomDetailScreen extends StatelessWidget {
   const ClassroomDetailScreen({
     required this.classroom,
     required this.user,
+    this.header,
     required this.classroomService,
     required this.onBack,
     required this.onDelete,
@@ -930,6 +914,7 @@ class ClassroomDetailScreen extends StatelessWidget {
 
   final ClassroomModel classroom;
   final UserModel user;
+  final Widget? header;
   final ClassroomRepository classroomService;
   final VoidCallback onBack;
   final Future<void> Function(ClassroomModel) onDelete;
@@ -948,207 +933,244 @@ class ClassroomDetailScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    padding: const EdgeInsets.all(24),
-    child: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 960),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget build(BuildContext context) {
+    final isStudent = user.role.toLowerCase() == 'student';
+    if (isStudent) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 960),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: onBack,
-                      icon: const Icon(Icons.arrow_back),
-                      label: const Text('Your classrooms'),
-                      style: TextButton.styleFrom(foregroundColor: _primary),
-                    ),
+                if (header != null) ...[header!, const SizedBox(height: 24)],
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: onBack,
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Your classrooms'),
+                    style: TextButton.styleFrom(foregroundColor: _primary),
                   ),
                 ),
-                if (user.role.toLowerCase() == 'instructor')
-                  OutlinedButton.icon(
-                    onPressed: isDeleting ? null : () => onDelete(classroom),
-                    icon: isDeleting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: _danger,
-                            ),
-                          )
-                        : const Icon(Icons.delete_outline_rounded),
-                    label: Text(isDeleting ? 'Deleting…' : 'Delete classroom'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _danger,
-                      side: const BorderSide(color: Color(0xFFE7B8B4)),
-                    ),
-                  ),
+                const SizedBox(height: 12),
+                _ClassroomStudentsSection(
+                  classroom: classroom,
+                  classroomService: classroomService,
+                  isInstructor: false,
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: _border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 960),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (header != null) ...[header!, const SizedBox(height: 24)],
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFE5D5),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(classroom.icon, size: 28, color: _primary),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: onBack,
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('Your classrooms'),
+                        style: TextButton.styleFrom(foregroundColor: _primary),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              classroom.name,
-                              style: const TextStyle(
-                                color: _heading,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (user.role.toLowerCase() == 'instructor')
+                    OutlinedButton.icon(
+                      onPressed: isDeleting ? null : () => onDelete(classroom),
+                      icon: isDeleting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: _danger,
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              classroom.subject,
-                              style: const TextStyle(
-                                color: _subtle,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ],
-                        ),
+                            )
+                          : const Icon(Icons.delete_outline_rounded),
+                      label: Text(
+                        isDeleting ? 'Deleting…' : 'Delete classroom',
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final studentCount = Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.groups_outlined,
-                            color: _primary,
-                            size: 19,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${classroom.studentCount} ${classroom.studentCount == 1 ? 'student' : 'students'}',
-                            style: const TextStyle(
-                              color: _heading,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      );
-                      final joinCode = Row(
-                        children: [
-                          const Icon(
-                            Icons.key_outlined,
-                            color: _primary,
-                            size: 19,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Join code: ${classroom.code}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: _heading,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Copy classroom code',
-                            onPressed: () => _copyCode(context),
-                            icon: const Icon(Icons.copy_outlined, size: 18),
-                            color: _primary,
-                            visualDensity: VisualDensity.compact,
-                            constraints: const BoxConstraints(
-                              minWidth: 36,
-                              minHeight: 36,
-                            ),
-                            padding: EdgeInsets.zero,
-                          ),
-                        ],
-                      );
-                      if (constraints.maxWidth < 560) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            studentCount,
-                            const SizedBox(height: 12),
-                            joinCode,
-                          ],
-                        );
-                      }
-                      return Row(
-                        children: [
-                          studentCount,
-                          const SizedBox(width: 20),
-                          Expanded(child: joinCode),
-                        ],
-                      );
-                    },
-                  ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _danger,
+                        side: const BorderSide(color: Color(0xFFE7B8B4)),
+                      ),
+                    ),
                 ],
               ),
-            ),
-            if (user.role.toLowerCase() == 'instructor') ...[
-              const SizedBox(height: 24),
-              _ClassroomStudentsSection(
-                classroom: classroom,
-                classroomService: classroomService,
-                reportsRepository: reportsRepository,
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: _border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFE5D5),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            classroom.icon,
+                            size: 28,
+                            color: _primary,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                classroom.name,
+                                style: const TextStyle(
+                                  color: _heading,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                classroom.subject,
+                                style: const TextStyle(
+                                  color: _subtle,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final studentCount = Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.groups_outlined,
+                              color: _primary,
+                              size: 19,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${classroom.studentCount} ${classroom.studentCount == 1 ? 'student' : 'students'}',
+                              style: const TextStyle(
+                                color: _heading,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        );
+                        final joinCode = Row(
+                          children: [
+                            const Icon(
+                              Icons.key_outlined,
+                              color: _primary,
+                              size: 19,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Join code: ${classroom.code}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _heading,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Copy classroom code',
+                              onPressed: () => _copyCode(context),
+                              icon: const Icon(Icons.copy_outlined, size: 18),
+                              color: _primary,
+                              visualDensity: VisualDensity.compact,
+                              constraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 36,
+                              ),
+                              padding: EdgeInsets.zero,
+                            ),
+                          ],
+                        );
+                        if (constraints.maxWidth < 560) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              studentCount,
+                              const SizedBox(height: 12),
+                              joinCode,
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            studentCount,
+                            const SizedBox(width: 20),
+                            Expanded(child: joinCode),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
+              if (user.role.toLowerCase() == 'instructor') ...[
+                const SizedBox(height: 24),
+                _ClassroomStudentsSection(
+                  classroom: classroom,
+                  classroomService: classroomService,
+                  reportsRepository: reportsRepository,
+                  isInstructor: true,
+                ),
+              ],
             ],
-            if (user.role.toLowerCase() == 'student') ...[
-              const SizedBox(height: 24),
-              _PostActivitiesSection(
-                classroom: classroom,
-                user: user,
-                classroomService: classroomService,
-              ),
-            ],
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ClassroomStudentsSection extends StatefulWidget {
   const _ClassroomStudentsSection({
     required this.classroom,
     required this.classroomService,
+    required this.isInstructor,
     this.reportsRepository,
   });
 
   final ClassroomModel classroom;
   final ClassroomRepository classroomService;
+  final bool isInstructor;
   final InstructorReportsRepository? reportsRepository;
 
   @override
@@ -1168,7 +1190,9 @@ class _ClassroomStudentsSectionState extends State<_ClassroomStudentsSection> {
   }
 
   void _load() {
-    _students = widget.classroomService.classroomStudents(widget.classroom.id);
+    _students = widget.isInstructor
+        ? widget.classroomService.classroomStudents(widget.classroom.id)
+        : widget.classroomService.classroomClassmates(widget.classroom.id);
   }
 
   Future<void> _showStudentProfile(ClassroomStudentSummary student) async {
@@ -1296,8 +1320,8 @@ class _ClassroomStudentsSectionState extends State<_ClassroomStudentsSection> {
           children: [
             Expanded(
               child: Text(
-                'Students',
-                style: TextStyle(
+                widget.isInstructor ? 'Students' : 'Classmates',
+                style: const TextStyle(
                   color: _heading,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -1305,16 +1329,20 @@ class _ClassroomStudentsSectionState extends State<_ClassroomStudentsSection> {
               ),
             ),
             IconButton(
-              tooltip: 'Refresh students',
+              tooltip: widget.isInstructor
+                  ? 'Refresh students'
+                  : 'Refresh classmates',
               onPressed: () => setState(_load),
               icon: const Icon(Icons.refresh_rounded, color: _primary),
             ),
           ],
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Select a student to view their profile.',
-          style: TextStyle(color: _subtle, fontSize: 13),
+        Text(
+          widget.isInstructor
+              ? 'Select a student to view their profile.'
+              : 'Students in this classroom.',
+          style: const TextStyle(color: _subtle, fontSize: 13),
         ),
         const SizedBox(height: 16),
         FutureBuilder<List<ClassroomStudentSummary>>(
@@ -1368,7 +1396,9 @@ class _ClassroomStudentsSectionState extends State<_ClassroomStudentsSection> {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'No students have joined yet',
+                      widget.isInstructor
+                          ? 'No students have joined yet'
+                          : 'No classmates found',
                       style: TextStyle(
                         color: _heading,
                         fontWeight: FontWeight.w600,
@@ -1376,7 +1406,9 @@ class _ClassroomStudentsSectionState extends State<_ClassroomStudentsSection> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Share the classroom code to invite students.',
+                      widget.isInstructor
+                          ? 'Share the classroom code to invite students.'
+                          : 'Classmates will appear here when they join.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: _subtle, fontSize: 12),
                     ),
@@ -1395,6 +1427,7 @@ class _ClassroomStudentsSectionState extends State<_ClassroomStudentsSection> {
                   separatorBuilder: (_, _) => const SizedBox(height: 4),
                   itemBuilder: (context, index) => _ClassroomStudentTile(
                     student: students[index],
+                    isInstructor: widget.isInstructor,
                     isRemoving: _removingStudentId == students[index].id,
                     isLoadingProfile:
                         _loadingProfileStudentId == students[index].id,
@@ -1414,6 +1447,7 @@ class _ClassroomStudentsSectionState extends State<_ClassroomStudentsSection> {
 class _ClassroomStudentTile extends StatelessWidget {
   const _ClassroomStudentTile({
     required this.student,
+    required this.isInstructor,
     required this.isRemoving,
     required this.isLoadingProfile,
     required this.onTap,
@@ -1421,6 +1455,7 @@ class _ClassroomStudentTile extends StatelessWidget {
   });
 
   final ClassroomStudentSummary student;
+  final bool isInstructor;
   final bool isRemoving;
   final bool isLoadingProfile;
   final VoidCallback onTap;
@@ -1440,7 +1475,7 @@ class _ClassroomStudentTile extends StatelessWidget {
       color: const Color(0xFFFFFBF6),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: isLoadingProfile ? null : onTap,
+        onTap: !isInstructor || isLoadingProfile ? null : onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1473,702 +1508,47 @@ class _ClassroomStudentTile extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    Text(
-                      student.email,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: _subtle, fontSize: 11),
-                    ),
+                    if (isInstructor)
+                      Text(
+                        student.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: _subtle, fontSize: 11),
+                      ),
                   ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Remove ${student.fullName}',
-                onPressed: isRemoving ? null : onRemove,
-                visualDensity: VisualDensity.compact,
-                color: _danger,
-                icon: isRemoving
-                    ? const SizedBox.square(
-                        dimension: 17,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: _danger,
-                        ),
-                      )
-                    : const Icon(Icons.person_remove_outlined, size: 19),
-              ),
-              if (isLoadingProfile)
-                const SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: _primary,
-                  ),
-                )
-              else
-                const Icon(Icons.chevron_right, color: _subtle, size: 18),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PostActivitiesSection extends StatefulWidget {
-  const _PostActivitiesSection({
-    required this.classroom,
-    required this.user,
-    required this.classroomService,
-  });
-
-  final ClassroomModel classroom;
-  final UserModel user;
-  final ClassroomRepository classroomService;
-
-  @override
-  State<_PostActivitiesSection> createState() => _PostActivitiesSectionState();
-}
-
-class _PostActivitiesSectionState extends State<_PostActivitiesSection> {
-  late Future<List<ClassroomActivity>> _activities;
-  late final Timer _availabilityTimer;
-  String? _deletingActivityId;
-
-  @override
-  void initState() {
-    super.initState();
-    _activities = widget.classroomService.classroomActivities(
-      widget.classroom.id,
-    );
-    _availabilityTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _availabilityTimer.cancel();
-    super.dispose();
-  }
-
-  void _retry() {
-    setState(() {
-      _activities = widget.classroomService.classroomActivities(
-        widget.classroom.id,
-      );
-    });
-  }
-
-  Future<void> _deleteActivity(ClassroomActivity activity) async {
-    final confirmed = await _showDeleteConfirmation(
-      context,
-      title: 'Delete quiz?',
-      description:
-          '“${activity.title}” will no longer be available to students in '
-          'this classroom. This action cannot be undone.',
-      confirmLabel: 'Delete quiz',
-    );
-    if (confirmed != true || !mounted) return;
-
-    setState(() => _deletingActivityId = activity.id);
-    try {
-      await widget.classroomService.deleteClassroomActivity(
-        classroomId: activity.classroomId,
-        activityId: activity.id,
-      );
-      if (!mounted) return;
-      _retry();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Quiz deleted'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } on ClassroomServiceException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.message),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } on Exception {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'The quiz could not be deleted. Please try again.',
-            ),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _deletingActivityId = null);
-    }
-  }
-
-  String _formatDateTime(DateTime value) {
-    final local = value.toLocal();
-    return '${MaterialLocalizations.of(context).formatMediumDate(local)} at '
-        '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
-  }
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: _border),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Post Activities',
-                style: const TextStyle(
-                  color: _heading,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: 'Refresh activities',
-              onPressed: _retry,
-              icon: const Icon(Icons.refresh_rounded, color: _primary),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Activities shared with this classroom appear here.',
-          style: TextStyle(color: _subtle, fontSize: 13),
-        ),
-        const SizedBox(height: 16),
-        FutureBuilder<List<ClassroomActivity>>(
-          future: _activities,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: CircularProgressIndicator(color: _primary),
-                ),
-              );
-            }
-            if (snapshot.hasError) {
-              return Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Could not load classroom activities. Please try again.',
-                      style: const TextStyle(color: _subtle),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _retry,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Retry'),
-                  ),
-                ],
-              );
-            }
-            final activities = snapshot.data ?? const <ClassroomActivity>[];
-            if (activities.isEmpty) {
-              return Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 22,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBF6),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _border),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.inbox_outlined,
-                      color: Color(0xFFC49A7E),
-                      size: 30,
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Nothing posted here yet',
-                      style: const TextStyle(
-                        color: _heading,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'New classroom activities will show up in this space.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: _subtle, fontSize: 12),
-                    ),
-                  ],
-                ),
-              );
-            }
-            return Column(
-              children: [
-                for (final activity in activities)
-                  _ClassroomActivityTile(
-                    activity: activity,
-                    user: widget.user,
-                    formatDateTime: _formatDateTime,
-                    onActivityCompleted: _retry,
-                    isDeleting: _deletingActivityId == activity.id,
-                    onDelete: () => _deleteActivity(activity),
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
-    ),
-  );
-}
-
-class _ClassroomActivityTile extends StatelessWidget {
-  const _ClassroomActivityTile({
-    required this.activity,
-    required this.user,
-    required this.formatDateTime,
-    required this.onActivityCompleted,
-    required this.isDeleting,
-    required this.onDelete,
-  });
-
-  final ClassroomActivity activity;
-  final UserModel user;
-  final String Function(DateTime) formatDateTime;
-  final VoidCallback onActivityCompleted;
-  final bool isDeleting;
-  final VoidCallback onDelete;
-
-  Future<void> _openActivity(BuildContext context) async {
-    final completed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => QuizScreen(
-          username: user.fullName,
-          email: user.email,
-          role: user.role,
-          createdAt: user.createdAt,
-          title: activity.title,
-          sourceFile: activity.sourceFile,
-          questions: activity.questions,
-          quizId: activity.quizId,
-          classroomActivityId: activity.id,
-          previousAttempts: activity.attempts,
-        ),
-      ),
-    );
-    if (completed == true) onActivityCompleted();
-  }
-
-  Future<void> _showPreview(BuildContext context) => showDialog<void>(
-    context: context,
-    builder: (dialogContext) => Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640, maxHeight: 720),
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFFCF8),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: _border),
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 20, 14, 14),
-                child: Row(
-                  children: [
-                    const Icon(Icons.quiz_outlined, color: _primary, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            activity.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _heading,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          Text(
-                            '${activity.questions.length} questions · '
-                            '${activity.maxAttempts == null ? 'Unlimited attempts' : '${activity.maxAttempts} attempts per student'}',
-                            style: const TextStyle(
-                              color: _subtle,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Close preview',
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: _border),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: activity.questions.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final question = activity.questions[index];
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: _border),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'QUESTION ${index + 1}',
-                            style: const TextStyle(
-                              color: _primary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.7,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            question.question,
-                            style: const TextStyle(
-                              color: _heading,
-                              fontWeight: FontWeight.w700,
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          for (
-                            var optionIndex = 0;
-                            optionIndex < question.options.length;
-                            optionIndex++
-                          ) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(
-                                    optionIndex == question.answerIndex
-                                        ? Icons.check_circle_rounded
-                                        : Icons.radio_button_unchecked_rounded,
-                                    size: 17,
-                                    color: optionIndex == question.answerIndex
-                                        ? const Color(0xFF578258)
-                                        : _subtle,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      question.options[optionIndex],
-                                      style: TextStyle(
-                                        color: _heading,
-                                        fontWeight:
-                                            optionIndex == question.answerIndex
-                                            ? FontWeight.w700
-                                            : FontWeight.normal,
-                                      ),
-                                    ),
-                                  ),
-                                  if (optionIndex == question.answerIndex)
-                                    const Text(
-                                      'Correct answer',
-                                      style: TextStyle(
-                                        color: Color(0xFF578258),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 6),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(11),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF5E8),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text.rich(
-                              TextSpan(
-                                children: [
-                                  const TextSpan(
-                                    text: 'Explanation  ',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  TextSpan(text: question.explanation),
-                                ],
-                              ),
-                              style: const TextStyle(
-                                color: _subtle,
-                                fontSize: 12,
-                                height: 1.4,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    final isStudent = user.role.toLowerCase() == 'student';
-    final isInstructor = user.role.toLowerCase() == 'instructor';
-    final statusColor = switch (activity.status) {
-      'Open' || 'In progress' || 'Completed' => const Color(0xFF578258),
-      'Upcoming' => _primary,
-      _ => const Color(0xFF8C6E5E),
-    };
-    final statusFill = switch (activity.status) {
-      'Open' || 'In progress' || 'Completed' => const Color(0xFFEAF3E8),
-      'Upcoming' => const Color(0xFFFFE9DC),
-      _ => const Color(0xFFF4EDE7),
-    };
-    final information = Row(
-      children: [
-        Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFE9DC),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: const Icon(
-            Icons.assignment_outlined,
-            color: _primary,
-            size: 22,
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      activity.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _heading,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusFill,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      activity.status,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 7),
-              Wrap(
-                spacing: 14,
-                runSpacing: 4,
-                children: [
-                  _ActivityScheduleLabel(
-                    icon: Icons.play_arrow_rounded,
-                    text: 'Opens ${formatDateTime(activity.startsAt)}',
-                  ),
-                  if (isStudent)
-                    _ActivityScheduleLabel(
-                      icon: Icons.replay_rounded,
-                      text: activity.maxAttempts == null
-                          ? '${activity.attemptCount} '
-                                '${activity.attemptCount == 1 ? 'attempt' : 'attempts'} used'
-                          : '${activity.attemptCount} of '
-                                '${activity.maxAttempts} attempts used',
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-    final action = isStudent
-        ? activity.status == 'Completed'
-              ? const Text(
-                  'No attempts left',
-                  style: TextStyle(
-                    color: _subtle,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-              : FilledButton(
-                  onPressed: activity.isAvailable
-                      ? () => _openActivity(context)
-                      : null,
-                  style: FilledButton.styleFrom(backgroundColor: _primary),
-                  child: Text(
-                    user.role.toLowerCase() == 'instructor'
-                        ? 'Take quiz'
-                        : activity.attemptCount > 0
-                        ? 'Retake activity'
-                        : 'Take activity',
-                  ),
-                )
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'View quiz',
-                style: TextStyle(
-                  color: _primary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
                 ),
               ),
               if (isInstructor) ...[
-                const SizedBox(width: 4),
                 IconButton(
-                  tooltip: 'Delete quiz',
-                  onPressed: isDeleting ? null : onDelete,
+                  tooltip: 'Remove ${student.fullName}',
+                  onPressed: isRemoving ? null : onRemove,
                   visualDensity: VisualDensity.compact,
                   color: _danger,
-                  icon: isDeleting
-                      ? const SizedBox(
-                          width: 17,
-                          height: 17,
+                  icon: isRemoving
+                      ? const SizedBox.square(
+                          dimension: 17,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: _danger,
                           ),
                         )
-                      : const Icon(Icons.delete_outline_rounded, size: 20),
+                      : const Icon(Icons.person_remove_outlined, size: 19),
                 ),
+                if (isLoadingProfile)
+                  const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _primary,
+                    ),
+                  )
+                else
+                  const Icon(Icons.chevron_right, color: _subtle, size: 18),
               ],
             ],
-          );
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isStudent ? null : () => _showPreview(context),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _border),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x083B2419),
-                blurRadius: 12,
-                offset: Offset(0, 3),
-              ),
-            ],
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth < 560) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    information,
-                    const SizedBox(height: 12),
-                    Align(alignment: Alignment.centerRight, child: action),
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: information),
-                  const SizedBox(width: 12),
-                  action,
-                ],
-              );
-            },
           ),
         ),
       ),
     );
   }
-}
-
-class _ActivityScheduleLabel extends StatelessWidget {
-  const _ActivityScheduleLabel({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, color: const Color(0xFF9A806F), size: 14),
-      const SizedBox(width: 4),
-      Flexible(
-        child: Text(
-          text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: _subtle, fontSize: 11),
-        ),
-      ),
-    ],
-  );
 }

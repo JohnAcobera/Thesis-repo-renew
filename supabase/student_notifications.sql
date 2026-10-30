@@ -1,7 +1,7 @@
--- Run after learner_points_automation.sql, learning_streak.sql,
--- learner_points_leaderboard.sql, classrooms.sql, and
--- classroom_activities.sql. This also installs a data-free Realtime broadcast
--- used to refresh each student's notifications.
+-- Run after learner_points.sql, quiz_attempts.sql,
+-- learner_points_automation.sql, learning_streak.sql,
+-- learner_points_leaderboard.sql, and classrooms.sql. This also installs a
+-- data-free Realtime broadcast used to refresh each student's notifications.
 
 create table if not exists public.student_notification_reads (
   user_id bigint not null references public.users(id) on delete cascade,
@@ -227,26 +227,6 @@ begin
       union all
 
       select
-        'classroom-activity:' || activity.id::text,
-        'classroomActivity'::text,
-        'New classroom activity'::text,
-        format('%s: %s was posted.', classroom.name, quiz.title),
-        activity.created_at,
-        classroom.id
-      from public.classroom_students membership
-      join public.classrooms classroom
-        on classroom.id = membership.classroom_id
-      join public.classroom_activities activity
-        on activity.classroom_id = classroom.id
-      join public.student_generated_quizzes quiz
-        on quiz.id = activity.quiz_id
-      where membership.student_id = verified_user_id
-        and activity.created_at >= membership.joined_at
-        and activity.created_at >= now() - interval '90 days'
-
-      union all
-
-      select
         'classroom-joined:' || membership.classroom_id::text || ':' ||
           extract(epoch from membership.joined_at)::text,
         'classroomJoined'::text,
@@ -367,7 +347,6 @@ begin
   foreach source_table in array array[
     'classrooms',
     'classroom_students',
-    'classroom_activities',
     'learner_point_transactions',
     'quiz_attempts',
     'student_classroom_removals',

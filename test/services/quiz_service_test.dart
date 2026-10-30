@@ -88,6 +88,63 @@ void main() {
     },
   );
 
+  test('loads points for a saved quiz attempt', () async {
+    Map<String, dynamic>? rpcParams;
+    final client = _supabaseClient((request) async {
+      rpcParams = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode(50),
+        200,
+        headers: {'content-type': 'application/json'},
+        request: request,
+      );
+    });
+    final service = QuizService(
+      client: client,
+      authService: _TestAuthService(client),
+    );
+
+    expect(await service.learnerPointsForAttempt(quizId: 'quiz-id'), 50);
+    expect(rpcParams, {
+      'p_session_token': List.filled(40, 's').join(),
+      'p_quiz_id': 'quiz-id',
+    });
+    await client.dispose();
+  });
+
+  test('explains when quiz learner points are not configured', () async {
+    final client = _supabaseClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'code': 'PGRST202',
+          'message': 'Function not found.',
+          'details': null,
+          'hint': null,
+        }),
+        404,
+        headers: {'content-type': 'application/json'},
+        request: request,
+      );
+    });
+    final service = QuizService(
+      client: client,
+      authService: _TestAuthService(client),
+    );
+
+    await expectLater(
+      service.learnerPointsForAttempt(quizId: 'quiz-id'),
+      throwsA(
+        isA<QuizServiceException>().having(
+          (error) => error.message,
+          'message',
+          'Learner points are not configured. Run the learner-points SQL '
+              'migrations, then try again.',
+        ),
+      ),
+    );
+    await client.dispose();
+  });
+
   group('QuizQuestion.fromJson', () {
     test('parses a valid four-option multiple-choice question', () {
       final question = QuizQuestion.fromJson({
@@ -463,105 +520,6 @@ void main() {
     expect(averageQuizImprovementPercentage(quizzes), -7.5);
     expect(averageQuizImprovementPercentage([quizzes.last]), isNull);
   });
-
-  test('ClassroomActivity parses its schedule and availability', () {
-    final now = DateTime.now().toUtc();
-    final activity = ClassroomActivity.fromJson({
-      'id': 'activity-id',
-      'classroom_id': 'classroom-id',
-      'classroom_name': 'Biology',
-      'quiz_id': 'quiz-id',
-      'title': 'Cell Structure',
-      'source_file': 'biology.pdf',
-      'questions': [
-        {
-          'question': 'Which organelle stores DNA?',
-          'options': ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
-          'answerIndex': 0,
-          'explanation': 'The nucleus contains the cell DNA.',
-        },
-      ],
-      'starts_at': now.subtract(const Duration(days: 1)).toIso8601String(),
-      'max_attempts': null,
-      'attempt_count': 0,
-      'attempts': [],
-    });
-
-    expect(activity.classroomName, 'Biology');
-    expect(activity.questions, hasLength(1));
-    expect(activity.isAvailable, isTrue);
-    expect(activity.status, 'Open');
-    expect(activity.maxAttempts, isNull);
-    expect(activity.attemptCount, 0);
-  });
-
-  test(
-    'ClassroomActivity stays available after unlimited practice attempts',
-    () {
-      final now = DateTime.now().toUtc();
-      final activity = ClassroomActivity.fromJson({
-        'id': 'activity-id',
-        'classroom_id': 'classroom-id',
-        'classroom_name': 'Biology',
-        'quiz_id': 'quiz-id',
-        'title': 'Cell Structure',
-        'source_file': 'biology.pdf',
-        'questions': [
-          {
-            'question': 'Which organelle stores DNA?',
-            'options': ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
-            'answerIndex': 0,
-            'explanation': 'The nucleus contains the cell DNA.',
-          },
-        ],
-        'starts_at': now.subtract(const Duration(days: 1)).toIso8601String(),
-        'max_attempts': null,
-        'attempt_count': 25,
-        'attempts': [],
-      });
-
-      expect(activity.isAvailable, isTrue);
-      expect(activity.status, 'In progress');
-    },
-  );
-
-  test(
-    'ClassroomActivity reports completion when the attempt limit is used',
-    () {
-      final now = DateTime.now().toUtc();
-      final activity = ClassroomActivity.fromJson({
-        'id': 'activity-id',
-        'classroom_id': 'classroom-id',
-        'classroom_name': 'Biology',
-        'quiz_id': 'quiz-id',
-        'title': 'Cell Structure',
-        'source_file': 'biology.pdf',
-        'questions': [
-          {
-            'question': 'Which organelle stores DNA?',
-            'options': ['Nucleus', 'Ribosome', 'Cell wall', 'Vacuole'],
-            'answerIndex': 0,
-            'explanation': 'The nucleus contains the cell DNA.',
-          },
-        ],
-        'starts_at': now.subtract(const Duration(days: 1)).toIso8601String(),
-        'max_attempts': 2,
-        'attempt_count': 2,
-        'attempts': [
-          {
-            'score': 1,
-            'total_questions': 1,
-            'created_at': now.toIso8601String(),
-            'classroom_name': 'Biology',
-          },
-        ],
-      });
-
-      expect(activity.status, 'Completed');
-      expect(activity.isAvailable, isFalse);
-      expect(activity.attempts.single.classroomName, 'Biology');
-    },
-  );
 
   test('shuffles questions while keeping question data intact', () {
     final questions = [

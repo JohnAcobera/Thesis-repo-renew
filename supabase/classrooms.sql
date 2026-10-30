@@ -178,11 +178,7 @@ begin
             from public.classroom_students cs
             where cs.classroom_id = c.id
           ),
-          'activity_count', (
-            select count(*)
-            from public.classroom_activities a
-            where a.classroom_id = c.id
-          )
+          'activity_count', 0
         )
         order by c.created_at desc
       )
@@ -235,14 +231,7 @@ begin
       from public.classrooms c
       where c.instructor_id = verified_user_id
     ),
-    'quizzes_created_count', (
-      select count(distinct a.quiz_id)
-      from public.classroom_activities a
-      join public.classrooms c on c.id = a.classroom_id
-      join public.student_generated_quizzes q on q.id = a.quiz_id
-      where c.instructor_id = verified_user_id
-        and q.user_id = verified_user_id
-    ),
+    'quizzes_created_count', 0,
     'classroom_performance', coalesce((
       select jsonb_agg(
         jsonb_build_object(
@@ -253,20 +242,8 @@ begin
             from public.classroom_students cs
             where cs.classroom_id = c.id
           ),
-          'activity_count', (
-            select count(*)
-            from public.classroom_activities a
-            where a.classroom_id = c.id
-          ),
-          'average_score', (
-            select avg(
-              100.0 * qa.score / nullif(qa.total_questions, 0)
-            )
-            from public.classroom_activities a
-            join public.quiz_attempts qa
-              on qa.classroom_activity_id = a.id
-            where a.classroom_id = c.id
-          )
+          'activity_count', 0,
+          'average_score', null
         )
         order by c.created_at desc
       )
@@ -375,11 +352,7 @@ begin
       from public.classroom_students cs
       where cs.classroom_id = joined_classroom.id
     ),
-    'activity_count', (
-      select count(*)
-      from public.classroom_activities a
-      where a.classroom_id = joined_classroom.id
-    )
+    'activity_count', 0
   );
 end;
 $$;
@@ -428,11 +401,7 @@ begin
             from public.classroom_students all_students
             where all_students.classroom_id = c.id
           ),
-          'activity_count', (
-            select count(*)
-            from public.classroom_activities a
-            where a.classroom_id = c.id
-          )
+          'activity_count', 0
         )
         order by cs.joined_at desc
       )

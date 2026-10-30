@@ -2,9 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../screens/classroom/classroom_screen.dart';
 import '../screens/auth/login_screen.dart';
-import '../services/classroom_service.dart';
 import '../services/auth_service.dart';
 import '../services/student_notification_service.dart';
 import 'student_nav_bar.dart';
@@ -41,7 +39,6 @@ class StudentScaffold extends StatefulWidget {
     this.onBack,
     this.trailingAction,
     this.notificationRepository,
-    this.onNotificationSelected,
     super.key,
   });
 
@@ -55,7 +52,6 @@ class StudentScaffold extends StatefulWidget {
   final VoidCallback? onBack;
   final Widget? trailingAction;
   final StudentNotificationRepository? notificationRepository;
-  final ValueChanged<StudentNotification>? onNotificationSelected;
 
   @override
   State<StudentScaffold> createState() => _StudentScaffoldState();
@@ -110,60 +106,6 @@ class _StudentScaffoldState extends State<StudentScaffold> {
     );
   }
 
-  Future<void> _openNotificationClassroom(
-    StudentNotification notification,
-  ) async {
-    final classroomId = notification.classroomId;
-    if (notification.type != StudentNotificationType.classroomActivity ||
-        classroomId == null) {
-      return;
-    }
-
-    try {
-      final user = await AuthService().restoreSession();
-      if (!mounted) return;
-      if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please sign in again to open the classroom.'),
-          ),
-        );
-        return;
-      }
-
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(
-          builder: (_) => StudentScaffold(
-            title: 'My Classroom',
-            username: user.fullName,
-            email: user.email,
-            role: 'Student',
-            selectedMenu: StudentMenuItem.classroom,
-            notificationRepository: widget.notificationRepository,
-            onBack: () => Navigator.of(context).maybePop(),
-            body: ClassroomScreen(
-              user: user,
-              classroomService: ClassroomService(),
-              initialClassroomId: classroomId,
-            ),
-          ),
-        ),
-        (route) => route.isFirst,
-      );
-    } on Exception {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'The classroom could not be opened. Please try again.',
-            ),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: Colors.transparent,
@@ -175,8 +117,6 @@ class _StudentScaffoldState extends State<StudentScaffold> {
       onProfileSelected: () => _selectMenuItem(StudentMenuItem.profile),
       trailingAction: widget.trailingAction,
       notificationRepository: widget.notificationRepository,
-      onNotificationSelected:
-          widget.onNotificationSelected ?? _openNotificationClassroom,
       leadingWidth: widget.onBack == null ? null : 112,
       leading: Row(
         mainAxisSize: MainAxisSize.min,

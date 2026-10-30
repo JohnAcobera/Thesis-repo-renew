@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../models/classroom_model.dart';
 import '../models/learning_material_model.dart';
-import '../services/classroom_service.dart';
 import '../services/instructor_learning_materials_service.dart';
 import '../widgets/app_glass_surface.dart';
 
@@ -52,16 +50,9 @@ extension on _MaterialSort {
 }
 
 class LearningMaterialsScreen extends StatefulWidget {
-  const LearningMaterialsScreen({
-    required this.classroomService,
-    this.materialsRepository,
-    this.onCreateActivity,
-    super.key,
-  });
+  const LearningMaterialsScreen({this.materialsRepository, super.key});
 
-  final ClassroomRepository classroomService;
   final InstructorLearningMaterialsRepository? materialsRepository;
-  final VoidCallback? onCreateActivity;
 
   @override
   State<LearningMaterialsScreen> createState() =>
@@ -73,7 +64,6 @@ class _LearningMaterialsScreenState extends State<LearningMaterialsScreen> {
       widget.materialsRepository ?? InstructorLearningMaterialsService();
   late Future<_LearningMaterialsData> _materials;
   String? _deletingMaterialId;
-  String? _postingMaterialId;
   String? _movingMaterialId;
   String? _selectedFolderFilter;
   _MaterialSort _sort = _MaterialSort.recent;
@@ -216,7 +206,6 @@ class _LearningMaterialsScreenState extends State<LearningMaterialsScreen> {
   }
 
   Future<void> _deleteMaterial(LearningMaterialModel material) async {
-    final hasClassroomPosts = material.postedClassroomNames.isNotEmpty;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -235,13 +224,8 @@ class _LearningMaterialsScreenState extends State<LearningMaterialsScreen> {
           ),
         ),
         content: Text(
-          hasClassroomPosts
-              ? '“${material.title}” is posted in '
-                    '${material.postedClassroomNames.join(', ')}. Deleting it '
-                    'will remove those classroom activities too. Student quiz '
-                    'records will be retained. This cannot be undone.'
-              : '“${material.title}” will be permanently removed from your '
-                    'Learning Materials. This cannot be undone.',
+          '“${material.title}” will be permanently removed from your '
+          'Learning Materials. This cannot be undone.',
           style: const TextStyle(color: _materialsSubtle, height: 1.45),
         ),
         actions: [
@@ -281,48 +265,6 @@ class _LearningMaterialsScreenState extends State<LearningMaterialsScreen> {
     }
   }
 
-  Future<void> _postMaterial(LearningMaterialModel material) async {
-    setState(() => _postingMaterialId = material.id);
-    try {
-      final classrooms = await widget.classroomService.listClassrooms();
-      if (!mounted) return;
-      if (classrooms.isEmpty) {
-        _showError('Create a classroom before posting an activity.');
-        return;
-      }
-
-      final schedule = await showDialog<_MaterialSchedule>(
-        context: context,
-        builder: (_) => _MaterialScheduleDialog(classrooms: classrooms),
-      );
-      if (schedule == null || !mounted) return;
-
-      await _repository.postMaterial(
-        quizId: material.id,
-        classroomIds: schedule.classroomIds,
-        startsAt: schedule.startsAt,
-      );
-      if (!mounted) return;
-      setState(_load);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Activity posted to the selected classrooms.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } on ClassroomServiceException catch (error) {
-      if (mounted) _showError(error.message);
-    } on InstructorLearningMaterialsException catch (error) {
-      if (mounted) _showError(error.message);
-    } on Exception catch (error) {
-      if (mounted) {
-        _showError('The activity could not be posted: $error');
-      }
-    } finally {
-      if (mounted) setState(() => _postingMaterialId = null);
-    }
-  }
-
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
@@ -353,15 +295,6 @@ class _LearningMaterialsScreenState extends State<LearningMaterialsScreen> {
                   runSpacing: 8,
                   alignment: WrapAlignment.end,
                   children: [
-                    if (widget.onCreateActivity != null)
-                      FilledButton.icon(
-                        onPressed: widget.onCreateActivity,
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text('Create activity'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _materialsPrimary,
-                        ),
-                      ),
                     OutlinedButton.icon(
                       onPressed: () => setState(_load),
                       icon: const Icon(Icons.refresh_rounded),
@@ -394,7 +327,7 @@ class _LearningMaterialsScreenState extends State<LearningMaterialsScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Your saved quizzes, ready to share with a classroom.',
+              'Your saved quizzes, ready to organize and reuse.',
               style: TextStyle(color: _materialsSubtle, fontSize: 14),
             ),
             const SizedBox(height: 20),
@@ -474,16 +407,13 @@ class _LearningMaterialsScreenState extends State<LearningMaterialsScreen> {
                             material: material,
                             folders: data.folders,
                             isDeleting: _deletingMaterialId == material.id,
-                            isPosting: _postingMaterialId == material.id,
                             isMoving: _movingMaterialId == material.id,
                             anyActionInProgress:
                                 _deletingMaterialId != null ||
-                                _postingMaterialId != null ||
                                 _movingMaterialId != null,
                             onFolderChanged: (folderId) =>
                                 _moveMaterial(material, folderId),
                             onDelete: () => _deleteMaterial(material),
-                            onPost: () => _postMaterial(material),
                           ),
                           const SizedBox(height: 12),
                         ],
@@ -658,23 +588,19 @@ class _LearningMaterialCard extends StatelessWidget {
     required this.material,
     required this.folders,
     required this.isDeleting,
-    required this.isPosting,
     required this.isMoving,
     required this.anyActionInProgress,
     required this.onFolderChanged,
     required this.onDelete,
-    required this.onPost,
   });
 
   final LearningMaterialModel material;
   final List<LearningMaterialFolder> folders;
   final bool isDeleting;
-  final bool isPosting;
   final bool isMoving;
   final bool anyActionInProgress;
   final ValueChanged<String?> onFolderChanged;
   final VoidCallback onDelete;
-  final VoidCallback onPost;
 
   @override
   Widget build(BuildContext context) => AppGlassSurface(
@@ -700,20 +626,6 @@ class _LearningMaterialCard extends StatelessWidget {
                 foregroundColor: const Color(0xFFB42318),
                 side: const BorderSide(color: Color(0xFFE7B8B4)),
               ),
-            ),
-            FilledButton.icon(
-              onPressed: anyActionInProgress ? null : onPost,
-              icon: isPosting
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.send_rounded, size: 17),
-              label: const Text('Post to classroom'),
-              style: FilledButton.styleFrom(backgroundColor: _materialsPrimary),
             ),
           ],
         );
@@ -769,17 +681,6 @@ class _LearningMaterialCard extends StatelessWidget {
                         ).formatMediumDate(material.createdAt.toLocal()),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    material.postedClassroomNames.isEmpty
-                        ? 'Not posted to a classroom'
-                        : 'Posted in ${material.postedClassroomNames.join(', ')}',
-                    style: const TextStyle(
-                      color: _materialsSubtle,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
                   ),
                   const SizedBox(height: 10),
                   Theme(
@@ -933,213 +834,6 @@ class _MaterialsMessage extends StatelessWidget {
         ),
         if (action != null) ...[const SizedBox(height: 10), action!],
       ],
-    ),
-  );
-}
-
-class _MaterialSchedule {
-  const _MaterialSchedule({required this.classroomIds, required this.startsAt});
-
-  final List<String> classroomIds;
-  final DateTime startsAt;
-}
-
-class _MaterialScheduleDialog extends StatefulWidget {
-  const _MaterialScheduleDialog({required this.classrooms});
-
-  final List<ClassroomModel> classrooms;
-
-  @override
-  State<_MaterialScheduleDialog> createState() =>
-      _MaterialScheduleDialogState();
-}
-
-class _MaterialScheduleDialogState extends State<_MaterialScheduleDialog> {
-  late final Set<String> _selectedClassroomIds = {widget.classrooms.first.id};
-  late DateTime _startsAt = DateTime.now().add(const Duration(minutes: 5));
-  String? _validationError;
-
-  Future<DateTime?> _pickDateTime(DateTime initial) async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 3650)),
-    );
-    if (date == null || !mounted) return null;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-    );
-    if (time == null) return null;
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
-  }
-
-  String _formatDateTime(DateTime value) =>
-      '${MaterialLocalizations.of(context).formatMediumDate(value)} at '
-      '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(value))}';
-
-  void _submit() {
-    if (_selectedClassroomIds.isEmpty) {
-      setState(() => _validationError = 'Select at least one classroom.');
-      return;
-    }
-    if (!_startsAt.isAfter(DateTime.now())) {
-      setState(() => _validationError = 'Choose a start time in the future.');
-      return;
-    }
-    Navigator.pop(
-      context,
-      _MaterialSchedule(
-        classroomIds: _selectedClassroomIds.toList(growable: false),
-        startsAt: _startsAt,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    backgroundColor: const Color(0xFFFFF8EE),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-    title: const Text(
-      'Post to classrooms',
-      style: TextStyle(color: _materialsHeading, fontWeight: FontWeight.w700),
-    ),
-    content: SizedBox(
-      width: 440,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Choose one or more classrooms and set when students can complete this activity.',
-              style: TextStyle(color: _materialsSubtle, height: 1.4),
-            ),
-            const SizedBox(height: 16),
-            for (final classroom in widget.classrooms)
-              CheckboxListTile(
-                value: _selectedClassroomIds.contains(classroom.id),
-                onChanged: (selected) => setState(() {
-                  if (selected == true) {
-                    _selectedClassroomIds.add(classroom.id);
-                  } else {
-                    _selectedClassroomIds.remove(classroom.id);
-                  }
-                }),
-                title: Text(
-                  classroom.name,
-                  style: const TextStyle(
-                    color: _materialsHeading,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: Text(classroom.subject),
-                secondary: Icon(classroom.icon, color: _materialsPrimary),
-                activeColor: _materialsPrimary,
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.trailing,
-              ),
-            const SizedBox(height: 12),
-            const Text(
-              'Availability',
-              style: TextStyle(
-                color: _materialsHeading,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _MaterialScheduleTile(
-              icon: Icons.play_circle_outline_rounded,
-              label: 'Starts',
-              value: _formatDateTime(_startsAt),
-              onTap: () async {
-                final value = await _pickDateTime(_startsAt);
-                if (value != null) setState(() => _startsAt = value);
-              },
-            ),
-            if (_validationError != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                _validationError!,
-                style: const TextStyle(color: Color(0xFFB42318)),
-              ),
-            ],
-          ],
-        ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton.icon(
-        onPressed: _submit,
-        style: FilledButton.styleFrom(backgroundColor: _materialsPrimary),
-        icon: const Icon(Icons.send_rounded, size: 17),
-        label: const Text('Post activity'),
-      ),
-    ],
-  );
-}
-
-class _MaterialScheduleTile extends StatelessWidget {
-  const _MaterialScheduleTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(12),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _materialsBorder),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: _materialsPrimary, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: _materialsSubtle,
-                      fontSize: 11,
-                    ),
-                  ),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      color: _materialsHeading,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.edit_calendar_outlined, color: _materialsSubtle),
-          ],
-        ),
-      ),
     ),
   );
 }

@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:thesis_repo_renew/models/classroom_model.dart';
 import 'package:thesis_repo_renew/models/learning_material_model.dart';
 import 'package:thesis_repo_renew/screens/learning_materials_screen.dart';
-import 'package:thesis_repo_renew/services/classroom_service.dart';
 import 'package:thesis_repo_renew/services/instructor_learning_materials_service.dart';
-import 'package:thesis_repo_renew/services/quiz_service.dart';
 
 void main() {
-  testWidgets('learning materials can be posted to selected classrooms', (
+  testWidgets('learning materials can be organized without classroom posting', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -20,10 +17,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: LearningMaterialsScreen(
-            classroomService: _FakeClassroomRepository(),
-            materialsRepository: materials,
-          ),
+          body: LearningMaterialsScreen(materialsRepository: materials),
         ),
       ),
     );
@@ -33,21 +27,9 @@ void main() {
     expect(find.text('Cell Structure'), findsOneWidget);
     expect(find.text('biology.pdf'), findsOneWidget);
     expect(find.text('12 questions'), findsOneWidget);
-    expect(find.text('Posted in Biology'), findsOneWidget);
-
-    await tester.tap(find.text('Post to classroom'));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Post to classrooms'), findsOneWidget);
-    expect(find.text('Deadline'), findsNothing);
-    await tester.tap(find.text('Post activity'));
-    await tester.pumpAndSettle();
-
-    expect(materials.postedQuizId, 'quiz-1');
-    expect(materials.postedClassroomIds, ['class-1']);
-    expect(
-      find.text('Activity posted to the selected classrooms.'),
-      findsOneWidget,
-    );
+    expect(find.text('Post to classroom'), findsNothing);
+    expect(find.text('Posted in Biology'), findsNothing);
+    expect(find.text('Folder'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -58,10 +40,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: LearningMaterialsScreen(
-            classroomService: _FakeClassroomRepository(),
-            materialsRepository: materials,
-          ),
+          body: LearningMaterialsScreen(materialsRepository: materials),
         ),
       ),
     );
@@ -86,10 +65,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: LearningMaterialsScreen(
-            classroomService: _FakeClassroomRepository(),
-            materialsRepository: materials,
-          ),
+          body: LearningMaterialsScreen(materialsRepository: materials),
         ),
       ),
     );
@@ -113,27 +89,6 @@ void main() {
     expect(find.text('Biology'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
-
-  testWidgets('create activity shortcut invokes its navigation callback', (
-    tester,
-  ) async {
-    var createActivityPressed = false;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: LearningMaterialsScreen(
-            classroomService: _FakeClassroomRepository(),
-            materialsRepository: _FakeMaterialsRepository(),
-            onCreateActivity: () => createActivityPressed = true,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Create activity'));
-    expect(createActivityPressed, isTrue);
-  });
 }
 
 class _FakeMaterialsRepository
@@ -143,8 +98,6 @@ class _FakeMaterialsRepository
   final List<LearningMaterialFolder> folders = [];
   String? assignedQuizId;
   String? assignedFolderId;
-  String? postedQuizId;
-  List<String> postedClassroomIds = [];
 
   @override
   Future<List<LearningMaterialModel>> listMaterials() async => isDeleted
@@ -156,7 +109,6 @@ class _FakeMaterialsRepository
             sourceFile: 'biology.pdf',
             createdAt: DateTime(2026, 10, 18),
             questionCount: 12,
-            postedClassroomNames: const ['Biology'],
             folderId: assignedFolderId,
             folderName: folders
                 .where((folder) => folder.id == assignedFolderId)
@@ -193,70 +145,4 @@ class _FakeMaterialsRepository
     assignedQuizId = quizId;
     assignedFolderId = folderId;
   }
-
-  @override
-  Future<void> postMaterial({
-    required String quizId,
-    required List<String> classroomIds,
-    required DateTime startsAt,
-  }) async {
-    postedQuizId = quizId;
-    postedClassroomIds = classroomIds;
-  }
-}
-
-class _FakeClassroomRepository implements ClassroomRepository {
-  @override
-  Future<List<ClassroomModel>> listClassrooms() async => [
-    ClassroomModel(
-      id: 'class-1',
-      name: 'Biology',
-      subject: 'General Biology',
-      code: 'BIOLOGY1',
-      createdAt: DateTime.utc(2026),
-    ),
-  ];
-
-  @override
-  Future<List<ClassroomStudentSummary>> classroomStudents(
-    String classroomId,
-  ) async => [];
-
-  @override
-  Future<void> removeClassroomStudent({
-    required String classroomId,
-    required int studentId,
-  }) async {}
-
-  @override
-  Future<List<ClassroomActivity>> classroomActivities(
-    String classroomId,
-  ) async => [];
-
-  @override
-  Future<InstructorDashboardStats> getInstructorDashboardStats() async =>
-      const InstructorDashboardStats(studentCount: 0, activeClassCount: 0);
-
-  @override
-  Future<List<ClassroomModel>> listStudentClassrooms() async => [];
-
-  @override
-  Future<ClassroomModel> joinClassroom({required String code}) async =>
-      throw UnimplementedError();
-
-  @override
-  Future<ClassroomModel> createClassroom({
-    required String name,
-    required String subject,
-    required String iconKey,
-  }) async => throw UnimplementedError();
-
-  @override
-  Future<void> deleteClassroom(String classroomId) async {}
-
-  @override
-  Future<void> deleteClassroomActivity({
-    required String classroomId,
-    required String activityId,
-  }) async {}
 }

@@ -6,6 +6,23 @@ import 'package:thesis_repo_renew/services/student_notification_service.dart';
 import 'package:thesis_repo_renew/widgets/student_notifications_sheet.dart';
 
 void main() {
+  test(
+    'legacy classroom notifications are parsed without activity actions',
+    () {
+      final notification = StudentNotification.fromJson({
+        'id': 'legacy-notification',
+        'type': 'classroomActivity',
+        'title': 'New classroom activity',
+        'message': 'A legacy notification.',
+        'created_at': DateTime(2026, 10, 17).toIso8601String(),
+        'is_read': true,
+        'classroom_id': 'classroom-id',
+      });
+
+      expect(notification.type, StudentNotificationType.legacy);
+    },
+  );
+
   testWidgets('notifications update live and can be marked as read', (
     tester,
   ) async {
@@ -15,12 +32,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           appBar: AppBar(
-            actions: [
-              StudentNotificationsButton(
-                repository: notifications,
-                onNotificationSelected: notifications.selectNotification,
-              ),
-            ],
+            actions: [StudentNotificationsButton(repository: notifications)],
           ),
         ),
       ),
@@ -66,7 +78,7 @@ void main() {
 
     await tester.tap(find.text('New classroom activity'));
     await tester.pumpAndSettle();
-    expect(notifications.selectedNotification?.classroomId, 'classroom-id');
+    expect(find.text('New classroom activity'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
@@ -76,7 +88,6 @@ class _FakeStudentNotificationRepository
   final List<String> markedIds = [];
   final Set<String> _readIds = {};
   final List<StudentNotification> _addedNotifications = [];
-  StudentNotification? selectedNotification;
   late final StreamController<List<StudentNotification>> _updates =
       StreamController<List<StudentNotification>>.broadcast(
         onListen: () => unawaited(refreshNotifications()),
@@ -98,12 +109,11 @@ class _FakeStudentNotificationRepository
       ),
       StudentNotification(
         id: 'classroom-activity:activity-1',
-        type: StudentNotificationType.classroomActivity,
+        type: StudentNotificationType.legacy,
         title: 'New classroom activity',
         message: 'Biology: Cell Review was posted.',
         createdAt: DateTime(2026, 10, 17),
         isRead: true,
-        classroomId: 'classroom-id',
       ),
       ..._addedNotifications.map(
         (notification) => StudentNotification(
@@ -113,7 +123,6 @@ class _FakeStudentNotificationRepository
           message: notification.message,
           createdAt: notification.createdAt,
           isRead: _readIds.contains(notification.id),
-          classroomId: notification.classroomId,
         ),
       ),
     ];
@@ -135,10 +144,5 @@ class _FakeStudentNotificationRepository
   Future<void> markNotificationsRead(List<String> notificationIds) async {
     markedIds.addAll(notificationIds);
     _readIds.addAll(notificationIds);
-    await refreshNotifications();
-  }
-
-  void selectNotification(StudentNotification notification) {
-    selectedNotification = notification;
   }
 }

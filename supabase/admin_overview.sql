@@ -1,5 +1,4 @@
--- Run after custom_auth.sql, classrooms.sql, quiz_attempts.sql, and
--- classroom_activities.sql.
+-- Run after custom_auth.sql and classrooms.sql.
 create or replace function public.get_admin_overview(
   p_session_token text
 ) returns jsonb
@@ -82,16 +81,6 @@ begin
             join public.users u on u.id = cs.student_id
             join public.classrooms c on c.id = cs.classroom_id
 
-            union all
-
-            select
-              'activity'::text as type,
-              'Activity posted: ' || q.title as title,
-              c.name as description,
-              a.created_at
-            from public.classroom_activities a
-            join public.classrooms c on c.id = a.classroom_id
-            join public.student_generated_quizzes q on q.id = a.quiz_id
           ) all_updates
           order by all_updates.created_at desc
           limit 8

@@ -8,9 +8,14 @@ import '../widgets/app_glass_surface.dart';
 import '../widgets/learning_metric_chart.dart';
 
 class InstructorReportsScreen extends StatefulWidget {
-  const InstructorReportsScreen({required this.reportsRepository, super.key});
+  const InstructorReportsScreen({
+    required this.reportsRepository,
+    this.header,
+    super.key,
+  });
 
   final InstructorReportsRepository reportsRepository;
+  final Widget? header;
 
   @override
   State<InstructorReportsScreen> createState() =>
@@ -115,6 +120,10 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (widget.header != null) ...[
+                      widget.header!,
+                      const SizedBox(height: 24),
+                    ],
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

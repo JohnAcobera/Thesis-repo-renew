@@ -342,10 +342,10 @@ class _InstructorNotificationTile extends StatelessWidget {
               ),
               child: Icon(
                 switch (notification.type) {
-                  InstructorNotificationType.quizAnswered =>
-                    Icons.quiz_outlined,
                   InstructorNotificationType.studentJoined =>
                     Icons.group_add_outlined,
+                  InstructorNotificationType.legacy =>
+                    Icons.notifications_outlined,
                 },
                 size: 19,
                 color: const Color(0xFFF4773C),

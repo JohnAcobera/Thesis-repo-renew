@@ -1,3 +1,5 @@
+-- Retired feature: keep for historical database migration compatibility only.
+-- Do not apply to new deployments. See README.md for legacy upgrade guidance.
 -- Run after classrooms.sql and quiz_attempts.sql.
 create table if not exists public.classroom_activities (
   id uuid primary key default gen_random_uuid(),

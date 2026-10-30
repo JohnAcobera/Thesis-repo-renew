@@ -2,7 +2,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/learning_material_model.dart';
 import 'auth_service.dart';
-import 'quiz_service.dart';
 
 abstract interface class InstructorLearningMaterialsRepository {
   Future<List<LearningMaterialModel>> listMaterials();
@@ -17,12 +16,6 @@ abstract interface class InstructorLearningMaterialsRepository {
   });
 
   Future<void> deleteMaterial(String quizId);
-
-  Future<void> postMaterial({
-    required String quizId,
-    required List<String> classroomIds,
-    required DateTime startsAt,
-  });
 }
 
 class InstructorLearningMaterialsService
@@ -30,18 +23,14 @@ class InstructorLearningMaterialsService
   InstructorLearningMaterialsService({
     SupabaseClient? client,
     AuthService? authService,
-    QuizService? quizService,
   }) : _client = client,
-       _authService = authService,
-       _quizService = quizService;
+       _authService = authService;
 
   final SupabaseClient? _client;
   final AuthService? _authService;
-  final QuizService? _quizService;
 
   SupabaseClient get _supabase => _client ?? Supabase.instance.client;
   AuthService get _auth => _authService ?? AuthService();
-  QuizService get _quizzes => _quizService ?? QuizService();
 
   @override
   Future<List<LearningMaterialModel>> listMaterials() async {
@@ -185,23 +174,6 @@ class InstructorLearningMaterialsService
           fallback: 'The quiz could not be moved to that folder.',
         ),
       );
-    }
-  }
-
-  @override
-  Future<void> postMaterial({
-    required String quizId,
-    required List<String> classroomIds,
-    required DateTime startsAt,
-  }) async {
-    try {
-      await _quizzes.postToClassrooms(
-        quizId: quizId,
-        classroomIds: classroomIds,
-        startsAt: startsAt,
-      );
-    } on QuizServiceException catch (error) {
-      throw InstructorLearningMaterialsException(error.message);
     }
   }
 

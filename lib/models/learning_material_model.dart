@@ -5,7 +5,6 @@ class LearningMaterialModel {
     required this.sourceFile,
     required this.createdAt,
     required this.questionCount,
-    required this.postedClassroomNames,
     this.folderId,
     this.folderName,
   });
@@ -15,7 +14,6 @@ class LearningMaterialModel {
   final String sourceFile;
   final DateTime createdAt;
   final int questionCount;
-  final List<String> postedClassroomNames;
   final String? folderId;
   final String? folderName;
 
@@ -26,9 +24,6 @@ class LearningMaterialModel {
         sourceFile: json['source_file'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
         questionCount: (json['question_count'] as num).toInt(),
-        postedClassroomNames: (json['posted_classrooms'] as List<dynamic>)
-            .map((name) => name as String)
-            .toList(growable: false),
         folderId: json['folder_id'] as String?,
         folderName: json['folder_name'] as String?,
       );

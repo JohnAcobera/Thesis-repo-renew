@@ -142,48 +142,39 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
               Positioned.fill(
                 child: Column(
                   children: [
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        constraints.maxWidth < 600 ? 16 : 32,
-                        24,
-                        constraints.maxWidth < 600 ? 16 : 32,
-                        0,
-                      ),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1160),
-                          child: FutureBuilder<InstructorDashboardStats>(
-                            future: _instructorStats,
-                            builder: (context, snapshot) =>
-                                InstructorSummaryMetrics(
-                                  classroomCount:
-                                      snapshot.data?.activeClassCount,
-                                  studentCount: snapshot.data?.studentCount,
-                                  studentsUnavailable: snapshot.hasError,
-                                  onRetryStudents: _reloadInstructorStats,
-                                ),
-                          ),
-                        ),
-                      ),
-                    ),
                     Expanded(
-                      child: _selectedMenu == InstructorMenuItem.classroom
-                          ? ClassroomScreen(
-                              user: user,
-                              classroomService: _classroomService,
-                              reportsRepository: widget.reportsRepository,
-                              onInstructorStatsChanged: _reloadInstructorStats,
-                            )
-                          : _selectedMenu == InstructorMenuItem.reports
-                          ? InstructorReportsScreen(
-                              reportsRepository:
-                                  widget.reportsRepository ??
-                                  InstructorReportsService(),
-                            )
-                          : _InstructorDashboard(
-                              instructorId: user.id,
-                              todoRepository: widget.todoRepository,
-                            ),
+                      child: FutureBuilder<InstructorDashboardStats>(
+                        future: _instructorStats,
+                        builder: (context, snapshot) {
+                          final summaryMetrics = InstructorSummaryMetrics(
+                            classroomCount: snapshot.data?.activeClassCount,
+                            studentCount: snapshot.data?.studentCount,
+                            studentsUnavailable: snapshot.hasError,
+                            onRetryStudents: _reloadInstructorStats,
+                          );
+                          return _selectedMenu == InstructorMenuItem.classroom
+                              ? ClassroomScreen(
+                                  user: user,
+                                  classroomService: _classroomService,
+                                  reportsRepository: widget.reportsRepository,
+                                  onInstructorStatsChanged:
+                                      _reloadInstructorStats,
+                                  header: summaryMetrics,
+                                )
+                              : _selectedMenu == InstructorMenuItem.reports
+                              ? InstructorReportsScreen(
+                                  reportsRepository:
+                                      widget.reportsRepository ??
+                                      InstructorReportsService(),
+                                  header: summaryMetrics,
+                                )
+                              : _InstructorDashboard(
+                                  instructorId: user.id,
+                                  todoRepository: widget.todoRepository,
+                                  header: summaryMetrics,
+                                );
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -242,9 +233,14 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
 }
 
 class _InstructorDashboard extends StatefulWidget {
-  const _InstructorDashboard({required this.instructorId, this.todoRepository});
+  const _InstructorDashboard({
+    required this.instructorId,
+    required this.header,
+    this.todoRepository,
+  });
 
   final int instructorId;
+  final Widget header;
   final InstructorTodoRepository? todoRepository;
 
   @override
@@ -304,6 +300,8 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                widget.header,
+                const SizedBox(height: 24),
                 heading,
                 const SizedBox(height: 24),
                 InstructorTodoSection(

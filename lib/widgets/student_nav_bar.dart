@@ -20,7 +20,6 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     this.trailingAction,
     this.notificationRepository,
     this.instructorNotificationRepository,
-    this.onNotificationSelected,
     this.leading,
     this.leadingWidth,
     super.key,
@@ -35,7 +34,6 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
   final Widget? trailingAction;
   final StudentNotificationRepository? notificationRepository;
   final InstructorNotificationRepository? instructorNotificationRepository;
-  final ValueChanged<StudentNotification>? onNotificationSelected;
   final Widget? leading;
   final double? leadingWidth;
 
@@ -119,10 +117,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         ?trailingAction,
         if (roleLabel.trim().toLowerCase() == 'student')
-          StudentNotificationsButton(
-            repository: notificationRepository,
-            onNotificationSelected: onNotificationSelected,
-          ),
+          StudentNotificationsButton(repository: notificationRepository),
         if (roleLabel.trim().toLowerCase() == 'instructor')
           InstructorNotificationsButton(
             repository:
