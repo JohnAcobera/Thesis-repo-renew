@@ -5,6 +5,7 @@ create extension if not exists pgcrypto;
 alter table public.users
   add column if not exists email text,
   add column if not exists password_hash text,
+  add column if not exists is_active boolean not null default true,
   add column if not exists created_at timestamptz not null default now();
 
 create unique index if not exists users_email_unique_idx
@@ -69,6 +70,7 @@ begin
   select * into found_user
   from public.users
   where lower(email) = lower(trim(p_email))
+    and is_active
     and password_hash is not null
     and password_hash = crypt(p_password, password_hash);
 
@@ -110,7 +112,9 @@ begin
   ) into result
   from public.user_sessions s
   join public.users u on u.id = s.user_id
-  where s.session_token = p_session_token and s.expires_at > now();
+  where s.session_token = p_session_token
+    and s.expires_at > now()
+    and u.is_active;
   if result is null then raise exception 'Invalid or expired session'; end if;
   return result;
 end;

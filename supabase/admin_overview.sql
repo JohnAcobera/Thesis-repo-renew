@@ -30,10 +30,12 @@ begin
 
   return jsonb_build_object(
     'student_count', (
-      select count(*) from public.users where role = 'student'
+      select count(*) from public.users
+      where role = 'student' and is_active
     ),
     'instructor_count', (
-      select count(*) from public.users where role = 'instructor'
+      select count(*) from public.users
+      where role = 'instructor' and is_active
     ),
     'classroom_count', (
       select count(*) from public.classrooms

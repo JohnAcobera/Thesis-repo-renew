@@ -49,10 +49,21 @@ from the main app. Re-run `supabase/custom_auth.sql` before creating an admin
 account with the `admin` role. Public self-registration remains student-only.
 Run the web app locally with
 `flutter run -d chrome --dart-define-from-file=.env`. When deploying with
-path-based URLs, configure the web host to serve `index.html` for `/admin`.
-Run `supabase/admin_overview.sql` after `custom_auth.sql` and `classrooms.sql`
-to enable the admin overview. It reports student, instructor, and classroom
-totals plus the eight most recent account, classroom, and enrollment updates.
+path-based URLs to Netlify, the `web/_redirects` rule serves `index.html` for
+`/admin` and other app routes. Build the web app and deploy the contents of
+`build/web` so the redirect rule is included.
+For an existing Supabase project, re-run `supabase/custom_auth.sql` so sign-in
+and session verification enforce account status. Then run
+`supabase/admin_overview.sql` after `custom_auth.sql` and `classrooms.sql`, and
+run `supabase/admin_management.sql` after those scripts. The management
+migration enables teacher account creation, account editing and access
+management, platform-wide classroom and student directories, and the admin
+activity log. Deactivated accounts cannot sign in; their sessions are revoked,
+while their classroom and learning history are preserved. The admin workspace
+includes an overview, Teachers, Classrooms, Students, and Activity Log screens.
+Teacher passwords are set by the admin and must be shared securely. The
+overview reports active student and instructor totals, classroom totals, and
+the eight most recent account, classroom, and enrollment updates.
 
 ## Generative quizzes
 

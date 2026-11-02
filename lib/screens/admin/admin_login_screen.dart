@@ -5,6 +5,7 @@ import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/admin_overview_service.dart';
 import '../../widgets/app_glass_surface.dart';
+import 'admin_management_screen.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -232,6 +233,8 @@ class _AdminHomeState extends State<_AdminHome> {
   AdminOverview? _overview;
   String? _error;
   bool _isLoading = true;
+  AdminSection _selectedSection = AdminSection.dashboard;
+  int _screenRefreshKey = 0;
 
   @override
   void initState() {
@@ -254,6 +257,14 @@ class _AdminHomeState extends State<_AdminHome> {
     }
   }
 
+  void _refreshCurrentSection() {
+    if (_selectedSection == AdminSection.dashboard) {
+      _loadOverview();
+    } else {
+      setState(() => _screenRefreshKey++);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -262,115 +273,111 @@ class _AdminHomeState extends State<_AdminHome> {
           children: [
             _AdminDashboardHeader(
               isLoading: _isLoading,
-              onRefresh: _loadOverview,
+              onRefresh: _refreshCurrentSection,
               onSignOut: widget.onSignOut,
             ),
             Expanded(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1180),
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(28, 28, 28, 32),
-                    children: [
-                      Text(
-                        'Overview',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                              color: const Color(0xFF3B2419),
-                              fontWeight: FontWeight.w800,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final wide = constraints.maxWidth >= 820;
+                  final selectedScreen =
+                      _selectedSection == AdminSection.dashboard
+                      ? _buildOverview()
+                      : AdminManagementScreen(
+                          key: ValueKey(
+                            '${_selectedSection.name}-$_screenRefreshKey',
+                          ),
+                          section: _selectedSection,
+                        );
+
+                  if (wide) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            border: Border(
+                              right: BorderSide(color: Color(0xFFE8D7C2)),
                             ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Current school totals and recent community activity.',
-                        style: const TextStyle(color: Color(0xFF725F53)),
-                      ),
-                      const SizedBox(height: 24),
-                      if (_error case final error?)
-                        _OverviewError(message: error, onRetry: _loadOverview)
-                      else if (_isLoading && _overview == null)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 72),
-                          child: Center(child: CircularProgressIndicator()),
-                        )
-                      else if (_overview case final overview?) ...[
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final columns = constraints.maxWidth >= 900
-                                ? 3
-                                : constraints.maxWidth >= 560
-                                ? 2
-                                : 1;
-                            const spacing = 16.0;
-                            final cardWidth =
-                                (constraints.maxWidth -
-                                    spacing * (columns - 1)) /
-                                columns;
-                            return Wrap(
-                              spacing: spacing,
-                              runSpacing: spacing,
-                              children: [
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: _SummaryCard(
-                                    label: 'Students',
-                                    value: overview.studentCount,
-                                    icon: Icons.school_outlined,
-                                    color: const Color(0xFF4B6F9C),
-                                  ),
+                          ),
+                          child: NavigationRail(
+                            backgroundColor: Colors.white,
+                            extended: constraints.maxWidth >= 1120,
+                            labelType: constraints.maxWidth >= 1120
+                                ? null
+                                : NavigationRailLabelType.all,
+                            selectedIndex: _selectedSection.index,
+                            onDestinationSelected: (index) => setState(
+                              () =>
+                                  _selectedSection = AdminSection.values[index],
+                            ),
+                            destinations: const [
+                              NavigationRailDestination(
+                                icon: Icon(Icons.space_dashboard_outlined),
+                                selectedIcon: Icon(
+                                  Icons.space_dashboard_rounded,
                                 ),
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: _SummaryCard(
-                                    label: 'Instructors',
-                                    value: overview.instructorCount,
-                                    icon: Icons.co_present_outlined,
-                                    color: const Color(0xFF7A5AA6),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: _SummaryCard(
-                                    label: 'Classrooms',
-                                    value: overview.classroomCount,
-                                    icon: Icons.meeting_room_outlined,
-                                    color: const Color(0xFF42836D),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 32),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Recent updates',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: const Color(0xFF3B2419),
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                                label: Text('Overview'),
                               ),
-                            ),
-                            if (_isLoading)
-                              const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                              NavigationRailDestination(
+                                icon: Icon(Icons.co_present_outlined),
+                                selectedIcon: Icon(Icons.co_present_rounded),
+                                label: Text('Teachers'),
+                              ),
+                              NavigationRailDestination(
+                                icon: Icon(Icons.meeting_room_outlined),
+                                selectedIcon: Icon(Icons.meeting_room_rounded),
+                                label: Text('Classrooms'),
+                              ),
+                              NavigationRailDestination(
+                                icon: Icon(Icons.school_outlined),
+                                selectedIcon: Icon(Icons.school_rounded),
+                                label: Text('Students'),
+                              ),
+                              NavigationRailDestination(
+                                icon: Icon(Icons.history_outlined),
+                                selectedIcon: Icon(Icons.history_rounded),
+                                label: Text('Activity log'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(child: selectedScreen),
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            for (final section in AdminSection.values)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: ChoiceChip(
+                                  selected: _selectedSection == section,
+                                  onSelected: (_) => setState(
+                                    () => _selectedSection = section,
+                                  ),
+                                  label: Text(_sectionLabel(section)),
                                 ),
                               ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        _RecentUpdatesCard(updates: overview.recentUpdates),
-                      ],
+                      ),
+                      Expanded(child: selectedScreen),
                     ],
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ],
@@ -378,7 +385,119 @@ class _AdminHomeState extends State<_AdminHome> {
       ),
     );
   }
+
+  Widget _buildOverview() {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1180),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(28, 28, 28, 32),
+          children: [
+            Text(
+              'Overview',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: const Color(0xFF3B2419),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Current school totals and recent community activity.',
+              style: TextStyle(color: Color(0xFF725F53)),
+            ),
+            const SizedBox(height: 24),
+            if (_error case final error?)
+              _OverviewError(message: error, onRetry: _loadOverview)
+            else if (_isLoading && _overview == null)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 72),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_overview case final overview?) ...[
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 900
+                      ? 3
+                      : constraints.maxWidth >= 560
+                      ? 2
+                      : 1;
+                  const spacing = 16.0;
+                  final cardWidth =
+                      (constraints.maxWidth - spacing * (columns - 1)) /
+                      columns;
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
+                    children: [
+                      SizedBox(
+                        width: cardWidth,
+                        child: _SummaryCard(
+                          label: 'Students',
+                          value: overview.studentCount,
+                          icon: Icons.school_outlined,
+                          color: const Color(0xFF4B6F9C),
+                        ),
+                      ),
+                      SizedBox(
+                        width: cardWidth,
+                        child: _SummaryCard(
+                          label: 'Instructors',
+                          value: overview.instructorCount,
+                          icon: Icons.co_present_outlined,
+                          color: const Color(0xFF7A5AA6),
+                        ),
+                      ),
+                      SizedBox(
+                        width: cardWidth,
+                        child: _SummaryCard(
+                          label: 'Classrooms',
+                          value: overview.classroomCount,
+                          icon: Icons.meeting_room_outlined,
+                          color: const Color(0xFF42836D),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Recent updates',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: const Color(0xFF3B2419),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (_isLoading)
+                    const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _RecentUpdatesCard(updates: overview.recentUpdates),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
+
+String _sectionLabel(AdminSection section) => switch (section) {
+  AdminSection.dashboard => 'Overview',
+  AdminSection.teachers => 'Teachers',
+  AdminSection.classrooms => 'Classrooms',
+  AdminSection.students => 'Students',
+  AdminSection.activity => 'Activity',
+};
 
 class _AdminDashboardHeader extends StatelessWidget {
   const _AdminDashboardHeader({
@@ -462,7 +581,7 @@ class _AdminDashboardHeader extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton.outlined(
-                          tooltip: 'Refresh overview',
+                          tooltip: 'Refresh data',
                           onPressed: isLoading ? null : onRefresh,
                           style: IconButton.styleFrom(
                             foregroundColor: const Color(0xFF725F53),
