@@ -32,6 +32,7 @@ import {
 // Keys:   GEMINI_API_KEY_5..1, GROQ_API_KEY_3..1 (highest number first)
 // Routing: per-isolate health table, in-flight balancing, cooldowns,
 //          hedged parallel attempts, failover across models/keys.
+// Gemini models are prioritized before the Groq fallback models.
 //
 // Speed changes in this version (output logic unchanged):
 //   - Minimal reasoning/thinking on every route.
@@ -58,7 +59,7 @@ const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 // ============================================================
 
 const GEMINI_KEY_COUNT = 5;
-const GROQ_KEY_COUNT = 4;
+const GROQ_KEY_COUNT = 3;
 
 const MAX_CONTEXT_CHARS = 200; // matches the 0/200 counter in the UI
 
@@ -184,6 +185,7 @@ type Outcome = {
 };
 
 // ============================================================
+// ============================================================
 // RESPONSE SCHEMA (Gemini)
 // ============================================================
 
@@ -237,34 +239,34 @@ const responseSchema = {
 
 const MODEL_ROUTES: ModelRoute[] = [
   {
-    provider: "groq",
-    model: "openai/gpt-oss-120b",
-    priority: 1,
-    reasoningEffort: "low",
-  },
-  {
-    provider: "groq",
-    model: "openai/gpt-oss-20b",
-    priority: 2,
-    reasoningEffort: "low",
-  },
-  {
-    provider: "groq",
-    model: "qwen/qwen3.8-27b",
-    priority: 3,
-    reasoningEffort: "none",
-  },
-  {
     provider: "gemini",
     model: "gemini-3.5-flash-lite",
-    priority: 4,
+    priority: 1,
     thinkingLevel: "minimal",
   },
   {
     provider: "gemini",
     model: "gemini-3.1-flash-lite",
-    priority: 5,
+    priority: 2,
     thinkingLevel: "minimal",
+  },
+  {
+    provider: "groq",
+    model: "openai/gpt-oss-120b",
+    priority: 3,
+    reasoningEffort: "low",
+  },
+  {
+    provider: "groq",
+    model: "openai/gpt-oss-20b",
+    priority: 4,
+    reasoningEffort: "low",
+  },
+  {
+    provider: "groq",
+    model: "qwen/qwen3.8-27b",
+    priority: 5,
+    reasoningEffort: "none",
   },
 ];
 
@@ -288,7 +290,7 @@ function loadKeys(
 ): KeyEntry[] {
   const keys: KeyEntry[] = [];
 
-  // Highest-numbered key first: Groq 3 -> 1, Gemini 5 -> 1.
+  // Highest-numbered key first: Groq 4 -> 1, Gemini 5 -> 1.
   for (let i = count; i >= 1; i--) {
     const id = `${prefix}${i}`;
     const secret = Deno.env.get(id)?.trim();
@@ -1101,7 +1103,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       error: "No supported AI API keys are configured for content generation.",
       requiredSecrets: [
         "GEMINI_API_KEY_1 through GEMINI_API_KEY_5",
-        "GROQ_API_KEY_1 through GROQ_API_KEY_4",
+        "GROQ_API_KEY_1 through GROQ_API_KEY_3",
       ],
     });
   }

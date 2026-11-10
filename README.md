@@ -86,14 +86,20 @@ primary key is not configured or is in cooldown; hedge behavior is not included
 in the telemetry, though parallel hedging remains enabled. The API key label is
 the configured environment-variable name
 (for example `GROQ_API_KEY_1`), never the secret. The view includes
-average, p50, and p90 latency in milliseconds, success and winner counts,
+average, p50, and p90 latency in milliseconds and winner counts,
 generated and accepted item totals, and source-size averages. Types include
 quizzes, true/false quizzes, mixed quizzes, matching,
 flashcards, and handouts. For handouts, item counts refer to sections. Cancelled
-attempts are counted separately and excluded from latency and success-rate
-calculations. Attempt latency is recorded per model call; the misleading
+attempts are counted separately and excluded from latency calculations. All
+telemetry views exclude attempts without an API-key label,
+including older records from before labels were logged. Attempt latency is
+recorded per model call; the misleading
 request-wide duration field is omitted. Re-running the SQL script removes that
 column from an existing telemetry table.
+
+For the detailed routing, hedging, failover, validation, and telemetry
+calculations used by the generation functions, see
+[GENERATION_ROUTING_AND_VALIDATION.md](./GENERATION_ROUTING_AND_VALIDATION.md).
 
 To compare output volume by type and model, query
 `public.quiz_generation_model_performance` for `generation_type`,
@@ -101,6 +107,10 @@ To compare output volume by type and model, query
 For each model's lowest and highest attempt latency across all API keys and
 generation types, query `public.quiz_generation_model_latency_range`; it also
 shows total attempts and the count of non-cancelled latency samples.
+For a model-level summary across all API keys and content types, query
+`public.quiz_generation_model_attempt_summary`. It shows total labeled attempts
+(including cancelled attempts) and average, p50, and p90 latency. Cancelled
+attempts are excluded from latency metrics.
 For a plain-language explanation of the latency columns, see
 [LATENCY_METRICS.md](./LATENCY_METRICS.md).
 For the Student Home spider chart's metric formulas and time windows, see
@@ -140,6 +150,7 @@ supabase functions deploy generate-quiz
 supabase functions deploy generate-true-or-false
 supabase functions deploy generate-flashcards
 supabase functions deploy generate-matching
+supabase functions deploy generate-mixed-quiz
 supabase functions deploy pdf-generation
 ```
 
@@ -148,9 +159,10 @@ to 200 characters of context, and optional title/term/definition hex colors.
 It generates a detailed, prose-first handout with section overviews,
 subsection explanations, and key terms. The Flutter app validates and previews
 the structured response, then creates the downloadable PDF on the client.
-Deploy the function after adding the required
-`GEMINI_API_KEY_1`–`GEMINI_API_KEY_5` and `GROQ_API_KEY_1`–`GROQ_API_KEY_4`
-secrets.
+Handouts are excluded from quiz-output validation and item-count-based model
+selection; `pdf-generation` uses its own handout structure validation.
+Deploy the function after adding the `GEMINI_API_KEY_1`–`GEMINI_API_KEY_5` and
+`GROQ_API_KEY_1`–`GROQ_API_KEY_3` Edge Function secrets.
 
 Run `supabase/learning_streak.sql` in the Supabase SQL Editor to enable profile
 login-date highlights and consecutive-day streak counts. The migration records
@@ -226,14 +238,23 @@ Run `supabase/instructor_notifications.sql` after `custom_auth.sql` and
 classroom memberships. Notifications are kept for 90 days and support marking
 unread items as read.
 
-The quiz-generation function reads `GEMINI_API_KEY_1` through
-`GEMINI_API_KEY_6` from Edge Function secrets and rotates keys on transient
-Gemini failures. It tries `gemini-3.8-flash` first, then falls back through
-`gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`,
-`gemini-3.5-flash`, `gemini-3.1-pro-preview`, and `gemini-3-flash-preview`.
-Gemini 2.5 models are intentionally excluded. Keep these keys out of the
-Flutter app. All three functions validate the app's custom session token; they do
-not use Supabase Auth JWTs. PDF and DOCX text is extracted by
-`extract-source-text` before it is sent to Gemini. TXT files are decoded by the
-app. Quiz sources may be PDF, DOCX, or TXT files up to 3 MB. Scanned PDFs
-without selectable text require OCR before they can be used.
+The quiz-generation function prioritizes Groq keys 5 and 2, then can fall back
+to keys 1, 3, and 4. Flashcards and true-or-false prioritize keys 1 and 2;
+matching and mixed-quiz prioritize keys 4 and 3. All five functions can use
+Groq keys 1 through 5, with the remaining keys as fallbacks, and try Gemini
+models after Groq. `pdf-generation` remains Gemini-first and uses Groq keys 1
+through 3. Configure the relevant `GROQ_API_KEY_n` secrets and
+`GEMINI_API_KEY_1` through `GEMINI_API_KEY_5` in Supabase; unused Groq key
+slots are not loaded by a function. Keep provider keys out of the Flutter app.
+The generation functions validate the app's custom session token; they do not
+use Supabase Auth JWTs. PDF and DOCX text is extracted by `extract-source-text`
+before it is sent for generation. TXT files are decoded by the app. Quiz
+sources may be PDF, DOCX, or TXT files up to 3 MB. Scanned PDFs without
+selectable text require OCR before they can be used. The separate limit for
+extracted text is 100,000 characters; a file's byte size does not determine
+its extracted character count.
+
+For quiz, flashcard, matching, mixed-quiz, and true-or-false requests, the
+preferred first model is selected by requested item count: GPT-OSS 120B for up
+to 10 items, Qwen for 11–20 items, and GPT-OSS 20B for 21–30 items. Other Groq
+models remain fallbacks, followed by Gemini.

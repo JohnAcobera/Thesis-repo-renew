@@ -201,6 +201,7 @@ select
     as avg_requested_question_count,
   round(avg(source_char_count), 2) as avg_source_char_count
 from public.quiz_generation_attempts
+where api_key_label is not null
 group by generation_type, api_key_label, model;
 
 revoke all on table public.quiz_generation_model_performance
@@ -217,8 +218,46 @@ select
   min(latency_ms) filter (where outcome <> 'cancelled') as min_latency_ms,
   max(latency_ms) filter (where outcome <> 'cancelled') as max_latency_ms
 from public.quiz_generation_attempts
+where api_key_label is not null
 group by model;
 
 revoke all on table public.quiz_generation_model_latency_range
   from public, anon, authenticated;
 grant select on table public.quiz_generation_model_latency_range to service_role;
+
+drop view if exists public.quiz_generation_model_attempt_summary;
+
+create or replace view public.quiz_generation_model_attempt_summary
+with (security_invoker = true)
+as
+select
+  model,
+  count(*) as attempt_count,
+  round(
+    100.0 * count(*) filter (where outcome = 'success')
+      / nullif(count(*) filter (where outcome <> 'cancelled'), 0),
+    2
+  ) as success_rate_pct,
+  round(avg(latency_ms) filter (where outcome <> 'cancelled'), 2)
+    as avg_latency_ms,
+  round(
+    (percentile_cont(0.50) within group (order by latency_ms)
+      filter (where outcome <> 'cancelled'))::numeric,
+    2
+  ) as p50_latency_ms,
+  round(
+    (percentile_cont(0.90) within group (order by latency_ms)
+      filter (where outcome <> 'cancelled'))::numeric,
+    2
+  ) as p90_latency_ms
+from public.quiz_generation_attempts
+where api_key_label is not null
+  and created_at >= (
+    ((now() at time zone 'Asia/Manila')::date - 1 + time '20:00')
+      at time zone 'Asia/Manila'
+  )
+group by model;
+
+revoke all on table public.quiz_generation_model_attempt_summary
+  from public, anon, authenticated;
+grant select on table public.quiz_generation_model_attempt_summary to service_role;

@@ -226,7 +226,8 @@ Deno.serve(async (request: Request) => {
   }
   if (text.length > maxExtractedTextLength) {
     return jsonResponse(413, {
-      error: "The extracted text is too long. Choose a shorter source file.",
+      error: "The extracted text exceeds 100,000 characters. " +
+        "This limit is separate from the 3 MB file upload limit.",
     });
   }
 

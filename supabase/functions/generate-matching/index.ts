@@ -7,8 +7,8 @@ import {
 // ============================================================
 // SUPABASE EDGE FUNCTION: MATCHING GAME GENERATION ROUTER
 //
-// Keys:   GEMINI_API_KEY_1..5, GROQ_API_KEY_1..4
-// Models (priority order, each tried on every key of its provider):
+// Groq key priority: 4, 3, then 1, 2, 5. Gemini keys are final fallback.
+// Groq models are tried first; Gemini models are final fallbacks.
 //   1. openai/gpt-oss-120b      (Groq keys)
 //   2. openai/gpt-oss-20b       (Groq keys)
 //   3. qwen/qwen3.8-27b         (Groq keys)
@@ -44,14 +44,13 @@ const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 // CONFIGURATION
 // ============================================================
 
-const GEMINI_KEY_COUNT = 5;
-const GROQ_KEY_COUNT = 4;
+const GROQ_KEY_NUMBERS = [4, 3, 1, 2, 5] as const;
 
 const MAX_SOURCE_TEXT_CHARS = 100_000;
 const TOTAL_REQUEST_BUDGET_MS = 55_000;
 const MIN_ATTEMPT_MS = 4_000; // don't start an attempt with less time left
-const MAX_ATTEMPTS = 10; // total attempts launched per request
-const MAX_KEYS_PER_MODEL = 2; // keys tried per model
+const MAX_ATTEMPTS = 25; // all model/key routes, including Gemini fallbacks
+const MAX_KEYS_PER_MODEL = 5; // all configured keys per model
 const MAX_OUTPUT_TOKENS = 16_384;
 
 // Hedging
@@ -100,6 +99,7 @@ type ModelRoute = {
   model: string;
   priority: number;
   reasoningEffort?: "low"; // Groq gpt-oss only
+  thinkingLevel?: "minimal"; // Gemini
 };
 
 type KeyEntry = {
@@ -132,10 +132,6 @@ type Outcome = {
   retryAfterSec?: number;
 };
 
-// ============================================================
-// RESPONSE SCHEMA (Gemini)
-// ============================================================
-
 const responseSchema = {
   type: "OBJECT",
   properties: {
@@ -156,6 +152,7 @@ const responseSchema = {
 };
 
 // ============================================================
+// ============================================================
 // MODEL ROUTES
 // ============================================================
 
@@ -173,8 +170,18 @@ const MODEL_ROUTES: ModelRoute[] = [
     reasoningEffort: "low",
   },
   { provider: "groq", model: "qwen/qwen3.8-27b", priority: 3 },
-  { provider: "gemini", model: "gemini-3.5-flash-lite", priority: 4 },
-  { provider: "gemini", model: "gemini-3.1-flash-lite", priority: 5 },
+  {
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite",
+    priority: 4,
+    thinkingLevel: "minimal",
+  },
+  {
+    provider: "gemini",
+    model: "gemini-3.1-flash-lite",
+    priority: 5,
+    thinkingLevel: "minimal",
+  },
 ];
 
 // ============================================================
@@ -183,13 +190,13 @@ const MODEL_ROUTES: ModelRoute[] = [
 
 function loadKeys(
   prefix: string,
-  count: number,
+  keyNumbers: readonly number[],
   provider: ProviderName,
 ): KeyEntry[] {
   const keys: KeyEntry[] = [];
 
-  for (let i = 1; i <= count; i++) {
-    const id = `${prefix}${i}`;
+  for (const keyNumber of keyNumbers) {
+    const id = `${prefix}${keyNumber}`;
     const secret = Deno.env.get(id)?.trim();
 
     if (secret) {
@@ -208,8 +215,8 @@ function loadKeys(
 }
 
 const KEY_POOL: Record<ProviderName, KeyEntry[]> = {
-  gemini: loadKeys("GEMINI_API_KEY_", GEMINI_KEY_COUNT, "gemini"),
-  groq: loadKeys("GROQ_API_KEY_", GROQ_KEY_COUNT, "groq"),
+  gemini: loadKeys("GEMINI_API_KEY_", [1, 2, 3, 4, 5], "gemini"),
+  groq: loadKeys("GROQ_API_KEY_", GROQ_KEY_NUMBERS, "groq"),
 };
 
 const ACTIVE_ROUTES: ModelRoute[] = MODEL_ROUTES
@@ -262,7 +269,7 @@ function totalInflight(): number {
   return total;
 }
 
-// Healthy, untried key with the fewest in-flight requests (LRU tiebreak).
+// Picks the first configured, healthy key according to provider key priority.
 function pickKey(route: ModelRoute, tried: Set<string>): KeyEntry | null {
   const now = Date.now();
 
@@ -272,8 +279,9 @@ function pickKey(route: ModelRoute, tried: Set<string>): KeyEntry | null {
 
   if (candidates.length === 0) return null;
 
+  const keyPriority = KEY_POOL[route.provider];
   candidates.sort(
-    (a, b) => a.inflight - b.inflight || a.lastUsed - b.lastUsed,
+    (a, b) => keyPriority.indexOf(a) - keyPriority.indexOf(b),
   );
 
   return candidates[0];
@@ -300,7 +308,17 @@ function soonestRecoverySec(): number | undefined {
 // Used for both sequential failover and hedged attempts.
 // ============================================================
 
-function createPlanner() {
+function createPlanner(questionCount: number) {
+  const preferredModel = questionCount <= 10
+    ? "openai/gpt-oss-120b"
+    : questionCount <= 20
+    ? "qwen/qwen3.8-27b"
+    : "openai/gpt-oss-20b";
+  const routes = [...ACTIVE_ROUTES].sort((a, b) => {
+    if (a.model === preferredModel) return -1;
+    if (b.model === preferredModel) return 1;
+    return a.priority - b.priority;
+  });
   const tried = new Map<string, Set<string>>(); // model -> key ids
   let attempts = 0;
 
@@ -312,7 +330,7 @@ function createPlanner() {
     next(): { route: ModelRoute; key: KeyEntry } | null {
       if (attempts >= MAX_ATTEMPTS) return null;
 
-      for (const route of ACTIVE_ROUTES) {
+      for (const route of routes) {
         let set = tried.get(route.model);
 
         if (!set) {
@@ -502,6 +520,9 @@ function buildProviderRequest(
           responseSchema,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           temperature: 0.4,
+          ...(route.thinkingLevel
+            ? { thinkingConfig: { thinkingLevel: route.thinkingLevel } }
+            : {}),
         },
       }),
     };
@@ -556,7 +577,6 @@ function extractText(provider: ProviderName, payload: unknown): string {
       ? payload.candidates[0]
       : {};
     const content = isObject(candidate.content) ? candidate.content : {};
-
     return Array.isArray(content.parts) ? textFromParts(content.parts) : "";
   }
 
@@ -823,8 +843,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return jsonResponse(500, {
       error: "No supported AI API keys are configured for matching generation.",
       requiredSecrets: [
+        "GROQ_API_KEY_1 through GROQ_API_KEY_5",
         "GEMINI_API_KEY_1 through GEMINI_API_KEY_5",
-        "GROQ_API_KEY_1 through GROQ_API_KEY_4",
       ],
     });
   }
@@ -868,7 +888,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const perAttemptMs = attemptTimeoutMs(questionCount);
   const hedgeDelay = hedgeDelayMs(questionCount);
 
-  const planner = createPlanner();
+  const planner = createPlanner(questionCount);
   const pending = new Map<number, PendingAttempt>();
   const allAttempts: Promise<Settled>[] = [];
   const requestId = crypto.randomUUID();
@@ -937,11 +957,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     const id = nextId++;
     const attemptNumber = launchedAttempts + 1;
-    const primaryKey = KEY_POOL[candidate.route.provider].find((key) =>
-      key.id === candidate.key.id.replace(/_\d+$/, "_1")
-    );
-    const usedFallbackKey = !primaryKey ||
-      cooldownUntil(primaryKey, candidate.route.model) > Date.now();
+    const primaryKey = KEY_POOL[candidate.route.provider][0];
+    const usedFallbackKey = candidate.key !== primaryKey;
     const ctrl = new AbortController();
     const startedAt = Date.now();
 

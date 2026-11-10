@@ -360,7 +360,8 @@ class _ImportScreenState extends State<ImportScreen> {
       }
       if (sourceText.length > 100000) {
         throw const QuizServiceException(
-          'The extracted text is too long. Choose a shorter file.',
+          'The extracted text exceeds 100,000 characters. This limit is '
+          'separate from the 3 MB file upload limit.',
         );
       }
 
