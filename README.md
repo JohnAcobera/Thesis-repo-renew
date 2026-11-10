@@ -74,6 +74,43 @@ Run `supabase/quiz_attempts.sql` (or re-run it on an existing project) in the
 Supabase SQL Editor to enable saved quizzes and the custom-session RPCs. Re-run
 it to update the save function to accept both multiple-choice and True or False
 questions.
+Run `supabase/quiz_generation_telemetry.sql` in the SQL Editor to record each
+generation-model attempt. If you already applied an earlier version of
+this migration, re-run it to add the item-type and item-count fields and remove
+the previously added shared Groq token-budget reservation functions and table,
+then deploy the updated Edge Functions. The
+`quiz_generation_model_performance` view
+groups metrics by generated content type, API key label, and model.
+It reports API-key failover counts when a secondary key is selected because the
+primary key is not configured or is in cooldown; hedge behavior is not included
+in the telemetry, though parallel hedging remains enabled. The API key label is
+the configured environment-variable name
+(for example `GROQ_API_KEY_1`), never the secret. The view includes
+average, p50, and p90 latency in milliseconds, success and winner counts,
+generated and accepted item totals, and source-size averages. Types include
+quizzes, true/false quizzes, mixed quizzes, matching,
+flashcards, and handouts. For handouts, item counts refer to sections. Cancelled
+attempts are counted separately and excluded from latency and success-rate
+calculations. Attempt latency is recorded per model call; the misleading
+request-wide duration field is omitted. Re-running the SQL script removes that
+column from an existing telemetry table.
+
+To compare output volume by type and model, query
+`public.quiz_generation_model_performance` for `generation_type`,
+`generated_item_count`, and `accepted_item_count`.
+For each model's lowest and highest attempt latency across all API keys and
+generation types, query `public.quiz_generation_model_latency_range`; it also
+shows total attempts and the count of non-cancelled latency samples.
+For a plain-language explanation of the latency columns, see
+[LATENCY_METRICS.md](./LATENCY_METRICS.md).
+For the Student Home spider chart's metric formulas and time windows, see
+[STUDENT_RADAR_CHART_METRICS.md](./STUDENT_RADAR_CHART_METRICS.md).
+
+The Edge Function uses the server-side `SUPABASE_SERVICE_ROLE_KEY` for
+telemetry; keep that key in Edge Function secrets and never expose it to the
+Flutter app.
+The raw attempt table and aggregate view are not readable by anonymous or
+authenticated clients.
 Student-generated quizzes are saved after a student completes them. Instructors
 can save generated quizzes in Learning Materials; posted classroom activities
 have been retired. Students can practice saved quizzes with unlimited attempts.
@@ -112,7 +149,7 @@ It generates a detailed, prose-first handout with section overviews,
 subsection explanations, and key terms. The Flutter app validates and previews
 the structured response, then creates the downloadable PDF on the client.
 Deploy the function after adding the required
-`GEMINI_API_KEY_1`–`GEMINI_API_KEY_5` and `GROQ_API_KEY_1`–`GROQ_API_KEY_3`
+`GEMINI_API_KEY_1`–`GEMINI_API_KEY_5` and `GROQ_API_KEY_1`–`GROQ_API_KEY_4`
 secrets.
 
 Run `supabase/learning_streak.sql` in the Supabase SQL Editor to enable profile

@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  insertGenerationTelemetry,
+  type GenerationAttemptTelemetry,
+} from "../_shared/generation-telemetry.ts";
 
 // ============================================================
 // SUPABASE EDGE FUNCTION: STUDY HANDOUT GENERATOR (v1.1, faster)
@@ -54,7 +58,7 @@ const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 // ============================================================
 
 const GEMINI_KEY_COUNT = 5;
-const GROQ_KEY_COUNT = 3;
+const GROQ_KEY_COUNT = 4;
 
 const MAX_CONTEXT_CHARS = 200; // matches the 0/200 counter in the UI
 
@@ -173,6 +177,7 @@ type FailureKind =
 type Outcome = {
   ok: boolean;
   handout?: Handout;
+  generatedItemCount?: number | null;
   kind?: FailureKind;
   message?: string;
   retryAfterSec?: number;
@@ -967,7 +972,11 @@ async function runAttempt(
       tuned,
     });
 
-    return { ok: true, handout };
+    return {
+      ok: true,
+      handout,
+      generatedItemCount: handout.sections.length,
+    };
   } finally {
     key.inflight--;
   }
@@ -993,7 +1002,15 @@ function createTimer(
 // MAIN HANDLER
 // ============================================================
 
-type Settled = { id: number; route: ModelRoute; outcome: Outcome };
+type Settled = {
+  id: number;
+  route: ModelRoute;
+  apiKeyLabel: string;
+  outcome: Outcome;
+  attemptNumber: number;
+  isKeyFailover: boolean;
+  latencyMs: number;
+};
 
 type PendingAttempt = {
   promise: Promise<Settled>;
@@ -1084,7 +1101,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       error: "No supported AI API keys are configured for content generation.",
       requiredSecrets: [
         "GEMINI_API_KEY_1 through GEMINI_API_KEY_5",
-        "GROQ_API_KEY_1 through GROQ_API_KEY_3",
+        "GROQ_API_KEY_1 through GROQ_API_KEY_4",
       ],
     });
   }
@@ -1152,15 +1169,61 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   const planner = createPlanner();
   const pending = new Map<number, PendingAttempt>();
+  const allAttempts: Promise<Settled>[] = [];
+  const requestId = crypto.randomUUID();
 
   let nextId = 0;
+  let launchedAttempts = 0;
   let hedges = 0;
+  let telemetryFlushed = false;
   let lastMessage: string | undefined;
   let lastRetryAfterSec: number | undefined;
   const seen = new Set<FailureKind>();
 
   const cancelAll = () => {
     for (const attempt of pending.values()) attempt.ctrl.abort();
+  };
+
+  const flushTelemetry = async (winnerId?: number): Promise<void> => {
+    if (telemetryFlushed) return;
+    telemetryFlushed = true;
+
+    const settledAttempts = await Promise.all(allAttempts);
+    const rows: GenerationAttemptTelemetry[] = settledAttempts.map((attempt) => {
+      const { id, route, outcome } = attempt;
+      const generatedCount = outcome.generatedItemCount ??
+        outcome.handout?.sections.length ?? null;
+
+      return {
+        attempt_number: attempt.attemptNumber,
+        generation_type: "handout",
+        api_key_label: attempt.apiKeyLabel,
+        model: route.model,
+        is_key_failover: attempt.isKeyFailover,
+        is_winner: id === winnerId,
+        requested_item_count: MAX_SECTIONS,
+        generated_item_count: generatedCount,
+        accepted_item_count: id === winnerId
+          ? outcome.handout?.sections.length ?? 0
+          : 0,
+        requested_question_count: null,
+        generated_question_count: null,
+        accepted_question_count: null,
+        latency_ms: attempt.latencyMs,
+        outcome: outcome.ok ? "success" : outcome.kind ?? "invalid_output",
+        failure_kind: outcome.kind ?? null,
+        http_status: null,
+        validation_error: outcome.kind === "invalid_output"
+          ? outcome.message ?? "invalid_output"
+          : null,
+        prompt_tokens: null,
+        completion_tokens: null,
+        total_tokens: null,
+        source_char_count: topic.length,
+      };
+    });
+
+    await insertGenerationTelemetry(requestId, rows);
   };
 
   const launch = (): boolean => {
@@ -1173,6 +1236,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
     if (!candidate) return false;
 
     const id = nextId++;
+    const attemptNumber = launchedAttempts + 1;
+    const primaryKey = KEY_POOL[candidate.route.provider].find((key) =>
+      key.id === candidate.key.id.replace(/_\d+$/, "_1")
+    );
+    const usedFallbackKey = !primaryKey ||
+      cooldownUntil(primaryKey, candidate.route.model) > Date.now();
     const ctrl = new AbortController();
     const startedAt = Date.now();
 
@@ -1182,8 +1251,18 @@ Deno.serve(async (request: Request): Promise<Response> => {
       prompt,
       Math.min(ATTEMPT_TIMEOUT_MS, remainingMs - 250),
       AbortSignal.any([request.signal, ctrl.signal]),
-    ).then((outcome): Settled => ({ id, route: candidate.route, outcome }));
+    ).then((outcome): Settled => ({
+      id,
+      route: candidate.route,
+      apiKeyLabel: candidate.key.id,
+      outcome,
+      attemptNumber,
+      isKeyFailover: usedFallbackKey,
+      latencyMs: Date.now() - startedAt,
+    }));
 
+    launchedAttempts++;
+    allAttempts.push(promise);
     pending.set(id, { promise, ctrl, startedAt });
     return true;
   };
@@ -1227,6 +1306,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     if (outcome.ok && outcome.handout) {
       cancelAll(); // free quota/CPU held by the slower attempt
+      await flushTelemetry(result.id);
       setCachedHandout(topic, outcome.handout);
       return jsonResponse(200, {
         handout: outcome.handout,
@@ -1239,6 +1319,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     if (kind === "cancelled") {
       if (request.signal.aborted) {
         cancelAll();
+        await flushTelemetry();
         return jsonResponse(499, { error: "Request cancelled." });
       }
       continue;
@@ -1257,6 +1338,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
   }
 
   // ---------- Failure handling ----------
+
+  await flushTelemetry();
 
   const attempts = planner.attempts;
   const retryAfter = lastRetryAfterSec ?? soonestRecoverySec();

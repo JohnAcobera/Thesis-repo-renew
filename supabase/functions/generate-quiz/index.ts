@@ -3,13 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // ============================================================
 // SUPABASE EDGE FUNCTION: QUIZ GENERATION ROUTER (v3)
 //
-// Keys:   GEMINI_API_KEY_1..5, GROQ_API_KEY_1..3
+// Keys:   GROQ_API_KEY_1..4
 // Models (priority order, each tried on every key of its provider):
 //   1. openai/gpt-oss-120b      (Groq keys)
 //   2. openai/gpt-oss-20b       (Groq keys)
 //   3. qwen/qwen3.8-27b         (Groq keys)
-//   4. gemini-3.5-flash-lite    (Gemini keys)
-//   5. gemini-3.1-flash-lite    (Gemini keys)
 //
 // Built for ~30 concurrent users:
 //   - Per-isolate health table (key x model) with cooldowns, so dead or
@@ -32,16 +30,13 @@ const corsHeaders = {
   "Content-Type": "application/json",
 };
 
-const GEMINI_ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models";
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
 // ============================================================
 // CONFIGURATION
 // ============================================================
 
-const GEMINI_KEY_COUNT = 5;
-const GROQ_KEY_COUNT = 3;
+const GROQ_KEY_COUNT = 4;
 
 const MAX_SOURCE_TEXT_CHARS = 100_000;
 const TOTAL_REQUEST_BUDGET_MS = 55_000;
@@ -90,7 +85,7 @@ type QuizQuestion = {
   explanation: string;
 };
 
-type ProviderName = "gemini" | "groq";
+type ProviderName = "groq";
 
 type ModelRoute = {
   provider: ProviderName;
@@ -126,30 +121,12 @@ type Outcome = {
   kind?: FailureKind;
   message?: string;
   retryAfterSec?: number;
-};
-
-// ============================================================
-// RESPONSE SCHEMA (Gemini)
-// ============================================================
-
-const responseSchema = {
-  type: "OBJECT",
-  properties: {
-    questions: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          question: { type: "STRING" },
-          options: { type: "ARRAY", items: { type: "STRING" } },
-          answerIndex: { type: "INTEGER" },
-          explanation: { type: "STRING" },
-        },
-        required: ["question", "options", "answerIndex", "explanation"],
-      },
-    },
-  },
-  required: ["questions"],
+  httpStatus?: number;
+  generatedQuestionCount?: number | null;
+  validationError?: string;
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+  totalTokens?: number | null;
 };
 
 // ============================================================
@@ -170,8 +147,6 @@ const MODEL_ROUTES: ModelRoute[] = [
     reasoningEffort: "low",
   },
   { provider: "groq", model: "qwen/qwen3.8-27b", priority: 3 },
-  { provider: "gemini", model: "gemini-3.5-flash-lite", priority: 4 },
-  { provider: "gemini", model: "gemini-3.1-flash-lite", priority: 5 },
 ];
 
 // ============================================================
@@ -205,7 +180,6 @@ function loadKeys(
 }
 
 const KEY_POOL: Record<ProviderName, KeyEntry[]> = {
-  gemini: loadKeys("GEMINI_API_KEY_", GEMINI_KEY_COUNT, "gemini"),
   groq: loadKeys("GROQ_API_KEY_", GROQ_KEY_COUNT, "groq"),
 };
 
@@ -353,6 +327,13 @@ const supabase = supabaseUrl && supabaseAnonKey
   })
   : null;
 
+const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const telemetryClient = supabaseUrl && supabaseServiceRoleKey
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  : null;
+
 const sessionCache = new Map<string, number>();
 
 async function isSessionValid(
@@ -444,37 +425,144 @@ function parseRetryAfterSec(response: Response): number | undefined {
   return raw && /^\d+$/.test(raw) ? Number(raw) : undefined;
 }
 
-function isValidQuestion(item: unknown): item is QuizQuestion {
-  if (!isObject(item)) return false;
+type QuizValidation = {
+  questions: QuizQuestion[] | null;
+  generatedQuestionCount: number | null;
+  error?: string;
+};
 
-  const { question, options, answerIndex, explanation } = item;
+const ROOT_KEYS = ["questions"];
+const QUESTION_KEYS = ["question", "options", "answerIndex", "explanation"];
 
-  if (
-    typeof question !== "string" || question.trim().length === 0 ||
-    !Array.isArray(options) || options.length !== 4 ||
-    !options.every(
-      (o: unknown) => typeof o === "string" && o.trim().length > 0,
-    ) ||
-    typeof answerIndex !== "number" || !Number.isInteger(answerIndex) ||
-    answerIndex < 0 || answerIndex > 3 ||
-    typeof explanation !== "string" || explanation.trim().length === 0
-  ) {
-    return false;
-  }
-
-  const normalized = (options as string[]).map((o) => o.trim().toLowerCase());
-  return new Set(normalized).size === 4;
+function hasExactKeys(
+  value: Record<string, unknown>,
+  expected: string[],
+): boolean {
+  const keys = Object.keys(value);
+  return keys.length === expected.length &&
+    expected.every((key) => Object.hasOwn(value, key));
 }
 
-function extractQuestions(
+function validateGeneratedQuiz(
   value: unknown,
   expectedCount: number,
-): QuizQuestion[] | null {
-  if (!isObject(value) || !Array.isArray(value.questions)) return null;
+): QuizValidation {
+  const generatedQuestionCount = isObject(value) &&
+      Array.isArray(value.questions)
+    ? value.questions.length
+    : null;
 
-  const valid = value.questions.filter(isValidQuestion);
+  if (!isObject(value) || !hasExactKeys(value, ROOT_KEYS)) {
+    return {
+      questions: null,
+      generatedQuestionCount,
+      error: "invalid_root_shape",
+    };
+  }
 
-  return valid.length >= expectedCount ? valid.slice(0, expectedCount) : null;
+  if (!Array.isArray(value.questions)) {
+    return {
+      questions: null,
+      generatedQuestionCount: null,
+      error: "questions_not_array",
+    };
+  }
+
+  if (generatedQuestionCount !== expectedCount) {
+    return {
+      questions: null,
+      generatedQuestionCount,
+      error: "question_count_mismatch",
+    };
+  }
+
+  const questions: QuizQuestion[] = [];
+
+  for (const item of value.questions) {
+    if (
+      !isObject(item) ||
+      !hasExactKeys(item, QUESTION_KEYS)
+    ) {
+      return {
+        questions: null,
+        generatedQuestionCount,
+        error: "invalid_question_shape",
+      };
+    }
+
+    const { question, options, answerIndex, explanation } = item;
+    if (
+      typeof question !== "string" || question.trim().length === 0 ||
+      typeof explanation !== "string" || explanation.trim().length === 0
+    ) {
+      return {
+        questions: null,
+        generatedQuestionCount,
+        error: "invalid_question_text",
+      };
+    }
+
+    if (!Array.isArray(options) || options.length !== 4) {
+      return {
+        questions: null,
+        generatedQuestionCount,
+        error: "invalid_options",
+      };
+    }
+
+    const option0 = options[0];
+    const option1 = options[1];
+    const option2 = options[2];
+    const option3 = options[3];
+    if (
+      typeof option0 !== "string" || option0.trim().length === 0 ||
+      typeof option1 !== "string" || option1.trim().length === 0 ||
+      typeof option2 !== "string" || option2.trim().length === 0 ||
+      typeof option3 !== "string" || option3.trim().length === 0
+    ) {
+      return {
+        questions: null,
+        generatedQuestionCount,
+        error: "invalid_options",
+      };
+    }
+
+    if (
+      typeof answerIndex !== "number" || !Number.isInteger(answerIndex) ||
+      answerIndex < 0 || answerIndex > 3
+    ) {
+      return {
+        questions: null,
+        generatedQuestionCount,
+        error: "invalid_answer_index",
+      };
+    }
+
+    const normalized0 = option0.trim().toLowerCase();
+    const normalized1 = option1.trim().toLowerCase();
+    const normalized2 = option2.trim().toLowerCase();
+    const normalized3 = option3.trim().toLowerCase();
+    if (
+      normalized0 === normalized1 || normalized0 === normalized2 ||
+      normalized0 === normalized3 || normalized1 === normalized2 ||
+      normalized1 === normalized3 || normalized2 === normalized3
+    ) {
+      return {
+        questions: null,
+        generatedQuestionCount,
+        error: "duplicate_options",
+      };
+    }
+
+    questions.push({
+      question,
+      options: [option0, option1, option2, option3],
+      answerIndex,
+      explanation,
+    });
+  }
+
+  return { questions, generatedQuestionCount };
 }
 
 function parseGeneratedJson(text: string): unknown {
@@ -498,25 +586,6 @@ function buildProviderRequest(
   prompt: string,
   apiKey: string,
 ): { url: string; headers: Record<string, string>; body: string } {
-  if (route.provider === "gemini") {
-    return {
-      url: `${GEMINI_ENDPOINT}/${encodeURIComponent(route.model)}:generateContent`,
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema,
-          maxOutputTokens: MAX_OUTPUT_TOKENS,
-          temperature: 0.4,
-        },
-      }),
-    };
-  }
-
   const groqBody: Record<string, unknown> = {
     model: route.model,
     messages: [
@@ -547,7 +616,7 @@ function buildProviderRequest(
   };
 }
 
-function extractText(provider: ProviderName, payload: unknown): string {
+function extractText(payload: unknown): string {
   if (!isObject(payload)) return "";
 
   const textFromParts = (parts: unknown[]): string =>
@@ -559,16 +628,6 @@ function extractText(provider: ProviderName, payload: unknown): string {
       .map((p) => p.text as string)
       .join("\n")
       .trim();
-
-  if (provider === "gemini") {
-    const candidate = Array.isArray(payload.candidates) &&
-        isObject(payload.candidates[0])
-      ? payload.candidates[0]
-      : {};
-    const content = isObject(candidate.content) ? candidate.content : {};
-
-    return Array.isArray(content.parts) ? textFromParts(content.parts) : "";
-  }
 
   const choice = Array.isArray(payload.choices) && isObject(payload.choices[0])
     ? payload.choices[0]
@@ -585,6 +644,26 @@ function extractText(provider: ProviderName, payload: unknown): string {
   return "";
 }
 
+function extractUsage(payload: unknown): {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+} {
+  const usage = isObject(payload) && isObject(payload.usage)
+    ? payload.usage
+    : {};
+  const tokenCount = (value: unknown): number | null =>
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+      ? value
+      : null;
+
+  return {
+    promptTokens: tokenCount(usage.prompt_tokens),
+    completionTokens: tokenCount(usage.completion_tokens),
+    totalTokens: tokenCount(usage.total_tokens),
+  };
+}
+
 // ============================================================
 // SINGLE ATTEMPT (one route x one key)
 // ============================================================
@@ -597,7 +676,11 @@ async function runAttempt(
   timeoutMs: number,
   cancelSignal: AbortSignal, // client disconnect OR hedge winner
 ): Promise<Outcome> {
-  const providerRequest = buildProviderRequest(route, prompt, key.secret);
+  const providerRequest = buildProviderRequest(
+    route,
+    prompt,
+    key.secret,
+  );
   const startedAt = Date.now();
 
   // Synchronous, so the next planner pick sees this load immediately.
@@ -648,26 +731,38 @@ async function runAttempt(
 
       if (status === 429) {
         coolDown(key, route.model, COOLDOWN_RATE_LIMIT_BASE, explicitMs);
-        return { ok: false, kind: "rate_limit", message, retryAfterSec };
+        return {
+          ok: false,
+          kind: "rate_limit",
+          message,
+          retryAfterSec,
+          httpStatus: status,
+        };
       }
 
       if (status === 401 || status === 403) {
         key.disabledUntil = Date.now() + COOLDOWN_KEY_AUTH;
-        return { ok: false, kind: "auth", message };
+        return { ok: false, kind: "auth", message, httpStatus: status };
       }
 
       if (status === 404) {
         coolDown(key, route.model, COOLDOWN_NOT_FOUND, COOLDOWN_NOT_FOUND);
-        return { ok: false, kind: "not_found", message };
+        return { ok: false, kind: "not_found", message, httpStatus: status };
       }
 
       if ([408, 409, 500, 502, 503, 504].includes(status)) {
         coolDown(key, route.model, COOLDOWN_OVERLOAD_BASE, explicitMs);
-        return { ok: false, kind: "overload", message, retryAfterSec };
+        return {
+          ok: false,
+          kind: "overload",
+          message,
+          retryAfterSec,
+          httpStatus: status,
+        };
       }
 
       coolDown(key, route.model, COOLDOWN_BAD_REQUEST, COOLDOWN_BAD_REQUEST);
-      return { ok: false, kind: "bad_request", message };
+      return { ok: false, kind: "bad_request", message, httpStatus: status };
     }
 
     let payload: unknown;
@@ -683,10 +778,13 @@ async function runAttempt(
         ok: false,
         kind: "invalid_output",
         message: "The provider returned unreadable JSON.",
+        httpStatus: response.status,
+        validationError: "invalid_provider_json",
       };
     }
 
-    const text = extractText(route.provider, payload);
+    const text = extractText(payload);
+    const usage = extractUsage(payload);
 
     if (!text) {
       log("error", "Provider returned no text");
@@ -694,30 +792,56 @@ async function runAttempt(
         ok: false,
         kind: "invalid_output",
         message: "The provider returned no generated text.",
+        httpStatus: response.status,
+        validationError: "missing_generated_text",
+        ...usage,
       };
     }
 
-    let questions: QuizQuestion[] | null = null;
+    let parsed: unknown;
 
     try {
-      questions = extractQuestions(parseGeneratedJson(text), questionCount);
+      parsed = parseGeneratedJson(text);
     } catch {
-      questions = null;
+      log("error", "Generated quiz was not valid JSON");
+      return {
+        ok: false,
+        kind: "invalid_output",
+        message: "The provider returned malformed quiz JSON.",
+        httpStatus: response.status,
+        validationError: "invalid_quiz_json",
+        ...usage,
+      };
     }
 
-    if (!questions) {
-      log("error", "Quiz validation failed", { expected: questionCount });
+    const validation = validateGeneratedQuiz(parsed, questionCount);
+
+    if (!validation.questions) {
+      log("error", "Quiz validation failed", {
+        expected: questionCount,
+        validationError: validation.error,
+      });
       return {
         ok: false,
         kind: "invalid_output",
         message: "The provider returned an incomplete or invalid quiz.",
+        httpStatus: response.status,
+        generatedQuestionCount: validation.generatedQuestionCount,
+        validationError: validation.error,
+        ...usage,
       };
     }
 
     markHealthy(key, route.model);
     log("log", "Quiz generation succeeded", { questionCount });
 
-    return { ok: true, questions };
+    return {
+      ok: true,
+      questions: validation.questions,
+      httpStatus: response.status,
+      generatedQuestionCount: validation.generatedQuestionCount,
+      ...usage,
+    };
   } finally {
     key.inflight--;
   }
@@ -741,7 +865,16 @@ function createTimer(ms: number): { promise: Promise<"hedge">; cancel: () => voi
 // MAIN HANDLER
 // ============================================================
 
-type Settled = { id: number; route: ModelRoute; outcome: Outcome };
+type Settled = {
+  id: number;
+  route: ModelRoute;
+  apiKeyLabel: string;
+  outcome: Outcome;
+  attemptNumber: number;
+  isKeyFailover: boolean;
+  startedAt: number;
+  latencyMs: number;
+};
 
 type PendingAttempt = {
   promise: Promise<Settled>;
@@ -825,8 +958,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return jsonResponse(500, {
       error: "No supported AI API keys are configured for quiz generation.",
       requiredSecrets: [
-        "GEMINI_API_KEY_1 through GEMINI_API_KEY_5",
-        "GROQ_API_KEY_1 through GROQ_API_KEY_3",
+        "GROQ_API_KEY_1 through GROQ_API_KEY_4",
       ],
     });
   }
@@ -872,9 +1004,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   const planner = createPlanner();
   const pending = new Map<number, PendingAttempt>();
+  const allAttempts: Promise<Settled>[] = [];
+  const requestId = crypto.randomUUID();
 
   let nextId = 0;
+  let launchedAttempts = 0;
   let hedges = 0;
+  let telemetryFlushed = false;
   let lastMessage: string | undefined;
   let lastRetryAfterSec: number | undefined;
   const seen = new Set<FailureKind>();
@@ -883,8 +1019,78 @@ Deno.serve(async (request: Request): Promise<Response> => {
     for (const attempt of pending.values()) attempt.ctrl.abort();
   };
 
+  const flushTelemetry = async (winnerId?: number): Promise<void> => {
+    if (telemetryFlushed) return;
+    telemetryFlushed = true;
+
+    const settledAttempts = await Promise.all(allAttempts);
+    if (settledAttempts.length === 0) return;
+
+    const rows = settledAttempts.map(({
+      id,
+      route,
+      apiKeyLabel,
+      outcome,
+      attemptNumber,
+      isKeyFailover,
+      latencyMs,
+    }) => ({
+        request_id: requestId,
+        attempt_number: attemptNumber,
+        generation_type: "quiz",
+        api_key_label: apiKeyLabel,
+        model: route.model,
+        is_key_failover: isKeyFailover,
+        is_winner: id === winnerId,
+        requested_item_count: questionCount,
+        generated_item_count: outcome.generatedQuestionCount ?? null,
+        accepted_item_count: id === winnerId
+          ? outcome.questions?.length ?? 0
+          : 0,
+        requested_question_count: questionCount,
+        generated_question_count: outcome.generatedQuestionCount ?? null,
+        accepted_question_count: id === winnerId
+          ? outcome.questions?.length ?? 0
+          : 0,
+        latency_ms: latencyMs,
+        outcome: outcome.ok ? "success" : outcome.kind ?? "invalid_output",
+        failure_kind: outcome.kind ?? null,
+        http_status: outcome.httpStatus ?? null,
+        validation_error: outcome.validationError ?? null,
+        prompt_tokens: outcome.promptTokens ?? null,
+        completion_tokens: outcome.completionTokens ?? null,
+        total_tokens: outcome.totalTokens ?? null,
+        source_char_count: sourceText.length,
+      }));
+
+    if (!telemetryClient) {
+      console.error(
+        "Quiz generation telemetry was not persisted: SUPABASE_SERVICE_ROLE_KEY is not configured.",
+        { requestId, attemptCount: rows.length },
+      );
+      return;
+    }
+
+    try {
+      const { error } = await telemetryClient
+        .from("quiz_generation_attempts")
+        .insert(rows);
+      if (error) {
+        console.error("Quiz generation telemetry insert failed.", {
+          requestId,
+          error: error.message,
+        });
+      }
+    } catch (error) {
+      console.error("Quiz generation telemetry insert failed.", {
+        requestId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  };
+
   // Start the next best (model, key) candidate. False if none left / no time.
-  const launch = (): boolean => {
+  const launch = async (): Promise<boolean> => {
     const remainingMs = deadline - Date.now();
 
     if (remainingMs < MIN_ATTEMPT_MS || request.signal.aborted) return false;
@@ -894,6 +1100,17 @@ Deno.serve(async (request: Request): Promise<Response> => {
     if (!candidate) return false;
 
     const id = nextId++;
+    const attemptNumber = launchedAttempts + 1;
+    const primaryKey = KEY_POOL[candidate.route.provider].find((key) =>
+      key.id === candidate.key.id.replace(/_\d+$/, "_1")
+    );
+    const usedFallbackKey = !primaryKey ||
+      cooldownUntil(primaryKey, candidate.route.model) > Date.now();
+    const attemptRemainingMs = deadline - Date.now();
+    if (attemptRemainingMs < MIN_ATTEMPT_MS) {
+      return false;
+    }
+
     const ctrl = new AbortController();
     const startedAt = Date.now();
 
@@ -902,15 +1119,31 @@ Deno.serve(async (request: Request): Promise<Response> => {
       candidate.key,
       prompt,
       questionCount,
-      Math.min(perAttemptMs, remainingMs - 250),
+      Math.min(perAttemptMs, attemptRemainingMs - 250),
       AbortSignal.any([request.signal, ctrl.signal]),
-    ).then((outcome): Settled => ({ id, route: candidate.route, outcome }));
+    ).then(async (outcome): Promise<Settled> => {
+      return {
+        id,
+        route: candidate.route,
+        apiKeyLabel: candidate.key.id,
+        outcome,
+        attemptNumber,
+        isKeyFailover: usedFallbackKey,
+        startedAt,
+        latencyMs: Date.now() - startedAt,
+      };
+    });
 
+    launchedAttempts++;
+    allAttempts.push(promise);
     pending.set(id, { promise, ctrl, startedAt });
     return true;
   };
 
-  launch();
+  await launch();
+  if (request.signal.aborted && pending.size === 0) {
+    return jsonResponse(499, { error: "Request cancelled." });
+  }
 
   while (pending.size > 0) {
     const racers: Promise<Settled | "hedge">[] = [...pending.values()].map(
@@ -938,7 +1171,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     timer?.cancel();
 
     if (typeof result === "string") {
-      if (launch()) {
+      if (await launch()) {
         hedges++;
       } else {
         hedges = MAX_HEDGES; // nothing left to hedge with
@@ -951,6 +1184,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     if (outcome.ok && outcome.questions) {
       cancelAll(); // free quota/CPU held by the slower attempt
+      await flushTelemetry(result.id);
       return jsonResponse(200, { questions: outcome.questions });
     }
 
@@ -959,6 +1193,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     if (kind === "cancelled") {
       if (request.signal.aborted) {
         cancelAll();
+        await flushTelemetry();
         return jsonResponse(499, { error: "Request cancelled." });
       }
       continue;
@@ -973,12 +1208,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     // Fast failover: nothing in flight, so start the next candidate now.
-    if (pending.size === 0 && !launch()) break;
+    if (pending.size === 0 && !(await launch())) break;
   }
 
   // ---------- Failure handling ----------
 
-  const attempts = planner.attempts;
+  await flushTelemetry();
+
+  const attempts = launchedAttempts;
   const retryAfter = lastRetryAfterSec ?? soonestRecoverySec();
   const retryHeaders: Record<string, string> = retryAfter
     ? { "Retry-After": String(retryAfter) }
