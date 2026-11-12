@@ -278,14 +278,153 @@ begin
 end;
 $$;
 
+create or replace function public.update_admin_classroom(
+  p_session_token text,
+  p_classroom_id uuid,
+  p_name text,
+  p_subject text
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  verified_admin_id bigint;
+  target_classroom public.classrooms%rowtype;
+begin
+  verified_admin_id := public._require_admin_session(p_session_token);
+
+  select * into target_classroom
+  from public.classrooms
+  where id = p_classroom_id
+  for update;
+
+  if target_classroom.id is null then
+    raise exception 'Classroom not found';
+  end if;
+
+  if length(trim(coalesce(p_name, ''))) = 0
+     or length(trim(coalesce(p_subject, ''))) = 0 then
+    raise exception 'Classroom name and subject are required';
+  end if;
+
+  update public.classrooms
+  set name = trim(p_name),
+      subject = trim(p_subject)
+  where id = p_classroom_id;
+
+  insert into public.admin_activity_events (admin_id, action, target_label)
+  values (
+    verified_admin_id,
+    'Updated classroom details',
+    trim(p_name)
+  );
+end;
+$$;
+
+create or replace function public.get_admin_classroom_students(
+  p_session_token text,
+  p_classroom_id uuid
+) returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare verified_admin_id bigint;
+begin
+  verified_admin_id := public._require_admin_session(p_session_token);
+
+  if not exists (
+    select 1 from public.classrooms where id = p_classroom_id
+  ) then
+    raise exception 'Classroom not found';
+  end if;
+
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', student.id,
+      'full_name', student.full_name,
+      'email', coalesce(student.email, ''),
+      'joined_at', membership.joined_at
+    ) order by student.full_name, student.id)
+    from public.classroom_students membership
+    join public.users student on student.id = membership.student_id
+    where membership.classroom_id = p_classroom_id
+      and student.role = 'student'
+  ), '[]'::jsonb);
+end;
+$$;
+
+create or replace function public.remove_admin_classroom_student(
+  p_session_token text,
+  p_classroom_id uuid,
+  p_student_id bigint
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  verified_admin_id bigint;
+  classroom_name text;
+  student_name text;
+begin
+  verified_admin_id := public._require_admin_session(p_session_token);
+
+  select name into classroom_name
+  from public.classrooms
+  where id = p_classroom_id;
+
+  if classroom_name is null then
+    raise exception 'Classroom not found';
+  end if;
+
+  select full_name into student_name
+  from public.users
+  where id = p_student_id and role = 'student';
+
+  if student_name is null then
+    raise exception 'Account not found';
+  end if;
+
+  delete from public.classroom_students
+  where classroom_id = p_classroom_id
+    and student_id = p_student_id;
+
+  if not found then
+    raise exception 'Classroom student not found';
+  end if;
+
+  insert into public.admin_activity_events (admin_id, action, target_label)
+  values (
+    verified_admin_id,
+    'Removed student from classroom',
+    student_name || ' from ' || classroom_name
+  );
+end;
+$$;
+
 revoke all on function public._require_admin_session(text) from public;
 revoke all on function public.get_admin_management_data(text) from public;
 revoke all on function public.create_admin_teacher(text, text, text, text) from public;
 revoke all on function public.update_admin_user(text, bigint, text, text, text) from public;
 revoke all on function public.set_admin_user_active(text, bigint, boolean) from public;
+revoke all on function public.update_admin_classroom(text, uuid, text, text)
+  from public;
+revoke all on function public.get_admin_classroom_students(text, uuid)
+  from public;
+revoke all on function public.remove_admin_classroom_student(text, uuid, bigint)
+  from public;
 grant execute on function public.get_admin_management_data(text) to anon, authenticated;
 grant execute on function public.create_admin_teacher(text, text, text, text) to anon, authenticated;
 grant execute on function public.update_admin_user(text, bigint, text, text, text) to anon, authenticated;
 grant execute on function public.set_admin_user_active(text, bigint, boolean) to anon, authenticated;
+grant execute on function public.update_admin_classroom(text, uuid, text, text)
+  to anon, authenticated;
+grant execute on function public.get_admin_classroom_students(text, uuid)
+  to anon, authenticated;
+grant execute on function public.remove_admin_classroom_student(text, uuid, bigint)
+  to anon, authenticated;
 
 notify pgrst, 'reload schema';

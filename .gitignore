@@ -28,6 +28,9 @@ supabase/.temp/
 .env.*
 !.env.example
 
+# Benchmark outputs (raw model text, API metadata)
+benchmark/results/
+
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id

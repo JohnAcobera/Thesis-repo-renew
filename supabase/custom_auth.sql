@@ -24,11 +24,44 @@ create table if not exists public.user_sessions (
   expires_at timestamptz not null
 );
 
+create table if not exists public.admin_credentials (
+  admin_id bigint primary key references public.users(id) on delete cascade,
+  username text not null
+    check (username = lower(trim(username)) and length(trim(username)) > 0),
+  password_hash text not null
+);
+
+create unique index if not exists admin_credentials_username_unique_idx
+  on public.admin_credentials (username);
+
 alter table public.users enable row level security;
 alter table public.user_sessions enable row level security;
+alter table public.admin_credentials enable row level security;
 
 revoke all on table public.users from anon, authenticated;
 revoke all on table public.user_sessions from anon, authenticated;
+revoke all on table public.admin_credentials from anon, authenticated;
+
+-- Copy existing admin credentials to the dedicated table when the email
+-- prefix is unambiguous. Password hashes are copied, never plaintext.
+insert into public.admin_credentials (admin_id, username, password_hash)
+select
+  admin.id,
+  lower(split_part(trim(admin.email), '@', 1)),
+  admin.password_hash
+from public.users admin
+where admin.role = 'admin'
+  and admin.email is not null
+  and length(split_part(trim(admin.email), '@', 1)) > 0
+  and admin.password_hash is not null
+  and (
+    select count(*)
+    from public.users matching_admin
+    where matching_admin.role = 'admin'
+      and lower(split_part(trim(matching_admin.email), '@', 1))
+        = lower(split_part(trim(admin.email), '@', 1))
+  ) = 1
+on conflict do nothing;
 
 create or replace function public.register_user(
   p_full_name text,
@@ -70,12 +103,65 @@ begin
   select * into found_user
   from public.users
   where lower(email) = lower(trim(p_email))
-    and is_active
+    and role in ('student', 'instructor')
     and password_hash is not null
     and password_hash = crypt(p_password, password_hash);
 
   if found_user.id is null then
     raise exception 'Invalid email or password';
+  end if;
+
+  if not found_user.is_active then
+    raise exception 'Account deactivated';
+  end if;
+
+  new_token := encode(gen_random_bytes(32), 'hex');
+  insert into public.user_sessions (user_id, session_token, expires_at)
+  values (found_user.id, new_token, now() + interval '30 days');
+
+  return jsonb_build_object(
+    'session_token', new_token,
+    'user', jsonb_build_object(
+      'id', found_user.id,
+      'full_name', found_user.full_name,
+      'email', found_user.email,
+      'role', found_user.role,
+      'created_at', found_user.created_at
+    )
+  );
+end;
+$$;
+
+create or replace function public.login_admin_user(
+  p_username text,
+  p_password text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  found_user public.users%rowtype;
+  new_token text;
+begin
+  if coalesce(trim(p_username), '') = ''
+     or coalesce(p_password, '') = '' then
+    raise exception 'Invalid username or password';
+  end if;
+
+  select admin.* into found_user
+  from public.admin_credentials credentials
+  join public.users admin on admin.id = credentials.admin_id
+  where credentials.username = lower(trim(p_username))
+    and credentials.password_hash = crypt(p_password, credentials.password_hash)
+    and admin.role = 'admin';
+
+  if found_user.id is null then
+    raise exception 'Invalid username or password';
+  end if;
+
+  if not found_user.is_active then
+    raise exception 'Account deactivated';
   end if;
 
   new_token := encode(gen_random_bytes(32), 'hex');
@@ -129,9 +215,11 @@ as $$ delete from public.user_sessions where session_token = p_session_token; $$
 
 revoke all on function public.register_user(text, text, text, text) from public;
 revoke all on function public.login_user(text, text) from public;
+revoke all on function public.login_admin_user(text, text) from public;
 revoke all on function public.verify_session(text) from public;
 revoke all on function public.logout_user(text) from public;
 grant execute on function public.register_user(text, text, text, text) to anon, authenticated;
 grant execute on function public.login_user(text, text) to anon, authenticated;
+grant execute on function public.login_admin_user(text, text) to anon, authenticated;
 grant execute on function public.verify_session(text) to anon, authenticated;
 grant execute on function public.logout_user(text) to anon, authenticated;

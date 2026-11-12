@@ -153,6 +153,41 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
     }
   }
 
+  Future<void> _editClassroom(AdminManagedClassroom classroom) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _EditClassroomDialog(
+        classroom: classroom,
+        onSave: _service.updateClassroom,
+      ),
+    );
+    if (saved != true || !mounted) return;
+    await _load();
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Classroom updated.')));
+    }
+  }
+
+  Future<void> _viewClassroom(AdminManagedClassroom classroom) async {
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ClassroomDetailsDialog(
+        classroom: classroom,
+        loadStudents: _service.classroomStudents,
+        removeStudent: _service.removeClassroomStudent,
+      ),
+    );
+    if (changed != true || !mounted) return;
+    await _load();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Classroom roster updated.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final section = widget.section;
@@ -446,6 +481,17 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'View classroom students',
+                  onPressed: () => _viewClassroom(classroom),
+                  icon: const Icon(Icons.people_outline_rounded),
+                ),
+                IconButton(
+                  tooltip: 'Edit classroom',
+                  onPressed: () => _editClassroom(classroom),
+                  icon: const Icon(Icons.edit_outlined),
+                ),
               ],
             ),
           ),
@@ -500,6 +546,600 @@ class _AdminManagementScreenState extends State<AdminManagementScreen> {
       ],
     );
   }
+}
+
+class _ClassroomDetailsDialog extends StatefulWidget {
+  const _ClassroomDetailsDialog({
+    required this.classroom,
+    required this.loadStudents,
+    required this.removeStudent,
+  });
+
+  final AdminManagedClassroom classroom;
+  final Future<List<AdminManagedClassroomStudent>> Function(String classroomId)
+  loadStudents;
+  final Future<void> Function({
+    required String classroomId,
+    required int studentId,
+  })
+  removeStudent;
+
+  @override
+  State<_ClassroomDetailsDialog> createState() =>
+      _ClassroomDetailsDialogState();
+}
+
+class _ClassroomDetailsDialogState extends State<_ClassroomDetailsDialog> {
+  List<AdminManagedClassroomStudent>? _students;
+  String? _error;
+  int? _removingStudentId;
+  bool _isLoading = true;
+  bool _hasRemovedStudents = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudents();
+  }
+
+  Future<void> _loadStudents() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final students = await widget.loadStudents(widget.classroom.id);
+      if (mounted) setState(() => _students = students);
+    } on AdminManagementException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } on Exception catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'admin management',
+          context: ErrorDescription('while loading classroom students'),
+        ),
+      );
+      if (mounted) {
+        setState(
+          () => _error = 'Unable to load classroom students. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _removeStudent(AdminManagedClassroomStudent student) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove student?'),
+        content: Text(
+          '${student.fullName} will no longer be enrolled in '
+          '“${widget.classroom.name}”. They can rejoin with the classroom code.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove student'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _removingStudentId = student.id;
+      _error = null;
+    });
+    try {
+      await widget.removeStudent(
+        classroomId: widget.classroom.id,
+        studentId: student.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _students = _students!
+            .where((item) => item.id != student.id)
+            .toList(growable: false);
+        _hasRemovedStudents = true;
+      });
+    } on AdminManagementException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } on Exception catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'admin management',
+          context: ErrorDescription('while removing a classroom student'),
+        ),
+      );
+      if (mounted) {
+        setState(
+          () => _error = 'Unable to remove the student. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _removingStudentId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: Colors.white,
+    surfaceTintColor: Colors.transparent,
+    titlePadding: const EdgeInsets.fromLTRB(28, 26, 28, 8),
+    contentPadding: const EdgeInsets.fromLTRB(28, 8, 28, 12),
+    actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+    title: Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE7F2EC),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: const Icon(
+            Icons.meeting_room_outlined,
+            color: Color(0xFF42836D),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.classroom.name,
+                style: const TextStyle(
+                  color: Color(0xFF3B2419),
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 3),
+              const Text(
+                'Classroom details and enrollment',
+                style: TextStyle(
+                  color: Color(0xFF8A796D),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+    content: SizedBox(
+      width: 540,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8F0),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFF0E4D8)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _ClassroomInfoChip(
+                      icon: Icons.menu_book_outlined,
+                      label: widget.classroom.subject,
+                    ),
+                    _ClassroomInfoChip(
+                      icon: Icons.key_outlined,
+                      label: 'Code ${widget.classroom.code}',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.person_outline_rounded,
+                      size: 18,
+                      color: Color(0xFF725F53),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${widget.classroom.teacherName} · '
+                        '${widget.classroom.teacherEmail}',
+                        style: const TextStyle(
+                          color: Color(0xFF725F53),
+                          fontSize: 13,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Enrolled students',
+                  style: TextStyle(
+                    color: Color(0xFF3B2419),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1DF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_students?.length ?? widget.classroom.studentCount}',
+                  style: const TextStyle(
+                    color: Color(0xFF9A461F),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (_error case final error?) ...[
+            _ManagementErrorMessage(message: error),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _isLoading ? null : _loadStudents,
+                child: const Text('Try again'),
+              ),
+            ),
+          ] else if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(28),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_students!.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 28),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8F0),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Column(
+                children: [
+                  Icon(
+                    Icons.group_outlined,
+                    size: 30,
+                    color: Color(0xFF8A796D),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'No students enrolled yet',
+                    style: TextStyle(color: Color(0xFF725F53)),
+                  ),
+                ],
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.38,
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _students!.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final student = _students![index];
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFCF8),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFF0E4D8)),
+                    ),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        radius: 21,
+                        backgroundColor: const Color(0xFFFFF1DF),
+                        foregroundColor: const Color(0xFFB54A22),
+                        child: Text(
+                          student.fullName.isEmpty
+                              ? '?'
+                              : student.fullName[0].toUpperCase(),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      title: Text(
+                        student.fullName,
+                        style: const TextStyle(
+                          color: Color(0xFF3B2419),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              student.email,
+                              style: const TextStyle(color: Color(0xFF725F53)),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Joined ${_date(student.joinedAt)}',
+                              style: const TextStyle(
+                                color: Color(0xFF8A796D),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      trailing: IconButton.filledTonal(
+                        tooltip: 'Remove student',
+                        style: IconButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFE8E2),
+                          foregroundColor: const Color(0xFFA33A2B),
+                        ),
+                        onPressed: _removingStudentId == null
+                            ? () => _removeStudent(student)
+                            : null,
+                        icon: _removingStudentId == student.id
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.person_remove_outlined),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _removingStudentId == null
+            ? () => Navigator.pop(context, _hasRemovedStudents)
+            : null,
+        child: const Text('Done'),
+      ),
+    ],
+  );
+}
+
+class _ClassroomInfoChip extends StatelessWidget {
+  const _ClassroomInfoChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: const Color(0xFFF0E4D8)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: const Color(0xFF725F53)),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF5D4A3F),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _EditClassroomDialog extends StatefulWidget {
+  const _EditClassroomDialog({required this.classroom, required this.onSave});
+
+  final AdminManagedClassroom classroom;
+  final Future<void> Function({
+    required String classroomId,
+    required String name,
+    required String subject,
+  })
+  onSave;
+
+  @override
+  State<_EditClassroomDialog> createState() => _EditClassroomDialogState();
+}
+
+class _EditClassroomDialogState extends State<_EditClassroomDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final _name = TextEditingController(text: widget.classroom.name);
+  late final _subject = TextEditingController(text: widget.classroom.subject);
+  bool _isSaving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _subject.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_isSaving || !_formKey.currentState!.validate()) return;
+    setState(() {
+      _isSaving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(
+        classroomId: widget.classroom.id,
+        name: _name.text,
+        subject: _subject.text,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on AdminManagementException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } on Exception catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'admin management',
+          context: ErrorDescription('while updating a classroom'),
+        ),
+      );
+      if (mounted) {
+        setState(
+          () => _error = 'Unable to update the classroom. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: Colors.white,
+    surfaceTintColor: Colors.transparent,
+    titlePadding: const EdgeInsets.fromLTRB(28, 26, 28, 8),
+    contentPadding: const EdgeInsets.fromLTRB(28, 8, 28, 12),
+    actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+    title: Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF1DF),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: const Icon(Icons.edit_outlined, color: Color(0xFFB54A22)),
+        ),
+        const SizedBox(width: 14),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Edit classroom',
+                style: TextStyle(
+                  color: Color(0xFF3B2419),
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              SizedBox(height: 3),
+              Text(
+                'Update the classroom name and subject.',
+                style: TextStyle(
+                  color: Color(0xFF8A796D),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+    content: SizedBox(
+      width: 440,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _name,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Classroom name',
+                prefixIcon: Icon(Icons.meeting_room_outlined),
+              ),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'Enter a classroom name.'
+                  : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _subject,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Subject',
+                prefixIcon: Icon(Icons.menu_book_outlined),
+              ),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'Enter a subject.'
+                  : null,
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              _ManagementErrorMessage(message: _error!),
+            ],
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _isSaving ? null : () => Navigator.pop(context, false),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _isSaving ? null : _submit,
+        child: _isSaving
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text('Save changes'),
+      ),
+    ],
+  );
 }
 
 class _CreateTeacherDialog extends StatefulWidget {

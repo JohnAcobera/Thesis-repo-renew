@@ -105,6 +105,75 @@ class AdminManagementService {
     }
   }
 
+  Future<void> updateClassroom({
+    required String classroomId,
+    required String name,
+    required String subject,
+  }) async {
+    final token = await _sessionToken();
+    try {
+      await _client.rpc<void>(
+        'update_admin_classroom',
+        params: {
+          'p_session_token': token,
+          'p_classroom_id': classroomId,
+          'p_name': name.trim(),
+          'p_subject': subject.trim(),
+        },
+      );
+    } on PostgrestException catch (error) {
+      throw AdminManagementException(_messageFor(error));
+    }
+  }
+
+  Future<List<AdminManagedClassroomStudent>> classroomStudents(
+    String classroomId,
+  ) async {
+    final token = await _sessionToken();
+    try {
+      final response = await _client.rpc<List<dynamic>>(
+        'get_admin_classroom_students',
+        params: {'p_session_token': token, 'p_classroom_id': classroomId},
+      );
+      return response
+          .map(
+            (student) => AdminManagedClassroomStudent.fromJson(
+              Map<String, dynamic>.from(student as Map),
+            ),
+          )
+          .toList(growable: false);
+    } on PostgrestException catch (error) {
+      throw AdminManagementException(_messageFor(error));
+    } on FormatException {
+      throw const AdminManagementException(
+        'The classroom student list could not be read.',
+      );
+    } on TypeError {
+      throw const AdminManagementException(
+        'The classroom student list could not be read.',
+      );
+    }
+  }
+
+  Future<void> removeClassroomStudent({
+    required String classroomId,
+    required int studentId,
+  }) async {
+    final token = await _sessionToken();
+    try {
+      await _client.rpc<void>(
+        'remove_admin_classroom_student',
+        params: {
+          'p_session_token': token,
+          'p_classroom_id': classroomId,
+          'p_student_id': studentId,
+        },
+      );
+    } on PostgrestException catch (error) {
+      throw AdminManagementException(_messageFor(error));
+    }
+  }
+
   Future<String> _sessionToken() async {
     final token = await _authService.getSessionToken();
     if (token == null || token.isEmpty) {
@@ -130,6 +199,15 @@ class AdminManagementService {
     }
     if (error.message.contains('Account not found')) {
       return 'That account could not be found. Refresh and try again.';
+    }
+    if (error.message.contains('Classroom not found')) {
+      return 'That classroom could not be found. Refresh and try again.';
+    }
+    if (error.message.contains('Classroom student not found')) {
+      return 'That student is no longer enrolled in this classroom. Refresh and try again.';
+    }
+    if (error.message.contains('Classroom name and subject')) {
+      return 'Enter both a classroom name and a subject.';
     }
     return 'The admin request could not be completed. Please try again.';
   }

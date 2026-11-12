@@ -85,6 +85,28 @@ class AdminManagedClassroom {
       );
 }
 
+class AdminManagedClassroomStudent {
+  const AdminManagedClassroomStudent({
+    required this.id,
+    required this.fullName,
+    required this.email,
+    required this.joinedAt,
+  });
+
+  final int id;
+  final String fullName;
+  final String email;
+  final DateTime joinedAt;
+
+  factory AdminManagedClassroomStudent.fromJson(Map<String, dynamic> json) =>
+      AdminManagedClassroomStudent(
+        id: (json['id'] as num).toInt(),
+        fullName: json['full_name'] as String,
+        email: json['email'] as String,
+        joinedAt: DateTime.parse(json['joined_at'] as String),
+      );
+}
+
 class AdminActivityEvent {
   const AdminActivityEvent({
     required this.id,

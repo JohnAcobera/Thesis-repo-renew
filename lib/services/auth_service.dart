@@ -64,14 +64,28 @@ class AuthService implements ProfileDataService {
     }
   }
 
-  Future<AuthResult> login({
-    required String email,
+  Future<AuthResult> login({required String email, required String password}) =>
+      _login('login_user', {
+        'p_email': email.trim().toLowerCase(),
+        'p_password': password,
+      });
+
+  Future<AuthResult> loginAdmin({
+    required String username,
     required String password,
-  }) async {
+  }) => _login('login_admin_user', {
+    'p_username': username.trim().toLowerCase(),
+    'p_password': password,
+  });
+
+  Future<AuthResult> _login(
+    String functionName,
+    Map<String, dynamic> params,
+  ) async {
     try {
       final response = await _client.rpc<Map<String, dynamic>>(
-        'login_user',
-        params: {'p_email': email.trim().toLowerCase(), 'p_password': password},
+        functionName,
+        params: params,
       );
       final result = AuthResult(
         user: UserModel.fromJson(response['user'] as Map<String, dynamic>),
@@ -184,8 +198,14 @@ class AuthService implements ProfileDataService {
   }
 
   String _messageFor(PostgrestException error) {
+    if (error.message.contains('Account deactivated')) {
+      return 'Your account has been deactivated. Contact an administrator for help.';
+    }
     if (error.message.contains('Invalid email or password')) {
       return 'Invalid email or password.';
+    }
+    if (error.message.contains('Invalid username or password')) {
+      return 'Invalid username or password.';
     }
     if (error.message.contains('Email is already registered')) {
       return 'An account with this email already exists.';
