@@ -10,6 +10,7 @@ import '../../services/instructor_notification_service.dart';
 import '../../services/instructor_reports_service.dart';
 import '../../services/instructor_todo_service.dart';
 import '../instructor_reports_screen.dart';
+import '../instructor_attention_section.dart';
 import '../classroom/classroom_screen.dart';
 import '../profile_screen.dart';
 import '../instructor_todo_section.dart';
@@ -43,6 +44,8 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
 
   late final ClassroomRepository _classroomService =
       widget.classroomService ?? ClassroomService();
+  late final InstructorReportsRepository _reportsRepository =
+      widget.reportsRepository ?? InstructorReportsService();
   late Future<InstructorDashboardStats> _instructorStats = _classroomService
       .getInstructorDashboardStats();
   bool _isMenuOpen = false;
@@ -171,6 +174,7 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
                               : _InstructorDashboard(
                                   instructorId: user.id,
                                   todoRepository: widget.todoRepository,
+                                  reportsRepository: _reportsRepository,
                                   header: summaryMetrics,
                                 );
                         },
@@ -236,12 +240,14 @@ class _InstructorDashboard extends StatefulWidget {
   const _InstructorDashboard({
     required this.instructorId,
     required this.header,
+    required this.reportsRepository,
     this.todoRepository,
   });
 
   final int instructorId;
   final Widget header;
   final InstructorTodoRepository? todoRepository;
+  final InstructorReportsRepository reportsRepository;
 
   @override
   State<_InstructorDashboard> createState() => _InstructorDashboardState();
@@ -259,6 +265,14 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
       final contentWidth = constraints.maxWidth - horizontalPadding * 2;
       final dashboardWidth = math.min(contentWidth, 1160.0);
       final dashboardPanelHeight = dashboardWidth < 496 ? 480.0 : 420.0;
+      final studentRiskPanel = InstructorAttentionSection(
+        reportsRepository: widget.reportsRepository,
+      );
+      final todoPanel = InstructorTodoSection(
+        instructorId: widget.instructorId,
+        repository: widget.todoRepository,
+        panelHeight: dashboardPanelHeight,
+      );
 
       const heading = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,11 +318,20 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
                 const SizedBox(height: 24),
                 heading,
                 const SizedBox(height: 24),
-                InstructorTodoSection(
-                  instructorId: widget.instructorId,
-                  repository: widget.todoRepository,
-                  panelHeight: dashboardPanelHeight,
-                ),
+                if (dashboardWidth >= 760)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: studentRiskPanel),
+                      const SizedBox(width: 16),
+                      Expanded(child: todoPanel),
+                    ],
+                  )
+                else ...[
+                  studentRiskPanel,
+                  const SizedBox(height: 16),
+                  todoPanel,
+                ],
               ],
             ),
           ),

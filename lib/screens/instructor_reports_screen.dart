@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/instructor_report.dart';
 import '../services/instructor_reports_service.dart';
 import '../widgets/app_glass_surface.dart';
+import '../widgets/instructor_student_insights.dart';
 import '../widgets/learning_metric_chart.dart';
 
 class InstructorReportsScreen extends StatefulWidget {
@@ -39,39 +40,6 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
     setState(() => _reports = widget.reportsRepository.loadReports());
   }
 
-  List<(String, double)> _lowMetrics(InstructorReportStudent student) {
-    final metrics = <(String, double)>[
-      if (student.averageScore != null)
-        ('Classroom average', student.averageScore!),
-      if (student.personalAverageScore != null)
-        ('Overall average', student.personalAverageScore!),
-      if (student.totalActivityCount > 0)
-        (
-          'Classroom completion',
-          100 * student.completedActivityCount / student.totalActivityCount,
-        ),
-      if (student.accuracyPercentage != null)
-        ('Accuracy', student.accuracyPercentage!),
-      if (student.retentionPercentage != null)
-        ('Retention', student.retentionPercentage!),
-      if (student.improvementPercentage != null)
-        ('Improvement', student.improvementPercentage!),
-      if (student.consistencyPercentage != null)
-        ('Consistency', student.consistencyPercentage!),
-      if (student.focusPercentage != null) ('Focus', student.focusPercentage!),
-    ];
-    return metrics
-        .where(
-          (metric) =>
-              metric.$1 == 'Improvement' ? metric.$2 <= 0 : metric.$2 < 20,
-        )
-        .toList(growable: false);
-  }
-
-  bool _isAccountOlderThanAWeek(DateTime? createdAt) =>
-      createdAt != null &&
-      createdAt.isBefore(DateTime.now().subtract(const Duration(days: 7)));
-
   @override
   Widget build(
     BuildContext context,
@@ -79,27 +47,9 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
     future: _reports,
     builder: (context, snapshot) {
       final reports = snapshot.data;
-      final insights =
-          <
-            ({
-              InstructorReportClassroom classroom,
-              InstructorReportStudent student,
-              List<(String, double)> metrics,
-            })
-          >[];
-      for (final classroom in reports ?? const <InstructorReportClassroom>[]) {
-        for (final student in classroom.students) {
-          final metrics = _lowMetrics(student);
-          if (_isAccountOlderThanAWeek(student.createdAt) &&
-              metrics.isNotEmpty) {
-            insights.add((
-              classroom: classroom,
-              student: student,
-              metrics: metrics,
-            ));
-          }
-        }
-      }
+      final insights = getInstructorStudentInsights(
+        reports ?? const <InstructorReportClassroom>[],
+      );
 
       return LayoutBuilder(
         builder: (context, constraints) {

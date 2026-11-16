@@ -74,6 +74,7 @@ void main() {
       MaterialApp(
         home: InstructorHomeScreen(
           classroomService: _FakeClassroomRepository(),
+          reportsRepository: _FakeInstructorReportsRepository(),
           todoRepository: _FakeInstructorTodoRepository(),
           user: const UserModel(
             id: 1,
@@ -106,6 +107,7 @@ void main() {
       MaterialApp(
         home: InstructorHomeScreen(
           classroomService: _FakeClassroomRepository(),
+          reportsRepository: _FakeInstructorReportsRepository(),
           todoRepository: _FakeInstructorTodoRepository(),
           user: const UserModel(
             id: 1,
@@ -217,16 +219,30 @@ void main() {
       expect(find.text('Quizzes created'), findsNothing);
       expect(find.text('Generate a quiz'), findsNothing);
       expect(find.text('Class performance'), findsNothing);
-      expect(find.text('Students needing attention'), findsNothing);
+      expect(find.text('Students with low stats'), findsOneWidget);
       expect(
         tester
             .getSize(find.byKey(const ValueKey('instructor-todo-panel')))
             .height,
         size.width < 600 ? 480 : 420,
       );
+      final riskPanelTitle = tester.getRect(
+        find.text('Students with low stats'),
+      );
+      final todoPanel = tester.getRect(
+        find.byKey(const ValueKey('instructor-todo-panel')),
+      );
+      if (size.width < 600) {
+        expect(riskPanelTitle.top, lessThan(todoPanel.top));
+      } else {
+        expect(riskPanelTitle.left, lessThan(todoPanel.left));
+      }
       for (final mockValue in ['128', '78%', 'Student A', 'Student B']) {
         expect(find.text(mockValue), findsNothing);
       }
+      expect(find.text('Report Student'), findsOneWidget);
+      expect(find.text('Improvement -18 pts'), findsOneWidget);
+      expect(find.text('Support Needed Student'), findsOneWidget);
 
       expect(find.text('3'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
@@ -268,8 +284,8 @@ void main() {
       await tester.tap(find.text('Reports'));
       await tester.pumpAndSettle();
       expect(find.text('Student performance'), findsOneWidget);
-      expect(find.text('Grade 11 - STEM A'), findsOneWidget);
-      expect(find.text('Support Needed Student'), findsOneWidget);
+      expect(find.text('Grade 11 - STEM A'), findsWidgets);
+      expect(find.text('Support Needed Student'), findsWidgets);
       await tester.tap(find.byTooltip('Open menu'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('My Classroom'));
@@ -354,6 +370,7 @@ class _FakeInstructorReportsRepository implements InstructorReportsRepository {
           generatedQuizCount: 3,
           personalAttemptCount: 5,
           personalAverageScore: 79,
+          improvementPercentage: -18,
         ),
         InstructorReportStudent(
           id: 25,

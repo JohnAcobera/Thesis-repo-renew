@@ -5,7 +5,7 @@ import 'package:thesis_repo_renew/screens/instructor_attention_section.dart';
 import 'package:thesis_repo_renew/services/instructor_reports_service.dart';
 
 void main() {
-  testWidgets('deduplicates students and shows quiz concerns per classroom', (
+  testWidgets('shows the same low-stat students and metrics as reports', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -29,25 +29,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('1 student needs follow-up'), findsOneWidget);
+    expect(find.text('Students with low stats'), findsOneWidget);
     expect(find.text('Needs Support Student'), findsOneWidget);
-    expect(find.text('support@example.com'), findsOneWidget);
-    expect(find.byKey(const ValueKey('attention-student-5')), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('attention-classroom-5-class-a')),
+      find.byKey(const ValueKey('student-insight-class-a-5')),
       findsOneWidget,
     );
-    expect(
-      find.byKey(const ValueKey('attention-classroom-5-class-b')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('attention-classroom-5-class-c')),
-      findsOneWidget,
-    );
-    expect(find.text('No quiz attempts'), findsOneWidget);
-    expect(find.text('Low quiz average: 45%'), findsOneWidget);
-    expect(find.text('On track'), findsOneWidget);
+    expect(find.text('Classroom completion 0%'), findsOneWidget);
+    expect(find.text('Low quiz average: 45%'), findsNothing);
     expect(find.text('Healthy Student'), findsNothing);
     expect(tester.takeException(), isNull);
   });
