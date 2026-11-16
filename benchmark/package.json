@@ -1,0 +1,16 @@
+{
+  "name": "quizforge-quiz-benchmark",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone benchmark for the five quiz-generation models routed by the production Edge Functions.",
+  "scripts": {
+    "test": "node selftest.mjs && node fault_injection_selftest.mjs",
+    "test:fault-injection": "node fault_injection_selftest.mjs",
+    "dry-run": "node run_quiz_benchmark.mjs --dry-run",
+    "mock": "node run_quiz_benchmark.mjs --mock --yes --task all --runs 1 --question-count 5",
+    "benchmark": "node run_quiz_benchmark.mjs --task mcq --runs 3 --yes",
+    "benchmark-all": "node run_quiz_benchmark.mjs --task all --runs 3 --yes",
+    "fault-injection": "node fault_injection.mjs --concurrency 1,30 --fault-rates 0,0.05,0.2,0.4 --bad-keys groq=1"
+  }
+}

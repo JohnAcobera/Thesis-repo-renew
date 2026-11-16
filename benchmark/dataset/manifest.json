@@ -1,0 +1,42 @@
+{
+  "name": "quizforge-pilot-corpus",
+  "description": "Six expository science passages for harness validation. Replace with the cited thesis corpus before reporting results.",
+  "documents": [
+    {
+      "id": "photosynthesis",
+      "title": "Photosynthesis",
+      "file": "sources/photosynthesis.txt",
+      "sourceFileName": "photosynthesis.txt"
+    },
+    {
+      "id": "water-cycle",
+      "title": "The Water Cycle",
+      "file": "sources/water_cycle.txt",
+      "sourceFileName": "water_cycle.txt"
+    },
+    {
+      "id": "cellular-respiration",
+      "title": "Cellular Respiration",
+      "file": "sources/cellular_respiration.txt",
+      "sourceFileName": "cellular_respiration.txt"
+    },
+    {
+      "id": "plate-tectonics",
+      "title": "Plate Tectonics",
+      "file": "sources/plate_tectonics.txt",
+      "sourceFileName": "plate_tectonics.txt"
+    },
+    {
+      "id": "solar-system",
+      "title": "The Solar System",
+      "file": "sources/solar_system.txt",
+      "sourceFileName": "solar_system.txt"
+    },
+    {
+      "id": "electric-circuits",
+      "title": "Electric Circuits",
+      "file": "sources/electric_circuits.txt",
+      "sourceFileName": "electric_circuits.txt"
+    }
+  ]
+}

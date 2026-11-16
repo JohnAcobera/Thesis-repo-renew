@@ -17,7 +17,7 @@ class AdminLoginScreen extends StatefulWidget {
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
   static const _sessionStorageKey = 'admin_session_token';
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   late final _service = AuthService(sessionStorageKey: _sessionStorageKey);
   UserModel? _admin;
@@ -55,8 +55,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     });
 
     try {
-      final result = await _service.login(
-        email: _emailController.text,
+      final result = await _service.loginAdmin(
+        username: _usernameController.text,
         password: _passwordController.text,
       );
       if (result.user.role != 'admin') {
@@ -88,7 +88,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -121,11 +121,17 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     const Text('Sign in with your administrator account.'),
                     const SizedBox(height: 28),
                     TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
+                      controller: _usernameController,
+                      keyboardType: TextInputType.text,
+                      textCapitalization: TextCapitalization.none,
+                      autocorrect: false,
+                      enableSuggestions: false,
                       textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      validator: _validateEmail,
+                      decoration: const InputDecoration(
+                        labelText: 'Username',
+                        prefixIcon: Icon(Icons.person_outline_rounded),
+                      ),
+                      validator: _validateUsername,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -234,7 +240,6 @@ class _AdminHomeState extends State<_AdminHome> {
   String? _error;
   bool _isLoading = true;
   AdminSection _selectedSection = AdminSection.dashboard;
-  int _screenRefreshKey = 0;
 
   @override
   void initState() {
@@ -257,25 +262,13 @@ class _AdminHomeState extends State<_AdminHome> {
     }
   }
 
-  void _refreshCurrentSection() {
-    if (_selectedSection == AdminSection.dashboard) {
-      _loadOverview();
-    } else {
-      setState(() => _screenRefreshKey++);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            _AdminDashboardHeader(
-              isLoading: _isLoading,
-              onRefresh: _refreshCurrentSection,
-              onSignOut: widget.onSignOut,
-            ),
+            _AdminDashboardHeader(onSignOut: widget.onSignOut),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -284,9 +277,7 @@ class _AdminHomeState extends State<_AdminHome> {
                       _selectedSection == AdminSection.dashboard
                       ? _buildOverview()
                       : AdminManagementScreen(
-                          key: ValueKey(
-                            '${_selectedSection.name}-$_screenRefreshKey',
-                          ),
+                          key: ValueKey(_selectedSection.name),
                           section: _selectedSection,
                         );
 
@@ -394,17 +385,34 @@ class _AdminHomeState extends State<_AdminHome> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(28, 28, 28, 32),
           children: [
-            Text(
-              'Overview',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: const Color(0xFF3B2419),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Current school totals and recent community activity.',
-              style: TextStyle(color: Color(0xFF725F53)),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Overview',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              color: const Color(0xFF3B2419),
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Current school totals and recent community activity.',
+                        style: TextStyle(color: Color(0xFF725F53)),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton.outlined(
+                  tooltip: 'Refresh Overview',
+                  onPressed: _isLoading ? null : _loadOverview,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             if (_error case final error?)
@@ -500,14 +508,8 @@ String _sectionLabel(AdminSection section) => switch (section) {
 };
 
 class _AdminDashboardHeader extends StatelessWidget {
-  const _AdminDashboardHeader({
-    required this.isLoading,
-    required this.onRefresh,
-    required this.onSignOut,
-  });
+  const _AdminDashboardHeader({required this.onSignOut});
 
-  final bool isLoading;
-  final VoidCallback onRefresh;
   final VoidCallback onSignOut;
 
   @override
@@ -580,19 +582,6 @@ class _AdminDashboardHeader extends StatelessWidget {
                     final actions = Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton.outlined(
-                          tooltip: 'Refresh data',
-                          onPressed: isLoading ? null : onRefresh,
-                          style: IconButton.styleFrom(
-                            foregroundColor: const Color(0xFF725F53),
-                            side: const BorderSide(color: Color(0xFFE8D7C2)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(Icons.refresh_rounded),
-                        ),
-                        const SizedBox(width: 8),
                         if (compact)
                           IconButton(
                             tooltip: 'Sign out',
@@ -853,10 +842,10 @@ final _buttonStyle = FilledButton.styleFrom(
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
 );
 
-String? _validateEmail(String? value) {
-  if (value == null || value.trim().isEmpty) return 'Enter your email.';
-  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value.trim())) {
-    return 'Enter a valid email.';
+String? _validateUsername(String? value) {
+  if (value == null || value.trim().isEmpty) return 'Enter your username.';
+  if (value.trim().contains('@')) {
+    return 'Enter your username, not your email address.';
   }
   return null;
 }

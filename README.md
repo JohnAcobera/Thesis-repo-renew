@@ -40,9 +40,27 @@ restored-session RPCs return `users.created_at`, which the profile displays as
 the account's join date. Re-run this migration to restrict public
 self-registration to student accounts; instructor accounts must be created
 through the admin workflow once it is available. The migration allows the
-`admin` role for accounts created directly in the database. Set
-`password_hash` to `crypt('your-strong-password', gen_salt('bf', 12))` when
-creating an admin; do not store the password as plain text.
+`admin` role for accounts created directly in the database. Admin sign-in uses
+the separate `admin_credentials` table for usernames and password hashes;
+student and instructor sign-in continues to use email. Re-running the
+migration copies existing admin password hashes into that table when their
+email prefixes are unambiguous.
+
+To create an admin, insert the account and its separate credentials. Replace
+the email, username, and password with unique values:
+
+```sql
+with new_admin as (
+  insert into public.users (full_name, email, role, is_active)
+  values ('Administrator', 'admin@example.com', 'admin', true)
+  returning id
+)
+insert into public.admin_credentials (admin_id, username, password_hash)
+select id, 'admin', crypt('replace-with-a-strong-password', gen_salt('bf', 12))
+from new_admin;
+```
+
+Never store plaintext passwords or use the sample values in production.
 
 ## Admin panel
 
@@ -55,15 +73,23 @@ Run the web app locally with
 path-based URLs to Netlify, the `web/_redirects` rule serves `index.html` for
 `/admin` and other app routes. Build the web app and deploy the contents of
 `build/web` so the redirect rule is included.
-For an existing Supabase project, re-run `supabase/custom_auth.sql` so sign-in
-and session verification enforce account status. Then run
+For an existing Supabase project, re-run `supabase/custom_auth.sql` to install
+the admin credentials table and sign-in RPC, copy eligible existing admin
+hashes, and enforce account status. Then run
 `supabase/admin_overview.sql` after `custom_auth.sql` and `classrooms.sql`, and
-run `supabase/admin_management.sql` after those scripts. The management
-migration enables teacher account creation, account editing and access
+run `supabase/admin_management.sql` after those scripts. Re-run it on existing
+deployments to install the classroom roster management RPCs. The management
+script enables teacher account creation, account editing and access
 management, platform-wide classroom and student directories, and the admin
-activity log. Deactivated accounts cannot sign in; their sessions are revoked,
-while their classroom and learning history are preserved. The admin workspace
-includes an overview, Teachers, Classrooms, Students, and Activity Log screens.
+activity log. Deactivated accounts receive a clear deactivation message when
+signing in; their sessions are revoked, while their classroom and learning
+history are preserved. Admins can update classroom names and subjects from the
+Classrooms screen without changing its code, teacher, or student enrollments.
+They can open a classroom roster to review enrolled students and remove a
+student's enrollment; the student can rejoin with the classroom code, and the
+removal is recorded in the admin activity log.
+The admin workspace includes an overview, Teachers, Classrooms, Students, and
+Activity Log screens.
 Teacher passwords are set by the admin and must be shared securely. The
 overview reports active student and instructor totals, classroom totals, and
 the eight most recent account, classroom, and enrollment updates.
@@ -258,3 +284,48 @@ For quiz, flashcard, matching, mixed-quiz, and true-or-false requests, the
 preferred first model is selected by requested item count: GPT-OSS 120B for up
 to 10 items, Qwen for 11–20 items, and GPT-OSS 20B for 21–30 items. Other Groq
 models remain fallbacks, followed by Gemini.
+
+## LLM quiz benchmark
+
+The `benchmark-quiz-models` Edge Function compares the configured Groq and
+Gemini quiz-generation candidates with OpenAI `gpt-6-luna`. It sends one
+identical prompt to each configured candidate, without production fallback or
+hedging, and returns each output, latency, JSON/schema validity, duplicate
+question count, and provider-reported token usage. It requires an active admin
+session and tests one source passage per request (up to 12,000 characters and
+five questions); it does not save the supplied passage or benchmark output.
+
+Add `OPENAI_API_KEY` to Supabase Edge Function secrets if it is not already
+configured, then deploy the function:
+
+```sh
+supabase secrets set OPENAI_API_KEY=your-key
+supabase functions deploy benchmark-quiz-models
+```
+
+Invoke it with an active admin custom session token and a representative,
+non-sensitive passage:
+
+```sh
+curl -X POST "https://YOUR_PROJECT_REF.supabase.co/functions/v1/benchmark-quiz-models" \
+  -H "Authorization: Bearer YOUR_SUPABASE_ANON_KEY" \
+  -H "apikey: YOUR_SUPABASE_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"sessionToken\":\"YOUR_ADMIN_SESSION_TOKEN\",\"confirmCost\":true,\"questionCount\":5,\"sourceText\":\"PASTE A REPRESENTATIVE LEARNING PASSAGE HERE\"}" \
+  -o benchmark/results/water-cycle-run-01.json
+```
+
+Repeat with the same passage and settings when measuring run-to-run
+consistency. Keep the returned JSON as raw study data. The automated schema
+checks do not assess factual accuracy, source-grounding, difficulty, clarity,
+or pedagogical value; have reviewers score anonymized outputs using a
+predefined rubric before making quality claims. Report unavailable models and
+provider errors rather than silently excluding failed runs. Record the test
+date and calculate API cost from provider pricing applicable on that date;
+the function reports token counts but does not assume or embed prices. Each
+invocation sends up to six provider requests and may incur API charges; the
+request requires `confirmCost: true` to make this explicit. The OpenAI
+candidate is `gpt-6-luna`; verify model availability and pricing against the
+[official model documentation](https://developers.openai.com/api/docs/models/gpt-6-luna)
+when the evaluation is run. Provider-specific JSON modes and model-specific
+reasoning effort are reported with each candidate result.

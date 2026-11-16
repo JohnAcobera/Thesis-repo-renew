@@ -26,7 +26,18 @@ void main() {
           },
         ],
         'students': [],
-        'classrooms': [],
+        'classrooms': [
+          {
+            'id': 'classroom-1',
+            'name': 'Biology',
+            'subject': 'Science',
+            'code': 'ABC123',
+            'created_at': '2026-10-24T01:00:00Z',
+            'teacher_name': 'Alex Teacher',
+            'teacher_email': 'alex@example.com',
+            'student_count': 4,
+          },
+        ],
         'activity': [
           {
             'id': 1,
@@ -44,6 +55,8 @@ void main() {
 
     expect(data.teachers.single.fullName, 'Alex Teacher');
     expect(data.teachers.single.classroomCount, 2);
+    expect(data.classrooms.single.name, 'Biology');
+    expect(data.classrooms.single.studentCount, 4);
     expect(data.activity.single.action, 'Created teacher account');
     await client.dispose();
   });
@@ -78,6 +91,11 @@ void main() {
         password: '',
       );
       await service.setUserActive(userId: 12, isActive: false);
+      await service.updateClassroom(
+        classroomId: 'classroom-1',
+        name: '  Biology  ',
+        subject: '  Life Science ',
+      );
 
       expect(
         requests.map((request) => request.url.path),
@@ -85,6 +103,7 @@ void main() {
           endsWith('/rpc/create_admin_teacher'),
           endsWith('/rpc/update_admin_user'),
           endsWith('/rpc/set_admin_user_active'),
+          endsWith('/rpc/update_admin_classroom'),
         ]),
       );
       expect(jsonDecode(requests[0].body), {
@@ -105,9 +124,62 @@ void main() {
         'p_user_id': 12,
         'p_is_active': false,
       });
+      expect(jsonDecode(requests[3].body), {
+        'p_session_token': 'admin-session-token',
+        'p_classroom_id': 'classroom-1',
+        'p_name': 'Biology',
+        'p_subject': 'Life Science',
+      });
       await client.dispose();
     },
   );
+
+  test('loads and removes students from an admin classroom roster', () async {
+    final requests = <http.Request>[];
+    final client = _supabaseClient((request) async {
+      requests.add(request);
+      if (request.url.path.endsWith('/rpc/get_admin_classroom_students')) {
+        return _jsonResponse([
+          {
+            'id': 42,
+            'full_name': 'Sam Student',
+            'email': 'sam@example.com',
+            'joined_at': '2026-10-24T01:00:00Z',
+          },
+        ], request: request);
+      }
+      return http.Response(
+        'null',
+        200,
+        request: request,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final service = _service(client);
+
+    final students = await service.classroomStudents('classroom-1');
+    await service.removeClassroomStudent(
+      classroomId: 'classroom-1',
+      studentId: 42,
+    );
+
+    expect(students.single.fullName, 'Sam Student');
+    expect(students.single.email, 'sam@example.com');
+    expect(requests.map((request) => request.url.path), [
+      endsWith('/rpc/get_admin_classroom_students'),
+      endsWith('/rpc/remove_admin_classroom_student'),
+    ]);
+    expect(jsonDecode(requests[0].body), {
+      'p_session_token': 'admin-session-token',
+      'p_classroom_id': 'classroom-1',
+    });
+    expect(jsonDecode(requests[1].body), {
+      'p_session_token': 'admin-session-token',
+      'p_classroom_id': 'classroom-1',
+      'p_student_id': 42,
+    });
+    await client.dispose();
+  });
 
   test('does not call the admin RPC when session token is missing', () async {
     final client = _supabaseClient((_) async {
