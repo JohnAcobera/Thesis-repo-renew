@@ -167,6 +167,11 @@ saved-quiz data; flashcards and matching activities use the new inventory.
 Run `supabase/learning_inventory_favorites.sql` as well to enable persisted
 favorites for personal inventory activities. Inventory also supports title
 search and groups results under quizzes, flashcards, and matching activities.
+Run `supabase/achievement_badges.sql` after `custom_auth.sql`,
+`quiz_attempts.sql`, `learning_inventory.sql`, `learner_points.sql`,
+`learner_points_leaderboard.sql`, and `learning_streak.sql` to award the
+one-time student achievement badges and show them on student profiles. Quiz
+time-based badges use Asia/Manila time.
 
 Deploy the Edge Functions with the Supabase CLI:
 

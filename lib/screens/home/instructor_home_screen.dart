@@ -44,6 +44,8 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
 
   late final ClassroomRepository _classroomService =
       widget.classroomService ?? ClassroomService();
+  late final InstructorTodoRepository _todoRepository =
+      widget.todoRepository ?? const InstructorTodoService();
   late final InstructorReportsRepository _reportsRepository =
       widget.reportsRepository ?? InstructorReportsService();
   late Future<InstructorDashboardStats> _instructorStats = _classroomService
@@ -105,6 +107,8 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
         username: user.fullName,
         email: user.email,
         instructorNotificationRepository: widget.notificationRepository,
+        todoRepository: _todoRepository,
+        todoOwnerId: user.id,
         onProfileSelected: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => ProfileScreen(
@@ -166,14 +170,12 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
                                 )
                               : _selectedMenu == InstructorMenuItem.reports
                               ? InstructorReportsScreen(
-                                  reportsRepository:
-                                      widget.reportsRepository ??
-                                      InstructorReportsService(),
+                                  reportsRepository: _reportsRepository,
                                   header: summaryMetrics,
                                 )
                               : _InstructorDashboard(
                                   instructorId: user.id,
-                                  todoRepository: widget.todoRepository,
+                                  todoRepository: _todoRepository,
                                   reportsRepository: _reportsRepository,
                                   header: summaryMetrics,
                                 );

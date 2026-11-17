@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:thesis_repo_renew/models/instructor_todo_task.dart';
 import 'package:thesis_repo_renew/services/student_notification_service.dart';
+import 'package:thesis_repo_renew/services/instructor_todo_service.dart';
 import 'package:thesis_repo_renew/widgets/student_notifications_sheet.dart';
 
 void main() {
@@ -27,19 +29,39 @@ void main() {
     tester,
   ) async {
     final notifications = _FakeStudentNotificationRepository();
+    final todos = _FakeTodoRepository([
+      InstructorTodoTask(
+        id: 'due-tomorrow',
+        title: 'Finish chapter notes',
+        dueDate: DateTime.now().add(const Duration(days: 1)),
+        priority: InstructorTodoPriority.high,
+      ),
+      InstructorTodoTask(
+        id: 'due-later',
+        title: 'Later study task',
+        dueDate: DateTime.now().add(const Duration(days: 3)),
+        priority: InstructorTodoPriority.normal,
+      ),
+    ]);
 
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           appBar: AppBar(
-            actions: [StudentNotificationsButton(repository: notifications)],
+            actions: [
+              StudentNotificationsButton(
+                repository: notifications,
+                todoRepository: todos,
+                todoOwnerId: 23,
+              ),
+            ],
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
 
@@ -48,6 +70,12 @@ void main() {
       find.text('Cell Structure: 280 LP total (50 LP first attempt).'),
       findsOneWidget,
     );
+    expect(find.text('Task due tomorrow'), findsOneWidget);
+    expect(
+      find.text('"Finish chapter notes" is due tomorrow.'),
+      findsOneWidget,
+    );
+    expect(find.text('Later study task'), findsNothing);
 
     await notifications.addNotification(
       StudentNotification(
@@ -61,7 +89,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Daily LP acquired'), findsOneWidget);
-    expect(find.text('2'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
 
     await tester.tap(find.text('Quiz LP earned'));
     await tester.pumpAndSettle();
@@ -74,6 +102,7 @@ void main() {
       'quiz-points:attempt-1',
       'daily-points:today',
     ]);
+    expect(todos.readTaskIds, ['due-tomorrow']);
     expect(find.text('Mark all as read'), findsNothing);
 
     await tester.tap(find.text('New classroom activity'));
@@ -145,4 +174,30 @@ class _FakeStudentNotificationRepository
     markedIds.addAll(notificationIds);
     _readIds.addAll(notificationIds);
   }
+}
+
+class _FakeTodoRepository
+    implements InstructorTodoRepository, TodoReminderReadRepository {
+  _FakeTodoRepository(this.tasks);
+
+  final List<InstructorTodoTask> tasks;
+  final List<String> readTaskIds = [];
+
+  @override
+  Future<bool> isReminderRead(int ownerId, String taskId) async =>
+      readTaskIds.contains(taskId);
+
+  @override
+  Future<List<InstructorTodoTask>> listTasks(int instructorId) async => tasks;
+
+  @override
+  Future<void> markReminderRead(int ownerId, String taskId) async {
+    if (!readTaskIds.contains(taskId)) readTaskIds.add(taskId);
+  }
+
+  @override
+  Future<void> saveTasks(
+    int instructorId,
+    List<InstructorTodoTask> tasks,
+  ) async {}
 }

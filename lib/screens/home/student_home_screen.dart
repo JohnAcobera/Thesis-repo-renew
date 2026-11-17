@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/achievement_service.dart';
 import '../../services/classroom_service.dart';
 import '../../services/instructor_todo_service.dart';
 import '../../services/learning_mode_service.dart';
@@ -23,6 +24,7 @@ import '../study_activity_screens.dart';
 import '../../widgets/student_performance_radar_chart.dart';
 import '../../widgets/student_side_menu.dart';
 import '../../widgets/app_glass_surface.dart';
+import '../../widgets/achievement_unlocked_dialog.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({
@@ -62,6 +64,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       StudentNotificationService();
   StudentNotificationRepository get _notificationRepository =>
       widget.notificationRepository ?? _defaultNotificationRepository;
+  InstructorTodoRepository get _todoRepository =>
+      widget.todoRepository ?? const StudentTodoService();
 
   @override
   void initState() {
@@ -70,17 +74,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
     _recordActiveLearningDay();
     if (widget.showTutorialOnOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _openFirstLoginTutorial();
+        if (mounted) unawaited(_openFirstLoginTutorial());
       });
     }
   }
 
-  void _openFirstLoginTutorial() {
+  Future<void> _openFirstLoginTutorial() async {
     if (_hasOpenedFirstLoginTutorial) return;
     _hasOpenedFirstLoginTutorial = true;
     final user = widget.user;
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
         builder: (_) => ImportScreen(
           username: user.fullName,
           email: user.email,
@@ -88,10 +92,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           createdAt: user.createdAt,
           onMenuSelected: _selectMenuItem,
           notificationRepository: _notificationRepository,
+          achievementService: _achievementServiceFor(user.role),
           showTutorialOnOpen: true,
         ),
       ),
     );
+    if (completed == true) _handleActivityCompleted();
   }
 
   @override
@@ -157,13 +163,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
             createdAt: user.createdAt,
             onMenuSelected: _selectMenuItem,
             notificationRepository: _notificationRepository,
+            achievementService: _achievementServiceFor(user.role),
             showTutorialOnOpen: previewTutorial,
           ),
         ),
       );
-      if (completed == true && mounted) {
-        setState(() => _activityRevision++);
-      }
+      if (completed == true) _handleActivityCompleted();
     }
 
     void openContextContentScreen() {
@@ -212,11 +217,14 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
             )
           : null,
       notificationRepository: _notificationRepository,
+      todoRepository: _todoRepository,
+      todoOwnerId: user.id,
       body: _selectedMenu == StudentMenuItem.inventory
           ? InventoryScreen(
               user: user,
               onMenuSelected: onMenuSelected,
               notificationRepository: _notificationRepository,
+              achievementService: _achievementServiceFor(user.role),
             )
           : _selectedMenu == StudentMenuItem.classroom
           ? ClassroomScreen(
@@ -247,8 +255,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                                 onImportSelected: openImportScreen,
                                 onContentSelected: openContextContentScreen,
                                 activityRevision: _activityRevision,
-                                onQuizCompleted: () =>
-                                    setState(() => _activityRevision++),
+                                onQuizCompleted: _handleActivityCompleted,
                                 onMenuSelected: _selectMenuItem,
                                 quizRepository: widget.quizRepository,
                                 learningModeService: widget.learningModeService,
@@ -261,8 +268,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                               onImportSelected: openImportScreen,
                               onContentSelected: openContextContentScreen,
                               activityRevision: _activityRevision,
-                              onQuizCompleted: () =>
-                                  setState(() => _activityRevision++),
+                              onQuizCompleted: _handleActivityCompleted,
                               onMenuSelected: _selectMenuItem,
                               quizRepository: widget.quizRepository,
                               learningModeService: widget.learningModeService,
@@ -276,7 +282,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
                               studentId: user.id,
                               activityRevision: _activityRevision,
                               profileDataService: widget.profileDataService,
-                              todoRepository: widget.todoRepository,
+                              todoRepository: _todoRepository,
                             ),
                           ),
                         ],
@@ -297,7 +303,39 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
       setState(() {
         _selectedMenu = item;
       });
+      if (item == StudentMenuItem.dashboard) {
+        _showPendingAchievementDialog();
+      }
     }
+  }
+
+  AchievementService? _achievementServiceFor(String role) =>
+      role.trim().toLowerCase() == 'student' ? AchievementService() : null;
+
+  void _handleActivityCompleted() {
+    if (!mounted) return;
+    setState(() => _activityRevision++);
+    _showPendingAchievementDialog();
+  }
+
+  void _showPendingAchievementDialog() {
+    if (!mounted || _selectedMenu != StudentMenuItem.dashboard) return;
+    final badges = AchievementNotificationQueue.take(widget.user.email);
+    if (badges.isEmpty) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _selectedMenu != StudentMenuItem.dashboard) {
+        AchievementNotificationQueue.add(
+          widget.user.email,
+          badges.map((badge) => badge.id),
+        );
+        return;
+      }
+      showDialog<void>(
+        context: context,
+        builder: (_) => AchievementUnlockedDialog(badges: badges),
+      );
+    });
   }
 
   String _displayRole(String role) => role.isEmpty
@@ -1342,6 +1380,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
               sourceFile: item.sourceFile,
               cards: item.flashcards,
               learningModeService: widget.learningModeService,
+              achievementService: AchievementService(),
             ),
           )
         : MaterialPageRoute<bool>(
@@ -1356,6 +1395,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
               sourceFile: item.sourceFile,
               pairs: item.matchingPairs,
               learningModeService: widget.learningModeService,
+              achievementService: AchievementService(),
             ),
           );
     final completed = await Navigator.of(context).push<bool>(route);
@@ -1744,6 +1784,7 @@ class _RecentActivityContentState extends State<_RecentActivityContent> {
           quizId: activity.id,
           previousAttempts: activity.attempts,
           notificationRepository: widget.notificationRepository,
+          achievementService: AchievementService(),
         ),
       ),
     );

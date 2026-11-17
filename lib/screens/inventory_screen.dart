@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_model.dart';
+import '../services/achievement_service.dart';
 import '../services/learning_mode_service.dart';
 import '../services/quiz_service.dart';
 import '../services/student_notification_service.dart';
@@ -36,6 +37,7 @@ class InventoryScreen extends StatefulWidget {
     this.quizRepository,
     this.learningModeService,
     this.notificationRepository,
+    this.achievementService,
     super.key,
   });
 
@@ -44,6 +46,7 @@ class InventoryScreen extends StatefulWidget {
   final QuizRepository? quizRepository;
   final LearningModeService? learningModeService;
   final StudentNotificationRepository? notificationRepository;
+  final AchievementService? achievementService;
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
@@ -454,6 +457,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             createdAt: widget.user.createdAt,
             onMenuSelected: widget.onMenuSelected,
             notificationRepository: widget.notificationRepository,
+            achievementService: widget.achievementService,
             title: record.quiz!.title,
             sourceFile: record.quiz!.sourceFile,
             questions: record.quiz!.questions,
@@ -471,6 +475,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             role: widget.user.role,
             createdAt: widget.user.createdAt,
             onMenuSelected: widget.onMenuSelected,
+            achievementService: widget.achievementService,
             title: record.learning!.title,
             sourceFile: record.learning!.sourceFile,
             cards: record.learning!.flashcards,
@@ -486,6 +491,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             role: widget.user.role,
             createdAt: widget.user.createdAt,
             onMenuSelected: widget.onMenuSelected,
+            achievementService: widget.achievementService,
             title: record.learning!.title,
             sourceFile: record.learning!.sourceFile,
             pairs: record.learning!.matchingPairs,

@@ -8,7 +8,7 @@ abstract interface class InstructorNotificationRepository {
   Future<void> markNotificationsRead(List<String> notificationIds);
 }
 
-enum InstructorNotificationType { studentJoined, legacy }
+enum InstructorNotificationType { studentJoined, todoDue, legacy }
 
 class InstructorNotification {
   const InstructorNotification({
@@ -19,6 +19,7 @@ class InstructorNotification {
     required this.createdAt,
     required this.isRead,
     this.classroomId,
+    this.todoTaskId,
   });
 
   final String id;
@@ -28,6 +29,7 @@ class InstructorNotification {
   final DateTime createdAt;
   final bool isRead;
   final String? classroomId;
+  final String? todoTaskId;
 
   factory InstructorNotification.fromJson(Map<String, dynamic> json) {
     final typeName = json['type'] as String;

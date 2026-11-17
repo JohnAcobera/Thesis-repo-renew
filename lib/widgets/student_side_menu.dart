@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/auth/login_screen.dart';
 import '../services/auth_service.dart';
+import '../services/instructor_todo_service.dart';
 import '../services/student_notification_service.dart';
 import 'student_nav_bar.dart';
 
@@ -39,6 +40,8 @@ class StudentScaffold extends StatefulWidget {
     this.onBack,
     this.trailingAction,
     this.notificationRepository,
+    this.todoRepository,
+    this.todoOwnerId,
     super.key,
   });
 
@@ -52,6 +55,8 @@ class StudentScaffold extends StatefulWidget {
   final VoidCallback? onBack;
   final Widget? trailingAction;
   final StudentNotificationRepository? notificationRepository;
+  final InstructorTodoRepository? todoRepository;
+  final int? todoOwnerId;
 
   @override
   State<StudentScaffold> createState() => _StudentScaffoldState();
@@ -117,6 +122,8 @@ class _StudentScaffoldState extends State<StudentScaffold> {
       onProfileSelected: () => _selectMenuItem(StudentMenuItem.profile),
       trailingAction: widget.trailingAction,
       notificationRepository: widget.notificationRepository,
+      todoRepository: widget.todoRepository,
+      todoOwnerId: widget.todoOwnerId,
       leadingWidth: widget.onBack == null ? null : 112,
       leading: Row(
         mainAxisSize: MainAxisSize.min,

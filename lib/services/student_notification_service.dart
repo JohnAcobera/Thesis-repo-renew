@@ -21,6 +21,7 @@ enum StudentNotificationType {
   weeklyRank,
   classroomJoined,
   classroomRemoved,
+  todoDue,
   legacy,
 }
 
@@ -32,6 +33,7 @@ class StudentNotification {
     required this.message,
     required this.createdAt,
     required this.isRead,
+    this.todoTaskId,
   });
 
   final String id;
@@ -40,6 +42,7 @@ class StudentNotification {
   final String message;
   final DateTime createdAt;
   final bool isRead;
+  final String? todoTaskId;
 
   factory StudentNotification.fromJson(Map<String, dynamic> json) {
     final typeName = json['type'] as String;

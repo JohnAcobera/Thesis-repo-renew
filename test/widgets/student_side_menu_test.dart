@@ -639,7 +639,9 @@ void main() {
     );
   });
 
-  testWidgets('profile omits the achievements section', (tester) async {
+  testWidgets('student profile shows the achievements section', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(420, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -658,9 +660,9 @@ void main() {
     await tester.pump();
 
     final calendar = find.text('Learning streak');
-    final achievements = find.text('Your Achievements');
+    final achievements = find.text('Your achievements');
     expect(calendar, findsOneWidget);
-    expect(achievements, findsNothing);
+    expect(achievements, findsOneWidget);
     expect(find.text('LP'), findsOneWidget);
     expect(find.text('0'), findsOneWidget);
     expect(find.text('Weekly ranking #2'), findsOneWidget);
@@ -684,8 +686,6 @@ void main() {
       find.bySemanticsLabel('Show how to earn Learner Points'),
       findsOneWidget,
     );
-    expect(find.text('No achievements yet'), findsNothing);
-    expect(find.text('Your achievements will appear here.'), findsNothing);
     expect(
       tester.widget<Text>(find.text('Weekly ranking #2')).style?.color,
       const Color(0xFF9EA7B3),
@@ -708,6 +708,7 @@ void main() {
     expect(find.text('LP'), findsNothing);
     expect(find.byIcon(Icons.diamond_outlined), findsNothing);
     expect(find.text('Weekly ranking #2'), findsNothing);
+    expect(find.text('Your achievements'), findsNothing);
     expect(find.text('Your learning stats'), findsNothing);
   });
 

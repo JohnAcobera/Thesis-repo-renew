@@ -3,11 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/student_notification_service.dart';
+import '../services/instructor_todo_service.dart';
 
 class StudentNotificationsButton extends StatefulWidget {
-  const StudentNotificationsButton({this.repository, super.key});
+  const StudentNotificationsButton({
+    this.repository,
+    this.todoRepository,
+    this.todoOwnerId,
+    super.key,
+  });
 
   final StudentNotificationRepository? repository;
+  final InstructorTodoRepository? todoRepository;
+  final int? todoOwnerId;
 
   @override
   State<StudentNotificationsButton> createState() =>
@@ -20,6 +28,9 @@ class _StudentNotificationsButtonState
   late Future<List<StudentNotification>> _notifications;
   late Stream<List<StudentNotification>> _notificationUpdates;
   StreamSubscription<List<StudentNotification>>? _notificationSubscription;
+  Timer? _refreshTimer;
+  late final StreamController<List<StudentNotification>> _mergedUpdates =
+      StreamController<List<StudentNotification>>.broadcast();
   List<StudentNotification>? _latestNotifications;
 
   @override
@@ -27,12 +38,15 @@ class _StudentNotificationsButtonState
     super.initState();
     _repository = widget.repository ?? StudentNotificationService();
     _startWatching();
+    _scheduleRefresh();
   }
 
   @override
   void didUpdateWidget(covariant StudentNotificationsButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.repository != widget.repository) {
+    if (oldWidget.repository != widget.repository ||
+        oldWidget.todoRepository != widget.todoRepository ||
+        oldWidget.todoOwnerId != widget.todoOwnerId) {
       unawaited(_notificationSubscription?.cancel());
       _repository = widget.repository ?? StudentNotificationService();
       _latestNotifications = null;
@@ -40,29 +54,89 @@ class _StudentNotificationsButtonState
     }
   }
 
+  void _scheduleRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(durationUntilNextMinute(), () {
+      if (!mounted) return;
+      unawaited(_reloadNotifications());
+      _refreshTimer = Timer.periodic(
+        const Duration(minutes: 1),
+        (_) => unawaited(_reloadNotifications()),
+      );
+    });
+  }
+
   void _startWatching() {
-    _notifications = _repository.listNotifications();
-    _notificationUpdates = _repository.watchNotifications();
-    _notificationSubscription = _notificationUpdates.listen(
-      (notifications) {
-        _latestNotifications = notifications;
-        if (mounted) {
-          setState(() {});
-        }
-      },
+    _notifications = _listNotifications(
+      _repository,
+      widget.todoRepository,
+      widget.todoOwnerId,
+    );
+    _notificationUpdates = _mergedUpdates.stream;
+    _notificationSubscription = _repository.watchNotifications().listen(
+      (notifications) => unawaited(_publishNotifications(notifications)),
       onError: (Object error, StackTrace stackTrace) {
-        if (mounted) setState(() {});
+        if (!_mergedUpdates.isClosed) {
+          _mergedUpdates.addError(error, stackTrace);
+        }
       },
     );
   }
 
+  Future<void> _publishNotifications(
+    List<StudentNotification> notifications,
+  ) async {
+    try {
+      final todoRepository = widget.todoRepository;
+      final todoOwnerId = widget.todoOwnerId;
+      final reminders = todoRepository == null || todoOwnerId == null
+          ? const <TodoReminder>[]
+          : await listTodoReminders(todoRepository, todoOwnerId);
+      final combined = [
+        ...notifications,
+        for (final reminder in reminders)
+          StudentNotification(
+            id: reminder.id,
+            type: StudentNotificationType.todoDue,
+            title: reminder.title,
+            message: reminder.message,
+            createdAt: reminder.createdAt,
+            isRead: reminder.isRead,
+            todoTaskId: reminder.taskId,
+          ),
+      ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      if (_mergedUpdates.isClosed) return;
+      _latestNotifications = combined;
+      _mergedUpdates.add(combined);
+      if (mounted) setState(() {});
+    } on Object catch (error, stackTrace) {
+      if (!_mergedUpdates.isClosed) {
+        _mergedUpdates.addError(error, stackTrace);
+      }
+    }
+  }
+
+  Future<void> _reloadNotifications() async {
+    try {
+      final notifications = await _repository.listNotifications();
+      await _publishNotifications(notifications);
+    } on Object catch (error, stackTrace) {
+      if (!_mergedUpdates.isClosed) {
+        _mergedUpdates.addError(error, stackTrace);
+      }
+    }
+  }
+
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     unawaited(_notificationSubscription?.cancel());
+    unawaited(_mergedUpdates.close());
     super.dispose();
   }
 
   Future<void> _openNotifications() async {
+    unawaited(_reloadNotifications());
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -72,6 +146,8 @@ class _StudentNotificationsButtonState
         repository: _repository,
         notifications: _notificationUpdates,
         initialNotifications: _latestNotifications,
+        todoRepository: widget.todoRepository,
+        todoOwnerId: widget.todoOwnerId,
       ),
     );
   }
@@ -130,12 +206,16 @@ class StudentNotificationsSheet extends StatefulWidget {
     required this.repository,
     required this.notifications,
     this.initialNotifications,
+    this.todoRepository,
+    this.todoOwnerId,
     super.key,
   });
 
   final StudentNotificationRepository repository;
   final Stream<List<StudentNotification>> notifications;
   final List<StudentNotification>? initialNotifications;
+  final InstructorTodoRepository? todoRepository;
+  final int? todoOwnerId;
 
   @override
   State<StudentNotificationsSheet> createState() =>
@@ -146,6 +226,35 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
   bool _isMarkingRead = false;
   String? _markingReadId;
   String? _markReadError;
+
+  Future<void> _markNotificationsRead(
+    List<StudentNotification> notifications,
+  ) async {
+    final reminders = notifications
+        .where(
+          (notification) =>
+              notification.type == StudentNotificationType.todoDue,
+        )
+        .toList(growable: false);
+    final todoRepository = widget.todoRepository;
+    final todoOwnerId = widget.todoOwnerId;
+    if (reminders.isNotEmpty && todoRepository != null && todoOwnerId != null) {
+      await markTodoRemindersRead(
+        todoRepository,
+        todoOwnerId,
+        reminders.map((notification) => notification.todoTaskId!).toList(),
+      );
+    }
+
+    final notificationIds = notifications
+        .where(
+          (notification) =>
+              notification.type != StudentNotificationType.todoDue,
+        )
+        .map((notification) => notification.id)
+        .toList(growable: false);
+    await widget.repository.markNotificationsRead(notificationIds);
+  }
 
   Future<void> _markAllRead(List<StudentNotification> notifications) async {
     final unreadIds = notifications
@@ -159,12 +268,18 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
       _markReadError = null;
     });
     try {
-      await widget.repository.markNotificationsRead(unreadIds);
+      await _markNotificationsRead(
+        notifications
+            .where((notification) => unreadIds.contains(notification.id))
+            .toList(growable: false),
+      );
       await _refreshAfterMark();
     } on StudentNotificationException catch (error) {
       if (mounted) {
         setState(() => _markReadError = error.message);
       }
+    } on TodoReminderException catch (error) {
+      if (mounted) setState(() => _markReadError = error.message);
     } finally {
       if (mounted) {
         setState(() => _isMarkingRead = false);
@@ -195,7 +310,7 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
     });
     try {
       if (!notification.isRead) {
-        await widget.repository.markNotificationsRead([notification.id]);
+        await _markNotificationsRead([notification]);
         await _refreshAfterMark();
       }
       if (!context.mounted) return;
@@ -203,6 +318,8 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
       if (mounted) {
         setState(() => _markReadError = error.message);
       }
+    } on TodoReminderException catch (error) {
+      if (mounted) setState(() => _markReadError = error.message);
     } finally {
       if (mounted) {
         setState(() {
@@ -468,6 +585,7 @@ class _NotificationTile extends StatelessWidget {
     StudentNotificationType.weeklyRank => Icons.emoji_events_outlined,
     StudentNotificationType.classroomJoined => Icons.group_add_outlined,
     StudentNotificationType.classroomRemoved => Icons.person_remove_outlined,
+    StudentNotificationType.todoDue => Icons.task_alt_rounded,
     StudentNotificationType.legacy => Icons.notifications_outlined,
   };
 
@@ -480,6 +598,31 @@ class _NotificationTile extends StatelessWidget {
     if (difference.inDays < 7) return '${difference.inDays}d ago';
     return '${localDate.month}/${localDate.day}/${localDate.year}';
   }
+}
+
+Future<List<StudentNotification>> _listNotifications(
+  StudentNotificationRepository repository,
+  InstructorTodoRepository? todoRepository,
+  int? todoOwnerId,
+) async {
+  final notifications = await repository.listNotifications();
+  if (todoRepository == null || todoOwnerId == null) return notifications;
+
+  final reminders = await listTodoReminders(todoRepository, todoOwnerId);
+  final combined = [
+    ...notifications,
+    for (final reminder in reminders)
+      StudentNotification(
+        id: reminder.id,
+        type: StudentNotificationType.todoDue,
+        title: reminder.title,
+        message: reminder.message,
+        createdAt: reminder.createdAt,
+        isRead: reminder.isRead,
+        todoTaskId: reminder.taskId,
+      ),
+  ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return combined;
 }
 
 class _NotificationEmptyState extends StatelessWidget {

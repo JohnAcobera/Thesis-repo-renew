@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'profile_screen.dart';
 import 'quiz_screen.dart';
 import 'study_activity_screens.dart';
+import '../services/achievement_service.dart';
 import '../services/learning_mode_service.dart';
 import '../services/quiz_service.dart';
 import '../services/student_notification_service.dart';
@@ -32,6 +33,7 @@ class ImportScreen extends StatefulWidget {
     this.createdAt,
     this.onMenuSelected,
     this.notificationRepository,
+    this.achievementService,
     this.showTutorialOnOpen = false,
     super.key,
   });
@@ -42,6 +44,7 @@ class ImportScreen extends StatefulWidget {
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
   final StudentNotificationRepository? notificationRepository;
+  final AchievementService? achievementService;
   final bool showTutorialOnOpen;
 
   @override
@@ -471,6 +474,7 @@ class _ImportScreenState extends State<ImportScreen> {
           createdAt: widget.createdAt,
           onMenuSelected: widget.onMenuSelected,
           notificationRepository: widget.notificationRepository,
+          achievementService: widget.achievementService,
           title: title,
           sourceFile: sourceFile,
           questions: questions,
@@ -498,6 +502,7 @@ class _ImportScreenState extends State<ImportScreen> {
           cards: cards,
           createdAt: widget.createdAt,
           onMenuSelected: widget.onMenuSelected,
+          achievementService: widget.achievementService,
         ),
       ),
     );
@@ -522,6 +527,7 @@ class _ImportScreenState extends State<ImportScreen> {
           pairs: pairs,
           createdAt: widget.createdAt,
           onMenuSelected: widget.onMenuSelected,
+          achievementService: widget.achievementService,
         ),
       ),
     );
@@ -662,7 +668,7 @@ class _ImportScreenState extends State<ImportScreen> {
       notificationRepository: widget.notificationRepository,
       onMenuSelected: (item) {
         if (item == StudentMenuItem.dashboard) {
-          Navigator.of(context).pop();
+          Navigator.of(context).pop(true);
         } else if (item == StudentMenuItem.profile) {
           Navigator.of(context).push(
             MaterialPageRoute<void>(

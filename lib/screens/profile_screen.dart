@@ -3,9 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'auth/login_screen.dart';
+import '../services/achievement_service.dart';
 import '../services/auth_service.dart';
 import '../services/quiz_service.dart';
 import '../widgets/app_glass_surface.dart';
+import '../widgets/achievement_badge_grid.dart';
 import '../widgets/instructor_side_menu.dart';
 import '../widgets/learning_metric_chart.dart';
 import '../widgets/student_side_menu.dart';
@@ -21,6 +23,7 @@ class ProfileScreen extends StatefulWidget {
     this.onInstructorMenuSelected,
     this.streakDays,
     this.authService,
+    this.achievementService,
     super.key,
   });
 
@@ -32,6 +35,7 @@ class ProfileScreen extends StatefulWidget {
   final ValueChanged<InstructorMenuItem>? onInstructorMenuSelected;
   final Set<DateTime>? streakDays;
   final ProfileDataService? authService;
+  final AchievementRepository? achievementService;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -45,6 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late Future<int> _learnerPointsFuture = _loadLearnerPoints();
   late Future<int?> _weeklyRankingFuture = _loadWeeklyRanking();
   late Future<List<QuizActivity>> _quizMetricsFuture = _loadQuizMetrics();
+  late Future<Set<String>> _achievementBadgesFuture = _loadAchievementBadges();
   bool _isInstructorMenuOpen = false;
 
   Future<int> _loadLearnerPoints() async => await _authService.learnerPoints();
@@ -53,6 +58,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<List<QuizActivity>> _loadQuizMetrics() async =>
       await QuizService().recentAttempts();
+
+  Future<Set<String>> _loadAchievementBadges() async =>
+      await (widget.achievementService ?? AchievementService()).earnedBadges();
 
   @override
   Widget build(BuildContext context) => _isInstructor
@@ -173,17 +181,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Your profile',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: const Color(0xFF3B2419),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'View your account information.',
-                style: TextStyle(color: Color(0xFF765C4F)),
+              const _ProfileSectionHeading(
+                title: 'Your profile',
+                subtitle: 'View your account information.',
+                icon: Icons.person_outline_rounded,
               ),
               const SizedBox(height: 24),
               AppGlassSurface(
@@ -270,6 +271,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+              if (_isStudent) ...[
+                _buildAchievementsPanel(),
+                const SizedBox(height: 24),
+              ],
               if (!_isInstructor) _buildMetricsPanel(),
             ],
           ),
@@ -301,6 +306,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool get _isInstructor => widget.role.trim().toLowerCase() == 'instructor';
 
+  bool get _isStudent => widget.role.trim().toLowerCase() == 'student';
+
+  Widget _buildAchievementsPanel() => AppGlassSurface(
+    width: double.infinity,
+    borderRadius: 20,
+    padding: const EdgeInsets.all(20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _ProfileSectionHeading(
+          title: 'Your achievements',
+          subtitle: 'Badges you have earned for your learning milestones.',
+          icon: Icons.emoji_events_outlined,
+        ),
+        const SizedBox(height: 16),
+        FutureBuilder<Set<String>>(
+          future: _achievementBadgesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              final error = snapshot.error;
+              final message = error is AchievementServiceException
+                  ? error.message
+                  : 'Could not load your achievements.';
+              return Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                children: [
+                  Text(
+                    message,
+                    style: const TextStyle(color: Color(0xFF765C4F)),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _achievementBadgesFuture = _loadAchievementBadges();
+                      });
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Try again'),
+                  ),
+                ],
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(color: Color(0xFFF4773C)),
+                ),
+              );
+            }
+
+            return AchievementBadgeGrid(earnedBadges: snapshot.data!);
+          },
+        ),
+      ],
+    ),
+  );
+
   String _formatDate(DateTime date) {
     const monthNames = [
       'January',
@@ -326,17 +390,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Your learning stats',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: const Color(0xFF3B2419),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'A snapshot of your quiz performance.',
-          style: TextStyle(color: Color(0xFF765C4F)),
+        const _ProfileSectionHeading(
+          title: 'Your learning stats',
+          subtitle: 'A snapshot of your quiz performance.',
+          icon: Icons.insights_outlined,
         ),
         const SizedBox(height: 16),
         FutureBuilder<List<QuizActivity>>(
@@ -377,6 +434,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ],
     ),
+  );
+}
+
+class _ProfileSectionHeading extends StatelessWidget {
+  const _ProfileSectionHeading({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFFF1E5), Color(0xFFFFE1CC)],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFF2D1B8)),
+        ),
+        child: Icon(icon, color: const Color(0xFFF4773C), size: 23),
+      ),
+      const SizedBox(width: 14),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: const Color(0xFF3B2419),
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: Color(0xFF765C4F),
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
   );
 }
 

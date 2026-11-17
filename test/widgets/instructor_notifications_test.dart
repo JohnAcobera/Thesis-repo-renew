@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:thesis_repo_renew/models/instructor_todo_task.dart';
 import 'package:thesis_repo_renew/services/instructor_notification_service.dart';
+import 'package:thesis_repo_renew/services/instructor_todo_service.dart';
 import 'package:thesis_repo_renew/widgets/student_nav_bar.dart';
 
 void main() {
@@ -21,13 +23,52 @@ void main() {
   testWidgets('instructor notifications use the shared navbar bell and panel', (
     tester,
   ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(900, 1600);
+    tester.view.devicePixelRatio = 1;
     final notifications = _FakeInstructorNotificationRepository();
+    final todos = _FakeTodoRepository([
+      InstructorTodoTask(
+        id: 'overdue-task',
+        title: 'Review lesson plan',
+        dueDate: DateTime.now().subtract(const Duration(days: 1)),
+        priority: InstructorTodoPriority.high,
+      ),
+      InstructorTodoTask(
+        id: 'today-task',
+        title: 'Prepare lab activity',
+        dueDate: DateTime.now().add(const Duration(hours: 1)),
+        priority: InstructorTodoPriority.normal,
+      ),
+      InstructorTodoTask(
+        id: 'tomorrow-task',
+        title: 'Grade quizzes',
+        dueDate: DateTime.now().add(const Duration(days: 1)),
+        priority: InstructorTodoPriority.low,
+      ),
+      InstructorTodoTask(
+        id: 'later-task',
+        title: 'Future task',
+        dueDate: DateTime.now().add(const Duration(days: 4)),
+        priority: InstructorTodoPriority.low,
+      ),
+      InstructorTodoTask(
+        id: 'completed-task',
+        title: 'Finished task',
+        dueDate: DateTime.now(),
+        priority: InstructorTodoPriority.low,
+        isCompleted: true,
+      ),
+    ]);
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           appBar: StudentNavBar(
             roleLabel: 'Instructor',
             instructorNotificationRepository: notifications,
+            todoRepository: todos,
+            todoOwnerId: 17,
           ),
           body: const SizedBox.shrink(),
         ),
@@ -37,7 +78,7 @@ void main() {
 
     expect(find.byTooltip('Notifications'), findsOneWidget);
     expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
-    expect(find.text('2'), findsOneWidget);
+    expect(find.text('5'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
@@ -51,6 +92,14 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('A student joined your classroom'), findsOneWidget);
+    expect(find.text('Task overdue'), findsOneWidget);
+    expect(find.textContaining('Review lesson plan'), findsOneWidget);
+    expect(find.text('Task due today'), findsOneWidget);
+    expect(find.textContaining('Prepare lab activity'), findsOneWidget);
+    expect(find.text('Task due tomorrow'), findsOneWidget);
+    expect(find.textContaining('Grade quizzes'), findsOneWidget);
+    expect(find.text('Future task'), findsNothing);
+    expect(find.text('Finished task'), findsNothing);
     await tester.tap(find.text('Quiz completed'));
     await tester.pumpAndSettle();
     expect(notifications.markedIds, ['quiz-answered:attempt-1']);
@@ -63,8 +112,38 @@ void main() {
       'student-joined:class-1:student-1',
     ]);
     expect(find.text('Mark all as read'), findsNothing);
+    expect(
+      todos.readTaskIds,
+      containsAll(['overdue-task', 'today-task', 'tomorrow-task']),
+    );
     expect(tester.takeException(), isNull);
   });
+}
+
+class _FakeTodoRepository
+    implements InstructorTodoRepository, TodoReminderReadRepository {
+  _FakeTodoRepository(this.tasks);
+
+  final List<InstructorTodoTask> tasks;
+  final Set<String> readTaskIds = {};
+
+  @override
+  Future<bool> isReminderRead(int ownerId, String taskId) async =>
+      readTaskIds.contains(taskId);
+
+  @override
+  Future<List<InstructorTodoTask>> listTasks(int instructorId) async => tasks;
+
+  @override
+  Future<void> markReminderRead(int ownerId, String taskId) async {
+    readTaskIds.add(taskId);
+  }
+
+  @override
+  Future<void> saveTasks(
+    int instructorId,
+    List<InstructorTodoTask> tasks,
+  ) async {}
 }
 
 class _FakeInstructorNotificationRepository

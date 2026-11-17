@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/achievement_service.dart';
 import '../services/quiz_service.dart';
 import '../services/student_notification_service.dart';
 import '../widgets/student_side_menu.dart';
@@ -24,6 +25,7 @@ class QuizScreen extends StatefulWidget {
     this.createdAt,
     this.onMenuSelected,
     this.quizService,
+    this.achievementService,
     this.notificationRepository,
     this.isPracticeRound = false,
     super.key,
@@ -40,6 +42,7 @@ class QuizScreen extends StatefulWidget {
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
   final QuizService? quizService;
+  final AchievementService? achievementService;
   final StudentNotificationRepository? notificationRepository;
   final bool isPracticeRound;
 
@@ -62,6 +65,7 @@ class _QuizScreenState extends State<QuizScreen> {
   String? _saveError;
   int? _pointsGained;
   String? _pointsError;
+  String? _achievementError;
 
   QuizQuestion get _question => _questions[_questionIndex];
 
@@ -86,11 +90,12 @@ class _QuizScreenState extends State<QuizScreen> {
       _saveError = null;
       _pointsGained = null;
       _pointsError = null;
+      _achievementError = null;
     });
 
     try {
       final service = widget.quizService ?? QuizService();
-      _savedQuizId = await service.saveAttempt(
+      Future<String> saveAttempt() => service.saveAttempt(
         title: widget.title,
         sourceFile: widget.sourceFile,
         score: _score,
@@ -98,6 +103,18 @@ class _QuizScreenState extends State<QuizScreen> {
         questions: _questions,
         quizId: _savedQuizId ?? widget.quizId,
       );
+      final achievementService = widget.achievementService;
+      if (achievementService == null) {
+        _savedQuizId = await saveAttempt();
+      } else {
+        final capture = await achievementService.captureNewBadges(saveAttempt);
+        _savedQuizId = capture.value;
+        _achievementError = capture.errorMessage;
+        AchievementNotificationQueue.add(
+          widget.email,
+          capture.newlyEarnedBadgeIds,
+        );
+      }
 
       try {
         _pointsGained = await service.learnerPointsForAttempt(
@@ -551,6 +568,14 @@ class _QuizScreenState extends State<QuizScreen> {
               if (!widget.isPracticeRound && _isSaved) ...[
                 const SizedBox(height: 16),
                 _buildPointsAward(),
+              ],
+              if (!widget.isPracticeRound && _achievementError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Achievement notifications unavailable: $_achievementError',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: _subtle, height: 1.4),
+                ),
               ],
               const SizedBox(height: 12),
               SizedBox(

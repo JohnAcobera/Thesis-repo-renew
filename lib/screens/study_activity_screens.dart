@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/achievement_service.dart';
 import '../services/learning_mode_service.dart';
 import '../widgets/student_side_menu.dart';
 import 'profile_screen.dart';
@@ -24,6 +25,7 @@ class FlashcardsScreen extends StatefulWidget {
     this.createdAt,
     this.onMenuSelected,
     this.learningModeService,
+    this.achievementService,
     this.isReviewRound = false,
     super.key,
   });
@@ -38,6 +40,7 @@ class FlashcardsScreen extends StatefulWidget {
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
   final LearningModeService? learningModeService;
+  final AchievementService? achievementService;
   final bool isReviewRound;
 
   @override
@@ -57,6 +60,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   bool _isSaving = false;
   bool _isSaved = false;
   String? _saveError;
+  String? _achievementError;
 
   Flashcard get _card => widget.cards[_queue.first];
 
@@ -87,13 +91,26 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     setState(() {
       _isSaving = true;
       _saveError = null;
+      _achievementError = null;
     });
     try {
-      await (widget.learningModeService ?? LearningModeService()).saveAttempt(
+      final service = widget.learningModeService ?? LearningModeService();
+      Future<void> saveAttempt() => service.saveAttempt(
         itemId: widget.activityId,
         score: _mastered.length,
         totalItems: widget.cards.length,
       );
+      final achievementService = widget.achievementService;
+      if (achievementService == null) {
+        await saveAttempt();
+      } else {
+        final capture = await achievementService.captureNewBadges(saveAttempt);
+        _achievementError = capture.errorMessage;
+        AchievementNotificationQueue.add(
+          widget.email,
+          capture.newlyEarnedBadgeIds,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _isSaving = false;
@@ -239,6 +256,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     isSaving: _isSaving,
     isSaved: _isSaved,
     saveError: _saveError,
+    achievementError: _achievementError,
     onRetrySave: _saveResult,
     onDone: widget.isReviewRound
         ? () => Navigator.of(context).pop()
@@ -286,6 +304,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
           createdAt: widget.createdAt,
           onMenuSelected: widget.onMenuSelected,
           learningModeService: widget.learningModeService,
+          achievementService: widget.achievementService,
           isReviewRound: true,
         ),
       ),
@@ -511,6 +530,7 @@ class MatchingScreen extends StatefulWidget {
     this.createdAt,
     this.onMenuSelected,
     this.learningModeService,
+    this.achievementService,
     super.key,
   });
 
@@ -524,6 +544,7 @@ class MatchingScreen extends StatefulWidget {
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
   final LearningModeService? learningModeService;
+  final AchievementService? achievementService;
 
   @override
   State<MatchingScreen> createState() => _MatchingScreenState();
@@ -550,6 +571,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
   bool _isSaving = false;
   bool _isSaved = false;
   String? _saveError;
+  String? _achievementError;
 
   int get _batchStart => _batchIndex * _batchSize;
 
@@ -616,13 +638,26 @@ class _MatchingScreenState extends State<MatchingScreen> {
     setState(() {
       _isSaving = true;
       _saveError = null;
+      _achievementError = null;
     });
     try {
-      await (widget.learningModeService ?? LearningModeService()).saveAttempt(
+      final service = widget.learningModeService ?? LearningModeService();
+      Future<void> saveAttempt() => service.saveAttempt(
         itemId: widget.activityId,
         score: _score,
         totalItems: widget.pairs.length,
       );
+      final achievementService = widget.achievementService;
+      if (achievementService == null) {
+        await saveAttempt();
+      } else {
+        final capture = await achievementService.captureNewBadges(saveAttempt);
+        _achievementError = capture.errorMessage;
+        AchievementNotificationQueue.add(
+          widget.email,
+          capture.newlyEarnedBadgeIds,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _isSaving = false;
@@ -1024,6 +1059,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
     isSaving: _isSaving,
     isSaved: _isSaved,
     saveError: _saveError,
+    achievementError: _achievementError,
     onRetrySave: _saveResult,
     onDone: () => Navigator.of(context).pop(true),
   );
@@ -1209,6 +1245,7 @@ class _ActivityResult extends StatelessWidget {
     required this.isSaving,
     required this.isSaved,
     required this.saveError,
+    this.achievementError,
     required this.onRetrySave,
     required this.onDone,
     this.isPractice = false,
@@ -1224,6 +1261,7 @@ class _ActivityResult extends StatelessWidget {
   final bool isSaving;
   final bool isSaved;
   final String? saveError;
+  final String? achievementError;
   final VoidCallback onRetrySave;
   final VoidCallback onDone;
   final bool isPractice;
@@ -1310,6 +1348,14 @@ class _ActivityResult extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
+        ],
+        if (achievementError != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Achievement notifications unavailable: $achievementError',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: _studySubtle, fontSize: 12),
+          ),
         ],
         if (followUp != null) ...[
           const SizedBox(height: 20),

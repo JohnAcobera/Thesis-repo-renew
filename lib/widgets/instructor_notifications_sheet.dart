@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 import '../services/instructor_notification_service.dart';
+import '../services/instructor_todo_service.dart';
 
 class InstructorNotificationsButton extends StatefulWidget {
-  const InstructorNotificationsButton({required this.repository, super.key});
+  const InstructorNotificationsButton({
+    required this.repository,
+    this.todoRepository,
+    this.todoOwnerId,
+    super.key,
+  });
 
   final InstructorNotificationRepository repository;
+  final InstructorTodoRepository? todoRepository;
+  final int? todoOwnerId;
 
   @override
   State<InstructorNotificationsButton> createState() =>
@@ -15,27 +24,56 @@ class InstructorNotificationsButton extends StatefulWidget {
 class _InstructorNotificationsButtonState
     extends State<InstructorNotificationsButton> {
   late Future<List<InstructorNotification>> _notifications;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _refresh();
+    _scheduleRefresh();
+  }
+
+  void _scheduleRefresh() {
+    _refreshTimer = Timer(durationUntilNextMinute(), () {
+      if (!mounted) return;
+      setState(_refresh);
+      _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted) setState(_refresh);
+      });
+    });
   }
 
   void _refresh() {
-    _notifications = widget.repository.listNotifications();
+    _notifications = _listNotifications(
+      widget.repository,
+      widget.todoRepository,
+      widget.todoOwnerId,
+    );
   }
 
   Future<void> _openNotifications() async {
+    _refreshTimer?.cancel();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) =>
-          InstructorNotificationsSheet(repository: widget.repository),
+      builder: (_) => InstructorNotificationsSheet(
+        repository: widget.repository,
+        todoRepository: widget.todoRepository,
+        todoOwnerId: widget.todoOwnerId,
+      ),
     );
-    if (mounted) setState(_refresh);
+    if (mounted) {
+      setState(_refresh);
+      _scheduleRefresh();
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -88,9 +126,16 @@ class _InstructorNotificationsButtonState
 }
 
 class InstructorNotificationsSheet extends StatefulWidget {
-  const InstructorNotificationsSheet({required this.repository, super.key});
+  const InstructorNotificationsSheet({
+    required this.repository,
+    this.todoRepository,
+    this.todoOwnerId,
+    super.key,
+  });
 
   final InstructorNotificationRepository repository;
+  final InstructorTodoRepository? todoRepository;
+  final int? todoOwnerId;
 
   @override
   State<InstructorNotificationsSheet> createState() =>
@@ -100,6 +145,7 @@ class InstructorNotificationsSheet extends StatefulWidget {
 class _InstructorNotificationsSheetState
     extends State<InstructorNotificationsSheet> {
   late Future<List<InstructorNotification>> _notifications;
+  Timer? _refreshTimer;
   bool _isMarkingRead = false;
   String? _markingReadId;
   String? _markReadError;
@@ -108,10 +154,60 @@ class _InstructorNotificationsSheetState
   void initState() {
     super.initState();
     _load();
+    _scheduleRefresh();
+  }
+
+  void _scheduleRefresh() {
+    _refreshTimer = Timer(durationUntilNextMinute(), () {
+      if (!mounted) return;
+      setState(_load);
+      _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted) setState(_load);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   void _load() {
-    _notifications = widget.repository.listNotifications();
+    _notifications = _listNotifications(
+      widget.repository,
+      widget.todoRepository,
+      widget.todoOwnerId,
+    );
+  }
+
+  Future<void> _markNotificationsRead(
+    List<InstructorNotification> notifications,
+  ) async {
+    final reminders = notifications
+        .where(
+          (notification) =>
+              notification.type == InstructorNotificationType.todoDue,
+        )
+        .toList(growable: false);
+    final todoRepository = widget.todoRepository;
+    final todoOwnerId = widget.todoOwnerId;
+    if (reminders.isNotEmpty && todoRepository != null && todoOwnerId != null) {
+      await markTodoRemindersRead(
+        todoRepository,
+        todoOwnerId,
+        reminders.map((notification) => notification.todoTaskId!).toList(),
+      );
+    }
+
+    final notificationIds = notifications
+        .where(
+          (notification) =>
+              notification.type != InstructorNotificationType.todoDue,
+        )
+        .map((notification) => notification.id)
+        .toList(growable: false);
+    await widget.repository.markNotificationsRead(notificationIds);
   }
 
   Future<void> _markRead(List<InstructorNotification> notifications) async {
@@ -126,9 +222,15 @@ class _InstructorNotificationsSheetState
       _markReadError = null;
     });
     try {
-      await widget.repository.markNotificationsRead(unreadIds);
+      await _markNotificationsRead(
+        notifications
+            .where((notification) => unreadIds.contains(notification.id))
+            .toList(growable: false),
+      );
       if (mounted) setState(_load);
     } on InstructorNotificationException catch (error) {
+      if (mounted) setState(() => _markReadError = error.message);
+    } on TodoReminderException catch (error) {
       if (mounted) setState(() => _markReadError = error.message);
     } finally {
       if (mounted) setState(() => _isMarkingRead = false);
@@ -143,9 +245,11 @@ class _InstructorNotificationsSheetState
       _markReadError = null;
     });
     try {
-      await widget.repository.markNotificationsRead([notification.id]);
+      await _markNotificationsRead([notification]);
       if (mounted) setState(_load);
     } on InstructorNotificationException catch (error) {
+      if (mounted) setState(() => _markReadError = error.message);
+    } on TodoReminderException catch (error) {
       if (mounted) setState(() => _markReadError = error.message);
     } finally {
       if (mounted) {
@@ -344,6 +448,7 @@ class _InstructorNotificationTile extends StatelessWidget {
                 switch (notification.type) {
                   InstructorNotificationType.studentJoined =>
                     Icons.group_add_outlined,
+                  InstructorNotificationType.todoDue => Icons.task_alt_rounded,
                   InstructorNotificationType.legacy =>
                     Icons.notifications_outlined,
                 },
@@ -432,6 +537,31 @@ class _InstructorNotificationTile extends StatelessWidget {
         '$hour:$minute $period';
     return relative == null ? timestamp : '$relative · $timestamp';
   }
+}
+
+Future<List<InstructorNotification>> _listNotifications(
+  InstructorNotificationRepository repository,
+  InstructorTodoRepository? todoRepository,
+  int? todoOwnerId,
+) async {
+  final notifications = await repository.listNotifications();
+  if (todoRepository == null || todoOwnerId == null) return notifications;
+
+  final reminders = await listTodoReminders(todoRepository, todoOwnerId);
+  final combined = [
+    ...notifications,
+    for (final reminder in reminders)
+      InstructorNotification(
+        id: reminder.id,
+        type: InstructorNotificationType.todoDue,
+        title: reminder.title,
+        message: reminder.message,
+        createdAt: reminder.createdAt,
+        isRead: reminder.isRead,
+        todoTaskId: reminder.taskId,
+      ),
+  ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return combined;
 }
 
 class _InstructorNotificationsEmptyState extends StatelessWidget {

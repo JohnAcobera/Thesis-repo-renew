@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../services/instructor_notification_service.dart';
+import '../services/instructor_todo_service.dart';
 import '../services/student_notification_service.dart';
 import '../screens/auth/login_screen.dart';
 import 'instructor_notifications_sheet.dart';
@@ -20,6 +21,8 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     this.trailingAction,
     this.notificationRepository,
     this.instructorNotificationRepository,
+    this.todoRepository,
+    this.todoOwnerId,
     this.leading,
     this.leadingWidth,
     super.key,
@@ -34,6 +37,8 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
   final Widget? trailingAction;
   final StudentNotificationRepository? notificationRepository;
   final InstructorNotificationRepository? instructorNotificationRepository;
+  final InstructorTodoRepository? todoRepository;
+  final int? todoOwnerId;
   final Widget? leading;
   final double? leadingWidth;
 
@@ -117,12 +122,18 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         ?trailingAction,
         if (roleLabel.trim().toLowerCase() == 'student')
-          StudentNotificationsButton(repository: notificationRepository),
+          StudentNotificationsButton(
+            repository: notificationRepository,
+            todoRepository: todoRepository,
+            todoOwnerId: todoOwnerId,
+          ),
         if (roleLabel.trim().toLowerCase() == 'instructor')
           InstructorNotificationsButton(
             repository:
                 instructorNotificationRepository ??
                 InstructorNotificationService(),
+            todoRepository: todoRepository,
+            todoOwnerId: todoOwnerId,
           ),
         Padding(
           padding: const EdgeInsets.only(right: 16),
