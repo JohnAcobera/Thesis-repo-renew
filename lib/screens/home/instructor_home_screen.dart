@@ -14,6 +14,7 @@ import '../instructor_attention_section.dart';
 import '../classroom/classroom_screen.dart';
 import '../profile_screen.dart';
 import '../instructor_todo_section.dart';
+import '../../widgets/app_glass_surface.dart';
 import '../../widgets/instructor_side_menu.dart';
 import '../../widgets/student_nav_bar.dart';
 import '../../widgets/instructor_summary_metrics.dart';
@@ -45,7 +46,7 @@ class _InstructorHomeScreenState extends State<InstructorHomeScreen> {
   late final ClassroomRepository _classroomService =
       widget.classroomService ?? ClassroomService();
   late final InstructorTodoRepository _todoRepository =
-      widget.todoRepository ?? const InstructorTodoService();
+      widget.todoRepository ?? InstructorTodoService();
   late final InstructorReportsRepository _reportsRepository =
       widget.reportsRepository ?? InstructorReportsService();
   late Future<InstructorDashboardStats> _instructorStats = _classroomService
@@ -276,34 +277,61 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
         panelHeight: dashboardPanelHeight,
       );
 
-      const heading = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'INSTRUCTOR OVERVIEW',
-            style: TextStyle(
-              color: _accent,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.4,
+      const heading = AppGlassSurface(
+        key: ValueKey('instructor-overview-header'),
+        borderRadius: 18,
+        padding: EdgeInsets.all(18),
+        child: Row(
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Color(0xFFFFEEE4),
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+              ),
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: Icon(
+                  Icons.dashboard_customize_outlined,
+                  color: _accent,
+                  size: 23,
+                ),
+              ),
             ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Your teaching overview',
-            style: TextStyle(
-              color: _ink,
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'INSTRUCTOR OVERVIEW',
+                    style: TextStyle(
+                      color: _accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    'Your teaching overview',
+                    style: TextStyle(
+                      color: _ink,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'A clear view of your classes and student progress.',
+                    style: TextStyle(color: _muted, fontSize: 13, height: 1.4),
+                  ),
+                ],
+              ),
             ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'A clear view of your classes and student progress.',
-            style: TextStyle(color: _muted, fontSize: 14, height: 1.5),
-          ),
-        ],
+          ],
+        ),
       );
       return SingleChildScrollView(
         padding: EdgeInsets.symmetric(

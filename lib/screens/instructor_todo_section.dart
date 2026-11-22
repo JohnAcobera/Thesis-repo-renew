@@ -39,7 +39,7 @@ class InstructorTodoSection extends StatefulWidget {
 
 class _InstructorTodoSectionState extends State<InstructorTodoSection> {
   late final InstructorTodoRepository _repository =
-      widget.repository ?? const InstructorTodoService();
+      widget.repository ?? InstructorTodoService();
   late Future<List<InstructorTodoTask>> _tasks;
   _TodoFilter _filter = _TodoFilter.open;
   bool _isSaving = false;
@@ -141,7 +141,35 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
       'Nov',
       'Dec',
     ];
-    return '${months[date.month - 1]} ${date.day}';
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  String _formatDateSection(DateTime date, DateTime now) {
+    final days = date.difference(now).inDays;
+    final label = switch (days) {
+      0 => 'Today',
+      1 => 'Tomorrow',
+      -1 => 'Yesterday',
+      _ => _formatDate(date),
+    };
+    if (days >= -1 && days <= 1) {
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      return '$label · ${months[date.month - 1]} ${date.day}, ${date.year}';
+    }
+    return label;
   }
 
   String _formatTime(DateTime date) {
@@ -163,7 +191,10 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
         future: _tasks,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return _TodoLoadError(onRetry: _retryLoading);
+            return _TodoLoadError(
+              message: snapshot.error.toString(),
+              onRetry: _retryLoading,
+            );
           }
           if (!snapshot.hasData) {
             return const Center(
@@ -176,11 +207,14 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
               if (a.isCompleted != b.isCompleted) {
                 return a.isCompleted ? 1 : -1;
               }
+              final priorityOrder = a.priority.index.compareTo(
+                b.priority.index,
+              );
+              if (priorityOrder != 0) return priorityOrder;
               final dueOrder = _calendarDate(
                 a.dueDate,
               ).compareTo(_calendarDate(b.dueDate));
-              if (dueOrder != 0) return dueOrder;
-              return a.priority.index.compareTo(b.priority.index);
+              return dueOrder;
             });
           final openCount = tasks.where((task) => !task.isCompleted).length;
           final completedCount = tasks.length - openCount;
@@ -203,6 +237,22 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
                 };
               })
               .toList(growable: false);
+          final tasksByDate = <DateTime, List<InstructorTodoTask>>{};
+          for (final task in visibleTasks) {
+            final date = _calendarDate(task.dueDate);
+            tasksByDate.putIfAbsent(date, () => []).add(task);
+          }
+          final sortedDateEntries = tasksByDate.entries.toList()
+            ..sort((a, b) => a.key.compareTo(b.key));
+          for (final entry in sortedDateEntries) {
+            entry.value.sort((a, b) {
+              final priorityOrder = a.priority.index.compareTo(
+                b.priority.index,
+              );
+              if (priorityOrder != 0) return priorityOrder;
+              return a.dueDate.compareTo(b.dueDate);
+            });
+          }
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,141 +417,185 @@ class _InstructorTodoSectionState extends State<InstructorTodoSection> {
                           ],
                         ),
                       )
-                    : ListView.separated(
+                    : ListView(
                         key: const ValueKey('instructor-task-list'),
                         padding: EdgeInsets.zero,
-                        itemCount: visibleTasks.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(height: 1, color: _todoBorder),
-                        itemBuilder: (context, index) {
-                          final task = visibleTasks[index];
-                          final daysUntilDue = _calendarDate(
-                            task.dueDate,
-                          ).difference(now).inDays;
-                          final dueLabel = switch (daysUntilDue) {
-                            < 0 => 'Overdue',
-                            0 => 'Today',
-                            1 => 'Tomorrow',
-                            _ => _formatDate(task.dueDate),
-                          };
-                          final priorityColor = switch (task.priority) {
-                            InstructorTodoPriority.high => const Color(
-                              0xFFB84735,
-                            ),
-                            InstructorTodoPriority.normal => _todoAccent,
-                            InstructorTodoPriority.low => _todoMuted,
-                          };
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 30,
-                                  height: 34,
-                                  child: Checkbox(
-                                    key: ValueKey('task-check-${task.id}'),
-                                    value: task.isCompleted,
-                                    activeColor: _todoAccent,
-                                    visualDensity: VisualDensity.compact,
-                                    onChanged: _isSaving
-                                        ? null
-                                        : (_) => _toggleTask(task, tasks),
-                                  ),
+                        children: [
+                          for (final entry in sortedDateEntries) ...[
+                            Container(
+                              key: ValueKey(
+                                'task-date-${entry.key.toIso8601String()}',
+                              ),
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(top: 6, bottom: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF5EA),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                _formatDateSection(entry.key, now),
+                                style: const TextStyle(
+                                  color: _todoInk,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
                                 ),
-                                const SizedBox(width: 7),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        task.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: task.isCompleted
-                                              ? _todoMuted
-                                              : _todoInk,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          decoration: task.isCompleted
-                                              ? TextDecoration.lineThrough
-                                              : null,
-                                        ),
-                                      ),
-                                      if (task.notes.isNotEmpty) ...[
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          task.notes,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: _todoMuted,
-                                            fontSize: 10,
+                              ),
+                            ),
+                            for (final task in entry.value) ...[
+                              Builder(
+                                builder: (context) {
+                                  final daysUntilDue = _calendarDate(
+                                    task.dueDate,
+                                  ).difference(now).inDays;
+                                  final dueLabel = switch (daysUntilDue) {
+                                    < 0 => 'Overdue',
+                                    0 => 'Today',
+                                    1 => 'Tomorrow',
+                                    _ => _formatDate(task.dueDate),
+                                  };
+                                  final priorityColor = switch (task.priority) {
+                                    InstructorTodoPriority.high => const Color(
+                                      0xFFB84735,
+                                    ),
+                                    InstructorTodoPriority.normal =>
+                                      _todoAccent,
+                                    InstructorTodoPriority.low => _todoMuted,
+                                  };
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 30,
+                                          height: 34,
+                                          child: Checkbox(
+                                            key: ValueKey(
+                                              'task-check-${task.id}',
+                                            ),
+                                            value: task.isCompleted,
+                                            activeColor: _todoAccent,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            onChanged: _isSaving
+                                                ? null
+                                                : (_) =>
+                                                      _toggleTask(task, tasks),
                                           ),
+                                        ),
+                                        const SizedBox(width: 7),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                task.title,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: task.isCompleted
+                                                      ? _todoMuted
+                                                      : _todoInk,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  decoration: task.isCompleted
+                                                      ? TextDecoration
+                                                            .lineThrough
+                                                      : null,
+                                                ),
+                                              ),
+                                              if (task.notes.isNotEmpty) ...[
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  task.notes,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    color: _todoMuted,
+                                                    fontSize: 10,
+                                                  ),
+                                                ),
+                                              ],
+                                              const SizedBox(height: 3),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.event_outlined,
+                                                    size: 12,
+                                                    color: daysUntilDue < 0
+                                                        ? const Color(
+                                                            0xFFB84735,
+                                                          )
+                                                        : _todoMuted,
+                                                  ),
+                                                  const SizedBox(width: 3),
+                                                  Text(
+                                                    task.dueDate.hour == 0 &&
+                                                            task
+                                                                    .dueDate
+                                                                    .minute ==
+                                                                0
+                                                        ? dueLabel
+                                                        : '$dueLabel · ${_formatTime(task.dueDate)}',
+                                                    style: TextStyle(
+                                                      color: daysUntilDue < 0
+                                                          ? const Color(
+                                                              0xFFB84735,
+                                                            )
+                                                          : _todoMuted,
+                                                      fontSize: 10,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 7),
+                                                  Container(
+                                                    width: 6,
+                                                    height: 6,
+                                                    decoration: BoxDecoration(
+                                                      color: priorityColor,
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 3),
+                                                  Text(
+                                                    task.priority.label,
+                                                    style: TextStyle(
+                                                      color: priorityColor,
+                                                      fontSize: 10,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Remove ${task.title}',
+                                          onPressed: _isSaving
+                                              ? null
+                                              : () => _removeTask(task, tasks),
+                                          icon: const Icon(
+                                            Icons.close_rounded,
+                                            size: 18,
+                                          ),
+                                          color: const Color(0xFF967968),
+                                          visualDensity: VisualDensity.compact,
                                         ),
                                       ],
-                                      const SizedBox(height: 3),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.event_outlined,
-                                            size: 12,
-                                            color: daysUntilDue < 0
-                                                ? const Color(0xFFB84735)
-                                                : _todoMuted,
-                                          ),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            task.dueDate.hour == 0 &&
-                                                    task.dueDate.minute == 0
-                                                ? dueLabel
-                                                : '$dueLabel · ${_formatTime(task.dueDate)}',
-                                            style: TextStyle(
-                                              color: daysUntilDue < 0
-                                                  ? const Color(0xFFB84735)
-                                                  : _todoMuted,
-                                              fontSize: 10,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 7),
-                                          Container(
-                                            width: 6,
-                                            height: 6,
-                                            decoration: BoxDecoration(
-                                              color: priorityColor,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            task.priority.label,
-                                            style: TextStyle(
-                                              color: priorityColor,
-                                              fontSize: 10,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  tooltip: 'Remove ${task.title}',
-                                  onPressed: _isSaving
-                                      ? null
-                                      : () => _removeTask(task, tasks),
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    size: 18,
-                                  ),
-                                  color: const Color(0xFF967968),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                                    ),
+                                  );
+                                },
+                              ),
+                              const Divider(height: 1, color: _todoBorder),
+                            ],
+                          ],
+                        ],
                       ),
               ),
             ],
@@ -525,7 +619,7 @@ class StudentTodoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => InstructorTodoSection(
     instructorId: studentId,
-    repository: repository ?? const StudentTodoService(),
+    repository: repository ?? StudentTodoService(),
     studentMode: true,
   );
 }
@@ -561,8 +655,9 @@ class _TodoFilterChip extends StatelessWidget {
 }
 
 class _TodoLoadError extends StatelessWidget {
-  const _TodoLoadError({required this.onRetry});
+  const _TodoLoadError({required this.message, required this.onRetry});
 
+  final String message;
   final VoidCallback onRetry;
 
   @override
@@ -572,9 +667,10 @@ class _TodoLoadError extends StatelessWidget {
       children: [
         const Icon(Icons.error_outline, color: Color(0xFFB84735)),
         const SizedBox(height: 8),
-        const Text(
-          'Your tasks could not be loaded.',
-          style: TextStyle(color: _todoInk),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: _todoInk),
         ),
         TextButton(onPressed: onRetry, child: const Text('Try again')),
       ],

@@ -122,6 +122,17 @@ void main() {
 
     expect(find.text('Classrooms'), findsOneWidget);
     expect(find.text('Total students'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('instructor-overview-header')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('instructor-overview-header')),
+        matching: find.text('Your teaching overview'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Active classes'), findsNothing);
     expect(find.text('2'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
@@ -131,7 +142,9 @@ void main() {
             find.byKey(const ValueKey('instructor-summary-metrics-card')),
           )
           .left,
-      tester.getRect(find.text('INSTRUCTOR OVERVIEW')).left,
+      tester
+          .getRect(find.byKey(const ValueKey('instructor-overview-header')))
+          .left,
     );
     expect(
       tester
@@ -139,7 +152,11 @@ void main() {
             find.byKey(const ValueKey('instructor-summary-metrics-card')),
           )
           .top,
-      lessThan(tester.getTopLeft(find.text('INSTRUCTOR OVERVIEW')).dy),
+      lessThan(
+        tester
+            .getRect(find.byKey(const ValueKey('instructor-overview-header')))
+            .top,
+      ),
     );
     expect(
       tester

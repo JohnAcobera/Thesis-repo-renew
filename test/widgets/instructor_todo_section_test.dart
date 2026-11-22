@@ -79,6 +79,70 @@ void main() {
     expect(repository.tasks.single.dueDate.hour, 9);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('tasks are grouped by date and ranked by priority', (
+    tester,
+  ) async {
+    final today = DateTime.now();
+    final tomorrow = today.add(const Duration(days: 1));
+    final repository = _FakeInstructorTodoRepository([
+      InstructorTodoTask(
+        id: 'low-today',
+        title: 'Low priority today',
+        dueDate: DateTime(today.year, today.month, today.day, 17),
+        priority: InstructorTodoPriority.low,
+      ),
+      InstructorTodoTask(
+        id: 'high-tomorrow',
+        title: 'High priority tomorrow',
+        dueDate: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9),
+        priority: InstructorTodoPriority.high,
+      ),
+      InstructorTodoTask(
+        id: 'high-today',
+        title: 'High priority today',
+        dueDate: DateTime(today.year, today.month, today.day, 10),
+        priority: InstructorTodoPriority.high,
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 700,
+            child: InstructorTodoSection(
+              instructorId: 17,
+              repository: repository,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('instructor-task-list')), findsOneWidget);
+    expect(
+      find.byKey(
+        ValueKey(
+          'task-date-${DateTime.utc(today.year, today.month, today.day).toIso8601String()}',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        ValueKey(
+          'task-date-${DateTime.utc(tomorrow.year, tomorrow.month, tomorrow.day).toIso8601String()}',
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    final highToday = tester.getTopLeft(find.text('High priority today'));
+    final lowToday = tester.getTopLeft(find.text('Low priority today'));
+    expect(highToday.dy, lessThan(lowToday.dy));
+  });
 }
 
 class _FakeInstructorTodoRepository implements InstructorTodoRepository {

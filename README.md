@@ -250,10 +250,18 @@ quizzes. Quizzes can be sorted by recency, name, or question count and
 organized into named folders. Student quiz attempt records are retained when a
 saved quiz is deleted.
 
-The instructor dashboard includes a personal task list saved on the
-current device for each instructor. Tasks support due dates, notes, priorities,
-completion tracking, and overdue or due-today/tomorrow dashboard alerts. These
-are in-app reminders shown on the dashboard, not background push notifications.
+Run `supabase/encrypted_todos.sql` after `custom_auth.sql` to enable encrypted
+student and instructor task storage in Supabase. Task data is encrypted with
+AES-GCM before upload, using a randomly generated key kept in the device's
+secure storage. Existing device-local todo lists are migrated the first time
+they are opened after the migration is installed. Because no password is used
+to protect the key, encrypted tasks can only be decrypted on the device that
+created the key; reinstalling the app or using another device will not restore
+that key.
+
+Tasks support due dates, notes, priorities, completion tracking, and overdue or
+due-today/tomorrow dashboard alerts. These are in-app reminders shown on the
+dashboard, not background push notifications.
 
 Run `supabase/student_notifications.sql` after `learner_points.sql`,
 `quiz_attempts.sql`, `learner_points_automation.sql`, `learning_streak.sql`,

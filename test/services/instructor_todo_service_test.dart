@@ -6,9 +6,15 @@ import 'package:thesis_repo_renew/services/instructor_todo_service.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('tasks persist independently for each instructor', () async {
+  test('tasks are encrypted in cloud storage and can be restored', () async {
     SharedPreferences.setMockInitialValues({});
-    const service = InstructorTodoService();
+    final cloudStore = _FakeTodoCloudStore();
+    final keyStore = _FakeTodoEncryptionKeyStore();
+    final service = _service(
+      cloudStore: cloudStore,
+      keyStore: keyStore,
+      sessionToken: 'instructor-session',
+    );
     final task = InstructorTodoTask(
       id: 'task-1',
       title: 'Review submissions',
@@ -19,16 +25,23 @@ void main() {
 
     await service.saveTasks(12, [task]);
 
-    final restored = await service.listTasks(12);
+    final encryptedValue = cloudStore.values['instructor-session']!;
+    expect(encryptedValue, isNot(contains('Review submissions')));
+    expect(encryptedValue, isNot(contains('Focus on chapter two')));
+
+    final restored = await _service(
+      cloudStore: cloudStore,
+      keyStore: keyStore,
+      sessionToken: 'instructor-session',
+    ).listTasks(12);
     expect(restored, hasLength(1));
     expect(restored.single.toJson(), task.toJson());
-    expect(await service.listTasks(13), isEmpty);
   });
 
-  test('student tasks use storage separate from instructor tasks', () async {
+  test('encrypted tasks are isolated by signed-in account', () async {
     SharedPreferences.setMockInitialValues({});
-    const instructorService = InstructorTodoService();
-    const studentService = StudentTodoService();
+    final cloudStore = _FakeTodoCloudStore();
+    final keyStore = _FakeTodoEncryptionKeyStore();
     final task = InstructorTodoTask(
       id: 'task-1',
       title: 'Review a topic',
@@ -36,25 +49,61 @@ void main() {
       priority: InstructorTodoPriority.normal,
     );
 
-    await instructorService.saveTasks(12, [task]);
-    expect(await studentService.listTasks(12), isEmpty);
+    await _service(
+      cloudStore: cloudStore,
+      keyStore: keyStore,
+      sessionToken: 'account-one',
+    ).saveTasks(12, [task]);
+    expect(
+      await _service(
+        cloudStore: cloudStore,
+        keyStore: keyStore,
+        sessionToken: 'account-two',
+      ).listTasks(12),
+      isEmpty,
+    );
 
-    await studentService.saveTasks(12, [task]);
-    expect(await instructorService.listTasks(12), hasLength(1));
-    expect(await studentService.listTasks(12), hasLength(1));
+    expect(cloudStore.values.keys, contains('account-one'));
   });
 
-  test('date-only tasks from existing storage remain readable', () async {
+  test('legacy local tasks migrate to encrypted cloud storage', () async {
     SharedPreferences.setMockInitialValues({
       'instructor_todos_12':
           '[{"id":"task-1","title":"Review submissions",'
           '"due_date":"2026-10-21","priority":"normal","notes":"",'
           '"is_completed":false}]',
     });
+    final cloudStore = _FakeTodoCloudStore();
+    final keyStore = _FakeTodoEncryptionKeyStore();
 
-    final tasks = await const InstructorTodoService().listTasks(12);
+    final tasks = await _service(
+      cloudStore: cloudStore,
+      keyStore: keyStore,
+      sessionToken: 'migration-session',
+    ).listTasks(12);
 
     expect(tasks.single.dueDate, DateTime(2026, 10, 21));
+    expect(
+      cloudStore.values['migration-session'],
+      isNot(contains('Review submissions')),
+    );
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.containsKey('instructor_todos_12'), isFalse);
+  });
+
+  test('cloud tasks without a local secure key fail explicitly', () async {
+    SharedPreferences.setMockInitialValues({});
+    final cloudStore = _FakeTodoCloudStore()
+      ..values['other-device'] = '{"version":1}';
+
+    await expectLater(
+      _service(
+        cloudStore: cloudStore,
+        keyStore: _FakeTodoEncryptionKeyStore(),
+        sessionToken: 'other-device',
+      ).listTasks(12),
+      throwsA(isA<TodoStorageException>()),
+    );
   });
 
   test(
@@ -107,6 +156,49 @@ void main() {
       const Duration(seconds: 30),
     );
   });
+}
+
+InstructorTodoService _service({
+  required TodoEncryptedCloudStore cloudStore,
+  required TodoEncryptionKeyStore keyStore,
+  required String sessionToken,
+}) => InstructorTodoService(
+  cloudStore: cloudStore,
+  keyStore: keyStore,
+  sessionTokenProvider: _FakeTodoSessionTokenProvider(sessionToken),
+);
+
+class _FakeTodoCloudStore implements TodoEncryptedCloudStore {
+  final Map<String, String> values = {};
+
+  @override
+  Future<String?> load(String sessionToken) async => values[sessionToken];
+
+  @override
+  Future<void> save(String sessionToken, String encryptedTasks) async {
+    values[sessionToken] = encryptedTasks;
+  }
+}
+
+class _FakeTodoEncryptionKeyStore implements TodoEncryptionKeyStore {
+  final Map<String, String> values = {};
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String value) async {
+    values[key] = value;
+  }
+}
+
+class _FakeTodoSessionTokenProvider implements TodoSessionTokenProvider {
+  const _FakeTodoSessionTokenProvider(this.token);
+
+  final String token;
+
+  @override
+  Future<String?> getSessionToken() async => token;
 }
 
 class _FakeTodoRepository implements InstructorTodoRepository {

@@ -65,7 +65,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
   StudentNotificationRepository get _notificationRepository =>
       widget.notificationRepository ?? _defaultNotificationRepository;
   InstructorTodoRepository get _todoRepository =>
-      widget.todoRepository ?? const StudentTodoService();
+      widget.todoRepository ?? StudentTodoService();
 
   @override
   void initState() {
