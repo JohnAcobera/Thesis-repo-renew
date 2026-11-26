@@ -52,7 +52,7 @@ class ImportScreen extends StatefulWidget {
 }
 
 class _ImportScreenState extends State<ImportScreen> {
-  PlatformFile? _selectedFile;
+  _SelectedFile? _selectedFile;
   final TextEditingController _quizNameController = TextEditingController();
   _LearningMode _selectedMode = _LearningMode.quiz;
   final Set<QuizQuestionType> _selectedTypes = {
@@ -185,14 +185,14 @@ class _ImportScreenState extends State<ImportScreen> {
     try {
       if (!mounted) return;
 
-      final result = await FilePicker.platform.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'docx', 'txt'],
-        withData: true,
-        allowMultiple: false,
+        allowedExtensions: const ['pdf', 'docx', 'txt'],
       );
-      if (result != null && result.files.isNotEmpty) {
-        _acceptFile(result.files.first);
+      if (file != null) {
+        _acceptFile(
+          _SelectedFile(name: file.name, bytes: await file.readAsBytes()),
+        );
       }
     } on Exception catch (e) {
       if (mounted) {
@@ -201,8 +201,8 @@ class _ImportScreenState extends State<ImportScreen> {
     }
   }
 
-  void _acceptFile(PlatformFile file) {
-    final extension = file.extension?.toLowerCase();
+  void _acceptFile(_SelectedFile file) {
+    final extension = file.extension;
     if (!const {'pdf', 'docx', 'txt'}.contains(extension)) {
       _showMessage('Choose a PDF, DOCX, or TXT file.', isError: true);
       return;
@@ -244,7 +244,7 @@ class _ImportScreenState extends State<ImportScreen> {
 
       final bytes = await controller.getFileData(file);
       if (!mounted) return;
-      _acceptFile(PlatformFile(name: name, size: size, bytes: bytes));
+      _acceptFile(_SelectedFile(name: name, bytes: bytes));
     } on Exception catch (error) {
       if (mounted) {
         _showMessage(
@@ -286,7 +286,7 @@ class _ImportScreenState extends State<ImportScreen> {
       }
       final bytes = await file.readAsBytes();
       if (!mounted) return;
-      _acceptFile(PlatformFile(name: name, size: size, bytes: bytes));
+      _acceptFile(_SelectedFile(name: name, bytes: bytes));
     } on Exception {
       if (mounted) {
         _showMessage(
@@ -330,7 +330,7 @@ class _ImportScreenState extends State<ImportScreen> {
     try {
       final file = _selectedFile!;
       final bytes = file.bytes;
-      if (bytes == null || bytes.isEmpty) {
+      if (bytes.isEmpty) {
         throw const QuizServiceException(
           'The selected file could not be read. Please select it again.',
         );
@@ -345,9 +345,7 @@ class _ImportScreenState extends State<ImportScreen> {
         sourceText = await QuizService().extractSourceText(
           fileName: file.name,
           fileBase64: base64Encode(bytes),
-          mimeType: extension == 'pdf'
-              ? 'application/pdf'
-              : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          mimeType: extension == 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         );
       } else {
         throw const QuizServiceException(
@@ -1187,18 +1185,13 @@ class _TutorialGuideCard extends StatelessWidget {
   };
 
   String get _description => switch (step) {
-    _TutorialStep.start =>
-      'You’re already here, so let’s set up your first quiz or practice activity together.',
-    _TutorialStep.learningMode =>
-      'Choose Quiz to test what you know, Flashcards to practice recall, or Matching to connect related ideas.',
-    _TutorialStep.sourceFile =>
-      'Upload a PDF, DOCX, or TXT file with your notes. We’ll use it as the source for your study activity.',
-    _TutorialStep.questionType =>
-      'For quizzes, choose multiple choice, true or false, or both. You can keep the suggested option or mix formats.',
+    _TutorialStep.start => 'You’re already here, so let’s set up your first quiz or practice activity together.',
+    _TutorialStep.learningMode => 'Choose Quiz to test what you know, Flashcards to practice recall, or Matching to connect related ideas.',
+    _TutorialStep.sourceFile => 'Upload a PDF, DOCX, or TXT file with your notes. We’ll use it as the source for your study activity.',
+    _TutorialStep.questionType => 'For quizzes, choose multiple choice, true or false, or both. You can keep the suggested option or mix formats.',
     _TutorialStep.itemCount =>
       'Choose how many questions or practice items you want in this session.',
-    _TutorialStep.generate =>
-      'Give your activity a name, then select Generate Quiz to create it. You can update any choice before you begin.',
+    _TutorialStep.generate => 'Give your activity a name, then select Generate Quiz to create it. You can update any choice before you begin.',
   };
 
   @override
@@ -1338,7 +1331,7 @@ class _FilePickerPanel extends StatelessWidget {
     required this.onWebDropFile,
   });
 
-  final PlatformFile? selectedFile;
+  final _SelectedFile? selectedFile;
   final TextEditingController quizNameController;
   final String activityName;
   final bool isDragHovered;
@@ -2133,4 +2126,23 @@ class _InstructorQuizChoice extends StatelessWidget {
       ),
     );
   }
+}
+
+/// In-memory representation of a file chosen for import.
+///
+/// Kept local so the screen does not depend on the file picker's internal
+/// [PlatformFile] implementations, which changed in file_picker 12/13.
+class _SelectedFile {
+  const _SelectedFile({required this.name, required this.bytes});
+
+  final String name;
+  final Uint8List bytes;
+
+  String? get extension {
+    final dot = name.lastIndexOf('.');
+    if (dot <= 0 || dot == name.length - 1) return null;
+    return name.substring(dot + 1).toLowerCase();
+  }
+
+  int get size => bytes.length;
 }
