@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../models/admin_management.dart';
 import '../../services/admin_management_service.dart';

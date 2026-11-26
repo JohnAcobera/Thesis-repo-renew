@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _appPrimary = Color(0xFFFF7434);
 const _appBase = Color(0xFFFFF8EE);

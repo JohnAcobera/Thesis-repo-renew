@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/instructor_report.dart';
 import 'package:thesis_repo_renew/screens/instructor_reports_screen.dart';
