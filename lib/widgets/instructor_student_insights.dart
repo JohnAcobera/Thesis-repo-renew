@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../models/instructor_report.dart';
+import '../services/instructor_student_feedback_service.dart';
 import 'app_glass_surface.dart';
 import 'learning_metric_chart.dart';
+import 'instructor_student_feedback_form.dart';
 
 typedef InstructorStudentInsight = ({
   InstructorReportClassroom classroom,
@@ -64,29 +66,57 @@ List<(String, double)> _lowMetrics(InstructorReportStudent student) {
 }
 
 class InstructorStudentInsights extends StatelessWidget {
-  const InstructorStudentInsights({required this.reports, super.key});
+  const InstructorStudentInsights({
+    required this.reports,
+    this.feedbackRepository,
+    this.panelHeight,
+    super.key,
+  });
 
   final List<InstructorReportClassroom> reports;
+  final InstructorStudentFeedbackRepository? feedbackRepository;
+  final double? panelHeight;
 
   @override
-  Widget build(BuildContext context) => _StudentInsightsCard(
-    insights: getInstructorStudentInsights(reports),
-    onStudentSelected: (student, metrics) => showDialog<void>(
-      context: context,
-      builder: (context) =>
-          _StudentMetricInsightsDialog(student: student, metrics: metrics),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final repository = feedbackRepository ?? InstructorStudentFeedbackService();
+    return _StudentInsightsCard(
+      insights: getInstructorStudentInsights(reports),
+      panelHeight: panelHeight,
+      onStudentSelected: (classroom, student, metrics) async {
+        final sent = await showDialog<bool>(
+          context: context,
+          builder: (context) => _StudentMetricInsightsDialog(
+            classroom: classroom,
+            student: student,
+            metrics: metrics,
+            feedbackRepository: repository,
+          ),
+        );
+        if (sent == true && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Encouragement sent to the student.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+    );
+  }
 }
 
 class _StudentInsightsCard extends StatelessWidget {
   const _StudentInsightsCard({
     required this.insights,
+    required this.panelHeight,
     required this.onStudentSelected,
   });
 
   final List<InstructorStudentInsight> insights;
+  final double? panelHeight;
   final void Function(
+    InstructorReportClassroom classroom,
     InstructorReportStudent student,
     List<(String, double)> metrics,
   )
@@ -94,6 +124,7 @@ class _StudentInsightsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AppGlassSurface(
+    key: const ValueKey('instructor-low-stats-panel'),
     borderRadius: 18,
     padding: const EdgeInsets.all(18),
     child: Column(
@@ -190,22 +221,35 @@ class _StudentInsightsCard extends StatelessWidget {
               ],
             ),
           )
+        else if (panelHeight == null)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 360),
+            child: _buildStudentList(shrinkWrap: true),
+          )
         else
-          for (var index = 0; index < insights.length; index++) ...[
-            if (index > 0) const SizedBox(height: 8),
-            _StudentInsightTile(
-              key: ValueKey(
-                'student-insight-${insights[index].classroom.id}-'
-                '${insights[index].student.id}',
-              ),
-              insight: insights[index],
-              onTap: () => onStudentSelected(
-                insights[index].student,
-                insights[index].metrics,
-              ),
-            ),
-          ],
+          Expanded(child: _buildStudentList(shrinkWrap: false)),
       ],
+    ),
+  );
+
+  Widget _buildStudentList({required bool shrinkWrap}) => ListView.separated(
+    key: const ValueKey('instructor-low-stats-list'),
+    primary: false,
+    shrinkWrap: shrinkWrap,
+    physics: const ClampingScrollPhysics(),
+    itemCount: insights.length,
+    separatorBuilder: (_, _) => const SizedBox(height: 8),
+    itemBuilder: (context, index) => _StudentInsightTile(
+      key: ValueKey(
+        'student-insight-${insights[index].classroom.id}-'
+        '${insights[index].student.id}',
+      ),
+      insight: insights[index],
+      onTap: () => onStudentSelected(
+        insights[index].classroom,
+        insights[index].student,
+        insights[index].metrics,
+      ),
     ),
   );
 }
@@ -349,12 +393,16 @@ class _MetricBadge extends StatelessWidget {
 
 class _StudentMetricInsightsDialog extends StatelessWidget {
   const _StudentMetricInsightsDialog({
+    required this.classroom,
     required this.student,
     required this.metrics,
+    required this.feedbackRepository,
   });
 
+  final InstructorReportClassroom classroom;
   final InstructorReportStudent student;
   final List<(String, double)> metrics;
+  final InstructorStudentFeedbackRepository feedbackRepository;
 
   @override
   Widget build(BuildContext context) => AlertDialog(
@@ -362,7 +410,7 @@ class _StudentMetricInsightsDialog extends StatelessWidget {
     backgroundColor: const Color(0xFFFFFCF8),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     title: Text(
-      'Low stats for ${student.fullName}',
+      'Learning progress for ${student.fullName}',
       style: const TextStyle(
         color: Color(0xFF3B2419),
         fontSize: 18,
@@ -376,7 +424,7 @@ class _StudentMetricInsightsDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Charts for each metric flagged as low.',
+            'These charts highlight areas where a little more practice may help.',
             style: TextStyle(color: Color(0xFF765C4F), fontSize: 12),
           ),
           const SizedBox(height: 16),
@@ -388,6 +436,12 @@ class _StudentMetricInsightsDialog extends StatelessWidget {
               value: metrics[index].$2,
             ),
           ],
+          InstructorStudentFeedbackForm(
+            classroom: classroom,
+            student: student,
+            metrics: metrics,
+            repository: feedbackRepository,
+          ),
         ],
       ),
     ),

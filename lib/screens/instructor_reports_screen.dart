@@ -4,18 +4,22 @@ import 'package:flutter/material.dart';
 
 import '../models/instructor_report.dart';
 import '../services/instructor_reports_service.dart';
+import '../services/instructor_student_feedback_service.dart';
 import '../widgets/app_glass_surface.dart';
+import '../widgets/instructor_student_feedback_form.dart';
 import '../widgets/instructor_student_insights.dart';
 import '../widgets/learning_metric_chart.dart';
 
 class InstructorReportsScreen extends StatefulWidget {
   const InstructorReportsScreen({
     required this.reportsRepository,
+    this.feedbackRepository,
     this.header,
     super.key,
   });
 
   final InstructorReportsRepository reportsRepository;
+  final InstructorStudentFeedbackRepository? feedbackRepository;
   final Widget? header;
 
   @override
@@ -27,8 +31,11 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
   static const _accent = Color(0xFFF4773C);
   static const _ink = Color(0xFF3B2419);
   static const _muted = Color(0xFF765C4F);
+  static const _border = Color(0xFFE8D7C2);
 
   late Future<List<InstructorReportClassroom>> _reports;
+  late final InstructorStudentFeedbackRepository _feedbackRepository =
+      widget.feedbackRepository ?? InstructorStudentFeedbackService();
 
   @override
   void initState() {
@@ -85,36 +92,49 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
                                 'CLASSROOM REPORTS',
                                 style: TextStyle(
                                   color: _accent,
-                                  fontSize: 11,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.4,
+                                  letterSpacing: 1.5,
                                 ),
                               ),
-                              SizedBox(height: 8),
+                              SizedBox(height: 7),
                               Text(
                                 'Student performance',
                                 style: TextStyle(
                                   color: _ink,
-                                  fontSize: 27,
+                                  fontSize: 28,
                                   fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.5,
                                 ),
                               ),
-                              SizedBox(height: 6),
+                              SizedBox(height: 7),
                               Text(
-                                'Review student metrics that need attention across your classrooms.',
-                                style: TextStyle(color: _muted, height: 1.45),
+                                'A clear view of learning progress across your classrooms.',
+                                style: TextStyle(
+                                  color: _muted,
+                                  height: 1.5,
+                                  fontSize: 13,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        IconButton(
-                          tooltip: 'Refresh reports',
-                          onPressed: _reload,
-                          icon: const Icon(Icons.refresh),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFCF8),
+                            border: Border.all(color: _border),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: IconButton(
+                            tooltip: 'Refresh reports',
+                            onPressed: _reload,
+                            color: _muted,
+                            icon: const Icon(Icons.refresh_rounded),
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 24),
                     if (snapshot.connectionState == ConnectionState.waiting)
                       const _ReportsLoading()
                     else if (snapshot.hasError)
@@ -127,8 +147,14 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
                     else ...[
                       _StudentInsights(
                         insights: insights,
-                        onStudentSelected: (student, metrics) =>
-                            _showMetricInsights(context, student, metrics),
+                        feedbackRepository: _feedbackRepository,
+                        onStudentSelected: (classroom, student, metrics) =>
+                            _showMetricInsights(
+                              context,
+                              classroom,
+                              student,
+                              metrics,
+                            ),
                       ),
                     ],
                   ],
@@ -143,18 +169,34 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
 
   Future<void> _showMetricInsights(
     BuildContext context,
+    InstructorReportClassroom classroom,
     InstructorReportStudent student,
     List<(String, double)> metrics,
-  ) => showDialog<void>(
-    context: context,
-    builder: (context) =>
-        _StudentMetricInsightsDialog(student: student, metrics: metrics),
-  );
+  ) async {
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (context) => _StudentMetricInsightsDialog(
+        classroom: classroom,
+        student: student,
+        metrics: metrics,
+        feedbackRepository: _feedbackRepository,
+      ),
+    );
+    if (sent == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Encouragement sent to the student.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 }
 
 class _StudentInsights extends StatelessWidget {
   const _StudentInsights({
     required this.insights,
+    required this.feedbackRepository,
     required this.onStudentSelected,
   });
 
@@ -166,7 +208,9 @@ class _StudentInsights extends StatelessWidget {
     })
   >
   insights;
+  final InstructorStudentFeedbackRepository feedbackRepository;
   final void Function(
+    InstructorReportClassroom classroom,
     InstructorReportStudent student,
     List<(String, double)> metrics,
   )
@@ -180,29 +224,129 @@ class _StudentInsights extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Students with low stats',
-            style: TextStyle(
-              color: Color(0xFF3B2419),
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFEEE4),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.insights_rounded,
+                  color: Color(0xFFE86C35),
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Students with low stats',
+                      style: TextStyle(
+                        color: Color(0xFF3B2419),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Review progress and draft encouragement.',
+                      style: TextStyle(color: Color(0xFF765C4F), fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: insights.isEmpty
+                      ? const Color(0xFFF1F1ED)
+                      : const Color(0xFFFFEEE8),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${insights.length} flagged',
+                  style: TextStyle(
+                    color: insights.isEmpty
+                        ? const Color(0xFF765C4F)
+                        : const Color(0xFF9B3D26),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Insights show percentage metrics below 20% and improvement at or below 0 points for accounts older than 7 days.',
-            style: TextStyle(color: Color(0xFF765C4F), fontSize: 12),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8EE),
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: const Color(0xFFF0E5D8)),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  color: Color(0xFF9A725A),
+                  size: 15,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'For accounts 7+ days old: metrics below 20% or improvement at/below 0.',
+                    style: TextStyle(
+                      color: Color(0xFF765C4F),
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           if (insights.isEmpty)
-            const Text(
-              'No eligible students currently have percentage metrics below 20% or improvement at or below 0 points.',
-              style: TextStyle(color: Color(0xFF765C4F), fontSize: 13),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7FAF6),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0xFFDCE9DC)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: Color(0xFF5C8A65),
+                    size: 19,
+                  ),
+                  SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      'No students currently meet the review criteria.',
+                      style: TextStyle(color: Color(0xFF56715A), fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
             )
           else
             for (var index = 0; index < insights.length; index++) ...[
-              if (index > 0)
-                const Divider(height: 16, color: Color(0xFFF0E5D8)),
+              if (index > 0) const SizedBox(height: 9),
               _StudentInsightTile(
                 key: ValueKey(
                   'student-insight-${insights[index].classroom.id}-'
@@ -210,6 +354,7 @@ class _StudentInsights extends StatelessWidget {
                 ),
                 insight: insights[index],
                 onTap: () => onStudentSelected(
+                  insights[index].classroom,
                   insights[index].student,
                   insights[index].metrics,
                 ),
@@ -242,85 +387,143 @@ class _StudentInsightTile extends StatelessWidget {
     child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    insight.student.fullName,
-                    style: const TextStyle(
-                      color: Color(0xFF3B2419),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Flexible(
-                  child: Text(
-                    insight.classroom.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      color: Color(0xFF765C4F),
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: Color(0xFF9A725A),
-                  size: 19,
-                ),
-              ],
-            ),
-            const SizedBox(height: 7),
-            Wrap(
-              spacing: 7,
-              runSpacing: 6,
-              children: [
-                for (final (label, value) in insight.metrics)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFEEE8),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.62),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFEDE5DB)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 17,
+                    backgroundColor: const Color(0xFFFFE9DA),
                     child: Text(
-                      label == 'Improvement'
-                          ? '$label ${value > 0 ? '+' : ''}${value.toStringAsFixed(0)} pts'
-                          : '$label ${value.toStringAsFixed(0)}%',
+                      insight.student.fullName.trim().isEmpty
+                          ? '?'
+                          : insight.student.fullName.trim()[0].toUpperCase(),
                       style: const TextStyle(
-                        color: Color(0xFF9B3D26),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFB8522D),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          insight.student.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF3B2419),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          insight.classroom.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF765C4F),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Color(0xFF9A725A),
+                    size: 17,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  for (final (label, value) in insight.metrics)
+                    _MetricBadge(label: label, value: value),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     ),
   );
 }
 
-class _StudentMetricInsightsDialog extends StatelessWidget {
+class _MetricBadge extends StatelessWidget {
+  const _MetricBadge({required this.label, required this.value});
+
+  final String label;
+  final double value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF4EE),
+      borderRadius: BorderRadius.circular(9),
+      border: Border.all(color: const Color(0xFFF0D8CB)),
+    ),
+    child: Text(
+      label == 'Improvement'
+          ? '$label ${value > 0 ? '+' : ''}${value.toStringAsFixed(0)} pts'
+          : '$label ${value.toStringAsFixed(0)}%',
+      style: const TextStyle(
+        color: Color(0xFF93452F),
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+}
+
+class _StudentMetricInsightsDialog extends StatefulWidget {
   const _StudentMetricInsightsDialog({
+    required this.classroom,
     required this.student,
     required this.metrics,
+    required this.feedbackRepository,
   });
 
+  final InstructorReportClassroom classroom;
   final InstructorReportStudent student;
   final List<(String, double)> metrics;
+  final InstructorStudentFeedbackRepository feedbackRepository;
+
+  @override
+  State<_StudentMetricInsightsDialog> createState() =>
+      _StudentMetricInsightsDialogState();
+}
+
+class _StudentMetricInsightsDialogState
+    extends State<_StudentMetricInsightsDialog> {
+  final _feedbackFormKey = GlobalKey<InstructorStudentFeedbackFormState>();
+  bool _canSend = true;
+  bool _isSending = false;
+
+  void _updateFeedbackState(bool canSend, bool isSending) {
+    setState(() {
+      _canSend = canSend;
+      _isSending = isSending;
+    });
+  }
 
   @override
   Widget build(BuildContext context) => AlertDialog(
@@ -328,7 +531,7 @@ class _StudentMetricInsightsDialog extends StatelessWidget {
     backgroundColor: const Color(0xFFFFFCF8),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     title: Text(
-      'Low stats for ${student.fullName}',
+      'Learning progress for ${widget.student.fullName}',
       style: const TextStyle(
         color: Color(0xFF3B2419),
         fontSize: 18,
@@ -342,25 +545,46 @@ class _StudentMetricInsightsDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Charts for each metric flagged as low.',
+            'These charts highlight areas where a little more practice may help.',
             style: TextStyle(color: Color(0xFF765C4F), fontSize: 12),
           ),
           const SizedBox(height: 16),
-          for (var index = 0; index < metrics.length; index++) ...[
+          for (var index = 0; index < widget.metrics.length; index++) ...[
             if (index > 0) const SizedBox(height: 12),
             _StudentMetricChart(
-              student: student,
-              metric: metrics[index].$1,
-              value: metrics[index].$2,
+              student: widget.student,
+              metric: widget.metrics[index].$1,
+              value: widget.metrics[index].$2,
             ),
           ],
+          InstructorStudentFeedbackForm(
+            key: _feedbackFormKey,
+            classroom: widget.classroom,
+            student: widget.student,
+            metrics: widget.metrics,
+            repository: widget.feedbackRepository,
+            showSendButton: false,
+            onStateChanged: _updateFeedbackState,
+          ),
         ],
       ),
     ),
     actions: [
       TextButton(
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: _isSending ? null : () => Navigator.of(context).pop(),
         child: const Text('Close'),
+      ),
+      FilledButton.icon(
+        onPressed: _canSend && !_isSending
+            ? () => _feedbackFormKey.currentState?.sendFeedback()
+            : null,
+        icon: _isSending
+            ? const SizedBox.square(
+                dimension: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.send_rounded, size: 17),
+        label: const Text('Send encouragement'),
       ),
     ],
   );

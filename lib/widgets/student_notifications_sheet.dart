@@ -29,9 +29,13 @@ class _StudentNotificationsButtonState
   late Stream<List<StudentNotification>> _notificationUpdates;
   StreamSubscription<List<StudentNotification>>? _notificationSubscription;
   Timer? _refreshTimer;
+  final LayerLink _teacherFeedbackLink = LayerLink();
+  final OverlayPortalController _teacherFeedbackBubbleController =
+      OverlayPortalController();
   late final StreamController<List<StudentNotification>> _mergedUpdates =
       StreamController<List<StudentNotification>>.broadcast();
   List<StudentNotification>? _latestNotifications;
+  bool _isTeacherFeedbackBubbleShown = false;
 
   @override
   void initState() {
@@ -152,53 +156,208 @@ class _StudentNotificationsButtonState
     );
   }
 
+  void _updateTeacherFeedbackBubble(bool shouldShow) {
+    if (_isTeacherFeedbackBubbleShown == shouldShow) return;
+    _isTeacherFeedbackBubbleShown = shouldShow;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (shouldShow) {
+        _teacherFeedbackBubbleController.show();
+      } else {
+        _teacherFeedbackBubbleController.hide();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) =>
       FutureBuilder<List<StudentNotification>>(
         future: _notifications,
         builder: (context, snapshot) {
-          final unreadCount =
-              (_latestNotifications ?? snapshot.data)
-                  ?.where((notification) => !notification.isRead)
-                  .length ??
-              0;
-          return IconButton(
-            tooltip: 'Notifications',
-            onPressed: _openNotifications,
-            icon: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.notifications_none_rounded),
-                if (unreadCount > 0)
-                  Positioned(
-                    right: -7,
-                    top: -6,
-                    child: Container(
-                      constraints: const BoxConstraints(
-                        minWidth: 17,
-                        minHeight: 17,
+          final notifications =
+              _latestNotifications ?? snapshot.data ?? const [];
+          final unreadCount = notifications
+              .where((notification) => !notification.isRead)
+              .length;
+          final hasUnreadTeacherFeedback = notifications.any(
+            (notification) =>
+                notification.type == StudentNotificationType.teacherFeedback &&
+                !notification.isRead,
+          );
+          _updateTeacherFeedbackBubble(hasUnreadTeacherFeedback);
+          return OverlayPortal(
+            controller: _teacherFeedbackBubbleController,
+            overlayChildBuilder: (context) => Align(
+              alignment: Alignment.topLeft,
+              child: hasUnreadTeacherFeedback
+                  ? CompositedTransformFollower(
+                      link: _teacherFeedbackLink,
+                      showWhenUnlinked: false,
+                      targetAnchor: Alignment.bottomRight,
+                      followerAnchor: Alignment.topRight,
+                      offset: const Offset(0, 8),
+                      child: const IgnorePointer(
+                        child: _TeacherFeedbackSpeechBubble(),
                       ),
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE34D3D),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        unreadCount > 99 ? '99+' : '$unreadCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            child: CompositedTransformTarget(
+              link: _teacherFeedbackLink,
+              child: IconButton(
+                tooltip: 'Notifications',
+                onPressed: _openNotifications,
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.notifications_none_rounded),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: -7,
+                        top: -6,
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minWidth: 17,
+                            minHeight: 17,
+                          ),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE34D3D),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
+                  ],
+                ),
+              ),
             ),
           );
         },
       );
+}
+
+class _TeacherFeedbackSpeechBubble extends StatelessWidget {
+  const _TeacherFeedbackSpeechBubble();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    key: const ValueKey('teacher-feedback-speech-bubble'),
+    width: 190,
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFCF8),
+              border: Border.all(color: const Color(0xFFE8D7C2)),
+              borderRadius: BorderRadius.circular(11),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A3B2419),
+                  blurRadius: 10,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Row(
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Color(0xFFFFEEE4),
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
+                  ),
+                  child: SizedBox(
+                    width: 30,
+                    height: 30,
+                    child: Icon(
+                      Icons.mark_email_unread_outlined,
+                      size: 16,
+                      color: Color(0xFFF4773C),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'New teacher message',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Color(0xFF3B2419),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Tap the bell to read',
+                        style: TextStyle(
+                          color: Color(0xFF765C4F),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const Positioned(
+          top: 0,
+          right: 17,
+          child: CustomPaint(
+            size: Size(14, 7),
+            painter: _TeacherFeedbackBubbleTailPainter(),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _TeacherFeedbackBubbleTailPainter extends CustomPainter {
+  const _TeacherFeedbackBubbleTailPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = const Color(0xFFFFFCF8));
+    final outline = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(size.width / 2, 0)
+      ..lineTo(size.width, size.height);
+    canvas.drawPath(
+      outline,
+      Paint()
+        ..color = const Color(0xFFE8D7C2)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class StudentNotificationsSheet extends StatefulWidget {
@@ -585,6 +744,7 @@ class _NotificationTile extends StatelessWidget {
     StudentNotificationType.weeklyRank => Icons.emoji_events_outlined,
     StudentNotificationType.classroomJoined => Icons.group_add_outlined,
     StudentNotificationType.classroomRemoved => Icons.person_remove_outlined,
+    StudentNotificationType.teacherFeedback => Icons.favorite_outline_rounded,
     StudentNotificationType.todoDue => Icons.task_alt_rounded,
     StudentNotificationType.legacy => Icons.notifications_outlined,
   };

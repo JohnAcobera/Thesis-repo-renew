@@ -25,6 +25,71 @@ void main() {
     },
   );
 
+  test('teacher feedback notification type is recognized', () {
+    final notification = StudentNotification.fromJson({
+      'id': 'teacher-feedback:feedback-1',
+      'type': 'teacherFeedback',
+      'title': 'A message from your teacher',
+      'message': 'You have got this!',
+      'created_at': DateTime(2026, 10, 17).toIso8601String(),
+      'is_read': false,
+    });
+
+    expect(notification.type, StudentNotificationType.teacherFeedback);
+  });
+
+  testWidgets('teacher-message bubble stays visible until feedback is read', (
+    tester,
+  ) async {
+    final notifications = _FakeStudentNotificationRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(
+            actions: [StudentNotificationsButton(repository: notifications)],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Notifications'), findsOneWidget);
+    await notifications.addNotification(
+      StudentNotification(
+        id: 'teacher-feedback:feedback-1',
+        type: StudentNotificationType.teacherFeedback,
+        title: 'A message from your teacher',
+        message: 'You have got this!',
+        createdAt: DateTime(2026, 10, 19),
+        isRead: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    const teacherMessageCallout = 'New teacher message';
+    final speechBubble = find.byKey(
+      const ValueKey('teacher-feedback-speech-bubble'),
+    );
+    expect(speechBubble, findsOneWidget);
+    expect(find.text(teacherMessageCallout), findsOneWidget);
+    final bubbleRect = tester.getRect(speechBubble);
+    final notificationRect = tester.getRect(find.byTooltip('Notifications'));
+    expect(bubbleRect.width, 190);
+    expect(bubbleRect.right - 24, closeTo(notificationRect.center.dx, 2));
+    expect(bubbleRect.top, greaterThan(notificationRect.bottom));
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('A message from your teacher').last);
+    await tester.pumpAndSettle();
+
+    expect(notifications.markedIds, ['teacher-feedback:feedback-1']);
+    expect(speechBubble, findsNothing);
+    expect(find.byTooltip('Notifications'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('notifications update live and can be marked as read', (
     tester,
   ) async {

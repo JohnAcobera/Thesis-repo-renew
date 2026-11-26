@@ -21,6 +21,7 @@ enum StudentNotificationType {
   weeklyRank,
   classroomJoined,
   classroomRemoved,
+  teacherFeedback,
   todoDue,
   legacy,
 }

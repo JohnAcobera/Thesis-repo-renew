@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/instructor_report.dart';
 import 'package:thesis_repo_renew/screens/instructor_reports_screen.dart';
 import 'package:thesis_repo_renew/services/instructor_reports_service.dart';
+import 'package:thesis_repo_renew/services/instructor_student_feedback_service.dart';
 
 void main() {
   testWidgets('shows personal student statistics without classroom activity', (
@@ -13,11 +14,13 @@ void main() {
     tester.view.physicalSize = const Size(400, 600);
     tester.view.devicePixelRatio = 1;
 
+    final feedback = _FakeInstructorStudentFeedbackRepository();
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: InstructorReportsScreen(
             reportsRepository: _FakeInstructorReportsRepository(),
+            feedbackRepository: feedback,
           ),
         ),
       ),
@@ -44,7 +47,15 @@ void main() {
 
     expect(find.text('Improvement'), findsOneWidget);
     expect(find.text('Consistency'), findsNothing);
-    expect(find.text('Low stats for Report Student'), findsOneWidget);
+    expect(find.text('Learning progress for Report Student'), findsOneWidget);
+    final feedbackField = tester.widget<TextField>(
+      find.byKey(const ValueKey('student-feedback-message')),
+    );
+    expect(feedbackField.controller!.text, contains('Hi Report!'));
+    expect(
+      feedbackField.controller!.text,
+      'Hi Report! Reattempt a quiz and see how you do. You’ve got this!',
+    );
     expect(find.text('-18 pts'), findsOneWidget);
     expect(
       find.bySemanticsLabel('Improvement chart for Report Student'),
@@ -65,6 +76,19 @@ void main() {
     );
     expect(find.byType(CustomPaint), findsWidgets);
     expect(find.text('ACCOUNT DETAILS'), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('student-feedback-message')),
+      'I updated this note for you. Keep going!',
+    );
+    await tester.tap(find.text('Send encouragement'));
+    await tester.pumpAndSettle();
+
+    expect(feedback.studentId, 24);
+    expect(feedback.classroomId, 'class-1');
+    expect(feedback.metric, 'Improvement');
+    expect(feedback.message, 'I updated this note for you. Keep going!');
+    expect(find.text('Encouragement sent to the student.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -161,7 +185,10 @@ void main() {
     expect(find.text('Improvement'), findsNothing);
     expect(find.text('Consistency'), findsOneWidget);
     expect(find.text('Focus'), findsOneWidget);
-    expect(find.text('Low stats for Older Low Student'), findsOneWidget);
+    expect(
+      find.text('Learning progress for Older Low Student'),
+      findsOneWidget,
+    );
     expect(
       find.bySemanticsLabel('Accuracy chart for Older Low Student'),
       findsOneWidget,
@@ -197,6 +224,80 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(CustomPaint), findsWidgets);
+  });
+
+  testWidgets('encouragement draft follows the flagged metric', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    final now = DateTime.now();
+    final students = [
+      _student(
+        41,
+        'Accuracy Student',
+        now.subtract(const Duration(days: 8)),
+        accuracyPercentage: 12,
+        completedActivityCount: 1,
+        averageScore: 40,
+        personalAverageScore: 40,
+        retentionPercentage: 45,
+        improvementPercentage: 8,
+        consistencyPercentage: 40,
+        focusPercentage: 45,
+      ),
+      _student(
+        42,
+        'Consistency Student',
+        now.subtract(const Duration(days: 8)),
+        accuracyPercentage: 40,
+        completedActivityCount: 1,
+        averageScore: 40,
+        personalAverageScore: 40,
+        retentionPercentage: 45,
+        improvementPercentage: 8,
+        consistencyPercentage: 12,
+        focusPercentage: 45,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: InstructorReportsScreen(
+            reportsRepository: _FakeInstructorReportsRepository(
+              students: students,
+            ),
+            feedbackRepository: _FakeInstructorStudentFeedbackRepository(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Accuracy 12%'));
+    await tester.tap(find.text('Accuracy 12%'));
+    await tester.pumpAndSettle();
+    var draft = tester.widget<TextField>(
+      find.byKey(const ValueKey('student-feedback-message')),
+    );
+    expect(
+      draft.controller!.text,
+      'Hi Accuracy! Take your time, then try the quiz again. You’ve got this!',
+    );
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Consistency 12%'));
+    await tester.tap(find.text('Consistency 12%'));
+    await tester.pumpAndSettle();
+    draft = tester.widget<TextField>(
+      find.byKey(const ValueKey('student-feedback-message')),
+    );
+    expect(
+      draft.controller!.text,
+      'Hi Consistency! Try a short quiz a few days this week. You’ve got this!',
+    );
   });
 }
 
@@ -247,6 +348,27 @@ class _FakeInstructorReportsRepository implements InstructorReportsRepository {
           ],
     ),
   ];
+}
+
+class _FakeInstructorStudentFeedbackRepository
+    implements InstructorStudentFeedbackRepository {
+  int? studentId;
+  String? classroomId;
+  String? metric;
+  String? message;
+
+  @override
+  Future<void> sendStudentFeedback({
+    required int studentId,
+    required String classroomId,
+    required String metric,
+    required String message,
+  }) async {
+    this.studentId = studentId;
+    this.classroomId = classroomId;
+    this.metric = metric;
+    this.message = message;
+  }
 }
 
 InstructorReportStudent _student(

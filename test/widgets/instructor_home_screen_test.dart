@@ -103,6 +103,11 @@ void main() {
   testWidgets('instructor overview shows classroom and student totals', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       MaterialApp(
         home: InstructorHomeScreen(
@@ -166,6 +171,14 @@ void main() {
           .right,
       tester.getRect(find.byKey(const ValueKey('instructor-todo-panel'))).right,
     );
+    final lowStatsRect = tester.getRect(
+      find.byKey(const ValueKey('instructor-low-stats-panel')),
+    );
+    final todoRect = tester.getRect(
+      find.byKey(const ValueKey('instructor-todo-panel')),
+    );
+    expect(lowStatsRect.top, todoRect.top);
+    expect(lowStatsRect.bottom, todoRect.bottom);
   });
 
   testWidgets('instructor profile shows only instructor menu items', (

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/instructor_report.dart';
 import 'package:thesis_repo_renew/screens/instructor_attention_section.dart';
 import 'package:thesis_repo_renew/services/instructor_reports_service.dart';
+import 'package:thesis_repo_renew/services/instructor_student_feedback_service.dart';
 
 void main() {
   testWidgets('shows the same low-stat students and metrics as reports', (
@@ -40,6 +41,116 @@ void main() {
     expect(find.text('Healthy Student'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('sends editable encouragement from a dashboard insight', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 1000);
+    tester.view.devicePixelRatio = 1;
+    final feedbackRepository = _FakeInstructorStudentFeedbackRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SingleChildScrollView(
+              child: InstructorAttentionSection(
+                reportsRepository: _FakeInstructorReportsRepository(),
+                feedbackRepository: feedbackRepository,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('student-insight-class-a-5')));
+    await tester.pumpAndSettle();
+
+    final messageField = find.byKey(const ValueKey('student-feedback-message'));
+    expect(messageField, findsOneWidget);
+    expect(find.text('Send encouragement'), findsOneWidget);
+    await tester.enterText(messageField, 'Hi Sam! You can do this.');
+    await tester.tap(find.text('Send encouragement'));
+    await tester.pumpAndSettle();
+
+    expect(feedbackRepository.studentId, 5);
+    expect(feedbackRepository.classroomId, 'class-a');
+    expect(feedbackRepository.metric, 'Classroom completion');
+    expect(feedbackRepository.message, 'Hi Sam! You can do this.');
+    expect(find.text('Encouragement sent to the student.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('limits the flagged-student list and lets it scroll', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.physicalSize = const Size(400, 700);
+    tester.view.devicePixelRatio = 1;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SingleChildScrollView(
+              child: InstructorAttentionSection(
+                reportsRepository: _ManyLowStatsRepository(),
+                panelHeight: 420,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final list = find.byKey(const ValueKey('instructor-low-stats-list'));
+    final panel = find.byKey(const ValueKey('instructor-low-stats-panel'));
+    expect(list, findsOneWidget);
+    expect(tester.getSize(panel).height, 420);
+    expect(tester.getSize(list).height, lessThanOrEqualTo(360));
+
+    await tester.drag(list, const Offset(0, -1200));
+    await tester.pumpAndSettle();
+
+    final lastStudent = find.byKey(
+      const ValueKey('student-insight-class-scroll-111'),
+    );
+    expect(lastStudent, findsOneWidget);
+    expect(
+      tester.getRect(lastStudent).bottom,
+      lessThanOrEqualTo(tester.getRect(list).bottom),
+    );
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _FakeInstructorStudentFeedbackRepository
+    implements InstructorStudentFeedbackRepository {
+  int? studentId;
+  String? classroomId;
+  String? metric;
+  String? message;
+
+  @override
+  Future<void> sendStudentFeedback({
+    required int studentId,
+    required String classroomId,
+    required String metric,
+    required String message,
+  }) async {
+    this.studentId = studentId;
+    this.classroomId = classroomId;
+    this.metric = metric;
+    this.message = message;
+  }
 }
 
 class _FakeInstructorReportsRepository implements InstructorReportsRepository {
@@ -106,6 +217,31 @@ class _FakeInstructorReportsRepository implements InstructorReportsRepository {
           averageScore: null,
         ),
       ],
+    ),
+  ];
+}
+
+class _ManyLowStatsRepository implements InstructorReportsRepository {
+  @override
+  Future<List<InstructorReportClassroom>> loadReports() async => [
+    InstructorReportClassroom(
+      id: 'class-scroll',
+      name: 'Demo classroom',
+      subject: 'Demo subject',
+      studentCount: 12,
+      activityCount: 0,
+      averageScore: null,
+      students: List.generate(
+        12,
+        (index) => _student(
+          id: 100 + index,
+          fullName: 'Low Student $index',
+          email: 'low$index@example.test',
+          completedActivityCount: 0,
+          totalActivityCount: 1,
+          averageScore: null,
+        ),
+      ),
     ),
   ];
 }

@@ -270,6 +270,7 @@ class _InstructorDashboardState extends State<_InstructorDashboard> {
       final dashboardPanelHeight = dashboardWidth < 496 ? 480.0 : 420.0;
       final studentRiskPanel = InstructorAttentionSection(
         reportsRepository: widget.reportsRepository,
+        panelHeight: dashboardPanelHeight,
       );
       final todoPanel = InstructorTodoSection(
         instructorId: widget.instructorId,

@@ -270,7 +270,9 @@ notification bell. It shows daily LP and streak rewards, streaks of at least
 three days that ended, quiz LP reward breakdowns, last week's final leaderboard
 rank, and classroom join/removal events. Notifications are kept for 90 days,
 support marking unread items as read, and the removal trigger records future
-classroom removals.
+classroom removals. Instructors can send students an editable, encouraging
+feedback draft from the low-stat insights; sent messages appear in the student's
+notification list.
 
 Run `supabase/instructor_notifications.sql` after `custom_auth.sql` and
 `classrooms.sql` to enable the instructor notification bell. It reports new

@@ -26,6 +26,35 @@ create index if not exists student_classroom_removals_student_removed_idx
 alter table public.student_classroom_removals enable row level security;
 revoke all on table public.student_classroom_removals from anon, authenticated;
 
+create table if not exists public.student_teacher_feedback (
+  id uuid primary key default gen_random_uuid(),
+  instructor_id bigint not null references public.users(id) on delete cascade,
+  student_id bigint not null references public.users(id) on delete cascade,
+  classroom_id uuid not null references public.classrooms(id) on delete cascade,
+  metric text not null,
+  message text not null,
+  created_at timestamptz not null default now(),
+  constraint student_teacher_feedback_message_length
+    check (length(trim(message)) between 1 and 1000),
+  constraint student_teacher_feedback_metric_check
+    check (metric in (
+      'Classroom average',
+      'Overall average',
+      'Classroom completion',
+      'Accuracy',
+      'Retention',
+      'Improvement',
+      'Consistency',
+      'Focus'
+    ))
+);
+
+create index if not exists student_teacher_feedback_student_created_idx
+  on public.student_teacher_feedback (student_id, created_at desc);
+
+alter table public.student_teacher_feedback enable row level security;
+revoke all on table public.student_teacher_feedback from anon, authenticated;
+
 create or replace function public.record_student_classroom_removal()
 returns trigger
 language plpgsql
@@ -57,6 +86,75 @@ drop trigger if exists classroom_students_record_removal
 create trigger classroom_students_record_removal
 before delete on public.classroom_students
 for each row execute function public.record_student_classroom_removal();
+
+create or replace function public.send_student_feedback(
+  p_session_token text,
+  p_student_id bigint,
+  p_classroom_id uuid,
+  p_metric text,
+  p_message text
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  verified_user_id bigint;
+begin
+  select u.id into verified_user_id
+  from public.user_sessions s
+  join public.users u on u.id = s.user_id
+  where s.session_token = p_session_token
+    and s.expires_at > now()
+    and u.role = 'instructor'
+  limit 1;
+
+  if verified_user_id is null then
+    if exists (
+      select 1
+      from public.user_sessions s
+      join public.users u on u.id = s.user_id
+      where s.session_token = p_session_token and s.expires_at > now()
+    ) then
+      raise exception 'Only instructors can send student feedback';
+    end if;
+    raise exception 'Invalid or expired session';
+  end if;
+
+  if p_message is null or length(trim(p_message)) not between 1 and 1000 then
+    raise exception 'Feedback must contain between 1 and 1000 characters';
+  end if;
+
+  if not exists (
+    select 1
+    from public.classrooms classroom
+    join public.classroom_students membership
+      on membership.classroom_id = classroom.id
+    join public.users student
+      on student.id = membership.student_id
+     and student.role = 'student'
+    where classroom.id = p_classroom_id
+      and classroom.instructor_id = verified_user_id
+      and membership.student_id = p_student_id
+  ) then
+    raise exception 'Student is not in this instructor classroom';
+  end if;
+
+  insert into public.student_teacher_feedback (
+    instructor_id,
+    student_id,
+    classroom_id,
+    metric,
+    message
+  ) values (
+    verified_user_id,
+    p_student_id,
+    p_classroom_id,
+    p_metric,
+    trim(p_message)
+  );
+end;
+$$;
 
 create or replace function public.list_student_notifications(
   p_session_token text
@@ -252,6 +350,19 @@ begin
       from public.student_classroom_removals removal
       where removal.student_id = verified_user_id
         and removal.removed_at >= now() - interval '90 days'
+
+      union all
+
+      select
+        'teacher-feedback:' || feedback.id::text,
+        'teacherFeedback'::text,
+        'A message from your teacher'::text,
+        feedback.message,
+        feedback.created_at,
+        null::uuid
+      from public.student_teacher_feedback feedback
+      where feedback.student_id = verified_user_id
+        and feedback.created_at >= now() - interval '90 days'
     )
     select jsonb_agg(
       jsonb_build_object(
@@ -315,10 +426,16 @@ $$;
 revoke all on function public.list_student_notifications(text) from public;
 revoke all on function public.mark_student_notifications_read(text, text[])
   from public;
+revoke all on function public.send_student_feedback(
+  text, bigint, uuid, text, text
+) from public;
 grant execute on function public.list_student_notifications(text)
   to anon, authenticated;
 grant execute on function public.mark_student_notifications_read(text, text[])
   to anon, authenticated;
+grant execute on function public.send_student_feedback(
+  text, bigint, uuid, text, text
+) to anon, authenticated;
 
 create or replace function public.broadcast_student_notification_change()
 returns trigger
@@ -351,6 +468,7 @@ begin
     'quiz_attempts',
     'student_classroom_removals',
     'student_generated_quizzes',
+    'student_teacher_feedback',
     'student_notification_reads',
     'user_login_days'
   ]
