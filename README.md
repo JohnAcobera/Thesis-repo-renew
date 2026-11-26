@@ -1,4 +1,4 @@
-# thesis_repo_renew
+# QuizForge
 
 See [SYSTEM_ALGORITHM.md](./SYSTEM_ALGORITHM.md) for end-to-end data flows,
 calculations, and the RPC/Edge Function API reference.

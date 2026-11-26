@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "thesis_repo_renew" "\0"
+            VALUE "CompanyName", "com.quizforge" "\0"
+            VALUE "FileDescription", "QuizForge" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "thesis_repo_renew" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "thesis_repo_renew.exe" "\0"
-            VALUE "ProductName", "thesis_repo_renew" "\0"
+            VALUE "InternalName", "quizforge" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.quizforge. All rights reserved." "\0"
+            VALUE "OriginalFilename", "quizforge.exe" "\0"
+            VALUE "ProductName", "QuizForge" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

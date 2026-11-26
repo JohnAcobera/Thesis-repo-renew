@@ -1,11 +1,11 @@
 {
-    "name": "thesis_repo_renew",
-    "short_name": "thesis_repo_renew",
+    "name": "QuizForge",
+    "short_name": "QuizForge",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "QuizForge - interactive classroom quizzes and learning.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
