@@ -62,6 +62,13 @@ from new_admin;
 
 Never store plaintext passwords or use the sample values in production.
 
+To change an account password manually, open
+`supabase/change_password.sql`, replace the email and password placeholders,
+and run it in the Supabase SQL Editor. The script hashes the password using the
+same method as login and updates the separate credential hash for admin
+accounts. It requires a password of at least 8 characters and fails if the
+account or its admin credential record is missing.
+
 ## Admin panel
 
 The admin login is available directly at `/admin` in a Flutter web build, or
@@ -250,14 +257,13 @@ quizzes. Quizzes can be sorted by recency, name, or question count and
 organized into named folders. Student quiz attempt records are retained when a
 saved quiz is deleted.
 
-Run `supabase/encrypted_todos.sql` after `custom_auth.sql` to enable encrypted
-student and instructor task storage in Supabase. Task data is encrypted with
-AES-GCM before upload, using a randomly generated key kept in the device's
-secure storage. Existing device-local todo lists are migrated the first time
-they are opened after the migration is installed. Because no password is used
-to protect the key, encrypted tasks can only be decrypted on the device that
-created the key; reinstalling the app or using another device will not restore
-that key.
+Run `supabase/encrypted_todos.sql` after `custom_auth.sql` to enable student
+and instructor task storage in Supabase. Task lists are stored as plaintext
+JSON and can be accessed across devices. Existing device-local task lists are
+migrated when first opened. Existing encrypted cloud lists are migrated when
+their original device key is available; lists without a key are cleared when
+opened. Re-run this SQL script on projects that already enabled encrypted task
+storage.
 
 Tasks support due dates, notes, priorities, completion tracking, and overdue or
 due-today/tomorrow dashboard alerts. These are in-app reminders shown on the

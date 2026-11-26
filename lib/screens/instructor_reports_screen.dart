@@ -6,9 +6,8 @@ import '../models/instructor_report.dart';
 import '../services/instructor_reports_service.dart';
 import '../services/instructor_student_feedback_service.dart';
 import '../widgets/app_glass_surface.dart';
-import '../widgets/instructor_student_feedback_form.dart';
 import '../widgets/instructor_student_insights.dart';
-import '../widgets/learning_metric_chart.dart';
+import '../widgets/instructor_student_progress_dialog.dart';
 
 class InstructorReportsScreen extends StatefulWidget {
   const InstructorReportsScreen({
@@ -48,124 +47,125 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) => FutureBuilder<List<InstructorReportClassroom>>(
-    future: _reports,
-    builder: (context, snapshot) {
-      final reports = snapshot.data;
-      final insights = getInstructorStudentInsights(
-        reports ?? const <InstructorReportClassroom>[],
-      );
-
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final horizontalPadding = constraints.maxWidth < 600 ? 16.0 : 32.0;
-          final contentWidth = math.min(
-            constraints.maxWidth - horizontalPadding * 2,
-            1160.0,
+  Widget build(BuildContext context) =>
+      FutureBuilder<List<InstructorReportClassroom>>(
+        future: _reports,
+        builder: (context, snapshot) {
+          final reports = snapshot.data;
+          final insights = getInstructorStudentInsights(
+            reports ?? const <InstructorReportClassroom>[],
           );
 
-          return SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: horizontalPadding,
-              vertical: 28,
-            ),
-            child: Center(
-              child: SizedBox(
-                width: contentWidth,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (widget.header != null) ...[
-                      widget.header!,
-                      const SizedBox(height: 24),
-                    ],
-                    Row(
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final horizontalPadding = constraints.maxWidth < 600
+                  ? 16.0
+                  : 32.0;
+              final contentWidth = math.min(
+                constraints.maxWidth - horizontalPadding * 2,
+                1160.0,
+              );
+
+              return SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
+                  vertical: 28,
+                ),
+                child: Center(
+                  child: SizedBox(
+                    width: contentWidth,
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                'CLASSROOM REPORTS',
-                                style: TextStyle(
-                                  color: _accent,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.5,
-                                ),
+                        if (widget.header != null) ...[
+                          widget.header!,
+                          const SizedBox(height: 24),
+                        ],
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  Text(
+                                    'CLASSROOM REPORTS',
+                                    style: TextStyle(
+                                      color: _accent,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                  SizedBox(height: 7),
+                                  Text(
+                                    'Student performance',
+                                    style: TextStyle(
+                                      color: _ink,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                  SizedBox(height: 7),
+                                  Text(
+                                    'A clear view of learning progress across your classrooms.',
+                                    style: TextStyle(
+                                      color: _muted,
+                                      height: 1.5,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              SizedBox(height: 7),
-                              Text(
-                                'Student performance',
-                                style: TextStyle(
-                                  color: _ink,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.5,
-                                ),
+                            ),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFFCF8),
+                                border: Border.all(color: _border),
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                              SizedBox(height: 7),
-                              Text(
-                                'A clear view of learning progress across your classrooms.',
-                                style: TextStyle(
-                                  color: _muted,
-                                  height: 1.5,
-                                  fontSize: 13,
-                                ),
+                              child: IconButton(
+                                tooltip: 'Refresh reports',
+                                onPressed: _reload,
+                                color: _muted,
+                                icon: const Icon(Icons.refresh_rounded),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFFCF8),
-                            border: Border.all(color: _border),
-                            borderRadius: BorderRadius.circular(14),
+                        const SizedBox(height: 24),
+                        if (snapshot.connectionState == ConnectionState.waiting)
+                          const _ReportsLoading()
+                        else if (snapshot.hasError)
+                          _ReportsError(
+                            message: snapshot.error.toString(),
+                            onRetry: _reload,
+                          )
+                        else if (reports == null || reports.isEmpty)
+                          const _ReportsEmpty()
+                        else ...[
+                          _StudentInsights(
+                            insights: insights,
+                            feedbackRepository: _feedbackRepository,
+                            onStudentSelected: (classroom, student, metrics) =>
+                                _showMetricInsights(
+                                  context,
+                                  classroom,
+                                  student,
+                                  metrics,
+                                ),
                           ),
-                          child: IconButton(
-                            tooltip: 'Refresh reports',
-                            onPressed: _reload,
-                            color: _muted,
-                            icon: const Icon(Icons.refresh_rounded),
-                          ),
-                        ),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 24),
-                    if (snapshot.connectionState == ConnectionState.waiting)
-                      const _ReportsLoading()
-                    else if (snapshot.hasError)
-                      _ReportsError(
-                        message: snapshot.error.toString(),
-                        onRetry: _reload,
-                      )
-                    else if (reports == null || reports.isEmpty)
-                      const _ReportsEmpty()
-                    else ...[
-                      _StudentInsights(
-                        insights: insights,
-                        feedbackRepository: _feedbackRepository,
-                        onStudentSelected: (classroom, student, metrics) =>
-                            _showMetricInsights(
-                              context,
-                              classroom,
-                              student,
-                              metrics,
-                            ),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           );
         },
       );
-    },
-  );
 
   Future<void> _showMetricInsights(
     BuildContext context,
@@ -175,7 +175,7 @@ class _InstructorReportsScreenState extends State<InstructorReportsScreen> {
   ) async {
     final sent = await showDialog<bool>(
       context: context,
-      builder: (context) => _StudentMetricInsightsDialog(
+      builder: (context) => InstructorStudentProgressDialog(
         classroom: classroom,
         student: student,
         metrics: metrics,
@@ -492,228 +492,6 @@ class _MetricBadge extends StatelessWidget {
       ),
     ),
   );
-}
-
-class _StudentMetricInsightsDialog extends StatefulWidget {
-  const _StudentMetricInsightsDialog({
-    required this.classroom,
-    required this.student,
-    required this.metrics,
-    required this.feedbackRepository,
-  });
-
-  final InstructorReportClassroom classroom;
-  final InstructorReportStudent student;
-  final List<(String, double)> metrics;
-  final InstructorStudentFeedbackRepository feedbackRepository;
-
-  @override
-  State<_StudentMetricInsightsDialog> createState() =>
-      _StudentMetricInsightsDialogState();
-}
-
-class _StudentMetricInsightsDialogState
-    extends State<_StudentMetricInsightsDialog> {
-  final _feedbackFormKey = GlobalKey<InstructorStudentFeedbackFormState>();
-  bool _canSend = true;
-  bool _isSending = false;
-
-  void _updateFeedbackState(bool canSend, bool isSending) {
-    setState(() {
-      _canSend = canSend;
-      _isSending = isSending;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    scrollable: true,
-    backgroundColor: const Color(0xFFFFFCF8),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-    title: Text(
-      'Learning progress for ${widget.student.fullName}',
-      style: const TextStyle(
-        color: Color(0xFF3B2419),
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-      ),
-    ),
-    content: SizedBox(
-      width: 440,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'These charts highlight areas where a little more practice may help.',
-            style: TextStyle(color: Color(0xFF765C4F), fontSize: 12),
-          ),
-          const SizedBox(height: 16),
-          for (var index = 0; index < widget.metrics.length; index++) ...[
-            if (index > 0) const SizedBox(height: 12),
-            _StudentMetricChart(
-              student: widget.student,
-              metric: widget.metrics[index].$1,
-              value: widget.metrics[index].$2,
-            ),
-          ],
-          InstructorStudentFeedbackForm(
-            key: _feedbackFormKey,
-            classroom: widget.classroom,
-            student: widget.student,
-            metrics: widget.metrics,
-            repository: widget.feedbackRepository,
-            showSendButton: false,
-            onStateChanged: _updateFeedbackState,
-          ),
-        ],
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: _isSending ? null : () => Navigator.of(context).pop(),
-        child: const Text('Close'),
-      ),
-      FilledButton.icon(
-        onPressed: _canSend && !_isSending
-            ? () => _feedbackFormKey.currentState?.sendFeedback()
-            : null,
-        icon: _isSending
-            ? const SizedBox.square(
-                dimension: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.send_rounded, size: 17),
-        label: const Text('Send encouragement'),
-      ),
-    ],
-  );
-}
-
-class _StudentMetricChart extends StatelessWidget {
-  const _StudentMetricChart({
-    required this.student,
-    required this.metric,
-    required this.value,
-  });
-
-  final InstructorReportStudent student;
-  final String metric;
-  final double value;
-
-  @override
-  Widget build(BuildContext context) {
-    final description = switch (metric) {
-      'Classroom average' =>
-        'Average score across the student’s quiz attempts in this classroom.',
-      'Overall average' =>
-        'Average score across all quiz attempts saved by the student.',
-      'Classroom completion' =>
-        'Completed activities divided by started classroom activities, shown as a percentage.',
-      'Accuracy' =>
-        'Percent correct across quiz attempts in the last 28 days, or since account creation if newer. The line shows recent attempt scores.',
-      'Retention' =>
-        'Average score across each quiz’s two latest attempts. Quizzes with fewer than two attempts are skipped.',
-      'Improvement' =>
-        'Shows whether scores tend to rise or fall when you retry quizzes. '
-            'For example, 60% to 70% is a 10-point gain. The value is the average '
-            'score change between retries; each bar represents a quiz, with bars '
-            'above zero indicating improvement and bars below zero indicating a drop.',
-      'Consistency' =>
-        'Percent of days with a completed quiz in the last 28 days, or since account creation if newer. Green bars mark quiz days.',
-      'Focus' =>
-        'Percent correct on the first attempt for each quiz. Bars show first-attempt scores.',
-      _ => 'This chart shows the student’s current value for this metric.',
-    };
-    final metricKey = switch (metric) {
-      'Accuracy' => 'accuracy',
-      'Retention' => 'retention',
-      'Improvement' => 'improvement',
-      'Consistency' => 'consistency',
-      'Focus' => 'focus',
-      _ => metric.toLowerCase().replaceAll(' ', '_'),
-    };
-    final storedSamples = student.metricSamples[metricKey];
-    final samples = storedSamples == null || storedSamples.isEmpty
-        ? [value]
-        : storedSamples;
-    final chartKind = switch (metric) {
-      'Accuracy' => LearningMetricChartKind.line,
-      'Improvement' => LearningMetricChartKind.diverging,
-      'Consistency' => LearningMetricChartKind.activity,
-      _ => LearningMetricChartKind.bars,
-    };
-    final chartColor = switch (metric) {
-      'Accuracy' => const Color(0xFFF4773C),
-      'Retention' => const Color(0xFFF2C230),
-      'Improvement' => const Color(0xFF2F8AB9),
-      'Consistency' => const Color(0xFF42A765),
-      'Focus' => const Color(0xFFD04FA2),
-      _ => const Color(0xFFF4773C),
-    };
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF8EE),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8D7C2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  metric,
-                  style: const TextStyle(
-                    color: Color(0xFF765C4F),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Text(
-                metric == 'Improvement'
-                    ? '${value > 0 ? '+' : ''}${value.toStringAsFixed(0)} pts'
-                    : '${value.toStringAsFixed(0)}%',
-                style: TextStyle(
-                  color: chartColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Semantics(
-            label: '$metric chart for ${student.fullName}',
-            child: SizedBox(
-              height: 42,
-              width: double.infinity,
-              child: CustomPaint(
-                painter: LearningMetricChartPainter(
-                  samples: samples,
-                  kind: chartKind,
-                  color: chartColor,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: const TextStyle(
-              color: Color(0xFF765C4F),
-              fontSize: 11,
-              height: 1.35,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _ReportsLoading extends StatelessWidget {

@@ -47,7 +47,9 @@ void main() {
 
     expect(find.text('Improvement'), findsOneWidget);
     expect(find.text('Consistency'), findsNothing);
-    expect(find.text('Learning progress for Report Student'), findsOneWidget);
+    expect(find.text('STUDENT PROGRESS'), findsOneWidget);
+    expect(find.text('Report Student'), findsNWidgets(2));
+    expect(find.text('METRICS TO REVIEW'), findsOneWidget);
     final feedbackField = tester.widget<TextField>(
       find.byKey(const ValueKey('student-feedback-message')),
     );
@@ -67,10 +69,7 @@ void main() {
     );
     expect(
       find.text(
-        'Shows whether scores tend to rise or fall when you retry quizzes. '
-        'For example, 60% to 70% is a 10-point gain. The value is the average '
-        'score change between retries; each bar represents a quiz, with bars '
-        'above zero indicating improvement and bars below zero indicating a drop.',
+        'Average score change between quiz retries. Positive values indicate a rise.',
       ),
       findsOneWidget,
     );
@@ -185,10 +184,7 @@ void main() {
     expect(find.text('Improvement'), findsNothing);
     expect(find.text('Consistency'), findsOneWidget);
     expect(find.text('Focus'), findsOneWidget);
-    expect(
-      find.text('Learning progress for Older Low Student'),
-      findsOneWidget,
-    );
+    expect(find.text('Older Low Student'), findsNWidgets(2));
     expect(
       find.bySemanticsLabel('Accuracy chart for Older Low Student'),
       findsOneWidget,
@@ -211,15 +207,13 @@ void main() {
     );
     expect(
       find.text(
-        'Percent correct across quiz attempts in the last 28 days, or since '
-        'account creation if newer. The line shows recent attempt scores.',
+        'Percent correct across recent quiz attempts. The chart shows recent scores.',
       ),
       findsOneWidget,
     );
     expect(
       find.text(
-        'Average score across each quiz’s two latest attempts. Quizzes with '
-        'fewer than two attempts are skipped.',
+        'Average score across the latest two attempts for quizzes attempted twice.',
       ),
       findsOneWidget,
     );

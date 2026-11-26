@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -148,14 +147,14 @@ class TodoStorageException implements Exception {
   String toString() => message;
 }
 
-abstract interface class TodoEncryptedCloudStore {
+abstract interface class TodoCloudStore {
   Future<String?> load(String sessionToken);
 
-  Future<void> save(String sessionToken, String encryptedTasks);
+  Future<void> save(String sessionToken, String tasks);
 }
 
-class SupabaseTodoEncryptedCloudStore implements TodoEncryptedCloudStore {
-  SupabaseTodoEncryptedCloudStore({SupabaseClient? client}) : _client = client;
+class SupabaseTodoCloudStore implements TodoCloudStore {
+  SupabaseTodoCloudStore({SupabaseClient? client}) : _client = client;
 
   final SupabaseClient? _client;
 
@@ -165,7 +164,7 @@ class SupabaseTodoEncryptedCloudStore implements TodoEncryptedCloudStore {
   Future<String?> load(String sessionToken) async {
     try {
       return await _supabase.rpc<String?>(
-        'get_my_encrypted_todos',
+        'get_my_todos',
         params: {'p_session_token': sessionToken},
       );
     } on PostgrestException catch (error) {
@@ -173,7 +172,7 @@ class SupabaseTodoEncryptedCloudStore implements TodoEncryptedCloudStore {
         _databaseMessage(
           error,
           fallback: error.code == 'PGRST202' || error.code == '42883'
-              ? 'Encrypted task storage is not configured. Run '
+              ? 'Task storage is not configured. Run '
                     'supabase/encrypted_todos.sql in the Supabase SQL Editor, '
                     'then reload the app.'
               : 'Your tasks could not be loaded from the database. Please try again.',
@@ -183,21 +182,18 @@ class SupabaseTodoEncryptedCloudStore implements TodoEncryptedCloudStore {
   }
 
   @override
-  Future<void> save(String sessionToken, String encryptedTasks) async {
+  Future<void> save(String sessionToken, String tasks) async {
     try {
       await _supabase.rpc<void>(
-        'save_my_encrypted_todos',
-        params: {
-          'p_session_token': sessionToken,
-          'p_encrypted_tasks': encryptedTasks,
-        },
+        'save_my_todos',
+        params: {'p_session_token': sessionToken, 'p_tasks': tasks},
       );
     } on PostgrestException catch (error) {
       throw TodoStorageException(
         _databaseMessage(
           error,
           fallback: error.code == 'PGRST202' || error.code == '42883'
-              ? 'Encrypted task storage is not configured. Run '
+              ? 'Task storage is not configured. Run '
                     'supabase/encrypted_todos.sql in the Supabase SQL Editor, '
                     'then reload the app.'
               : 'Your tasks could not be saved to the database. Please try again.',
@@ -214,10 +210,8 @@ class SupabaseTodoEncryptedCloudStore implements TodoEncryptedCloudStore {
       : fallback;
 }
 
-abstract interface class TodoEncryptionKeyStore {
+abstract interface class LegacyTodoKeyStore {
   Future<String?> read(String key);
-
-  Future<void> write(String key, String value);
 }
 
 abstract interface class TodoSessionTokenProvider {
@@ -234,18 +228,14 @@ class AuthTodoSessionTokenProvider implements TodoSessionTokenProvider {
   Future<String?> getSessionToken() => _authService.getSessionToken();
 }
 
-class SecureTodoEncryptionKeyStore implements TodoEncryptionKeyStore {
-  SecureTodoEncryptionKeyStore({FlutterSecureStorage? storage})
+class SecureLegacyTodoKeyStore implements LegacyTodoKeyStore {
+  SecureLegacyTodoKeyStore({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
 
   @override
   Future<String?> read(String key) => _storage.read(key: key);
-
-  @override
-  Future<void> write(String key, String value) =>
-      _storage.write(key: key, value: value);
 }
 
 class InstructorTodoService
@@ -255,32 +245,33 @@ class InstructorTodoService
     SupabaseClient? client,
     AuthService? authService,
     TodoSessionTokenProvider? sessionTokenProvider,
-    TodoEncryptedCloudStore? cloudStore,
-    TodoEncryptionKeyStore? keyStore,
+    TodoCloudStore? cloudStore,
+    LegacyTodoKeyStore? legacyKeyStore,
   }) : _client = client,
        _sessionTokenProvider =
            sessionTokenProvider ??
            AuthTodoSessionTokenProvider(authService: authService),
        _cloudStore = cloudStore,
-       _keyStore = keyStore ?? SecureTodoEncryptionKeyStore();
+       _legacyKeyStore = legacyKeyStore ?? SecureLegacyTodoKeyStore();
 
   final String storageNamespace;
   final SupabaseClient? _client;
   final TodoSessionTokenProvider _sessionTokenProvider;
-  final TodoEncryptedCloudStore? _cloudStore;
-  final TodoEncryptionKeyStore _keyStore;
+  final TodoCloudStore? _cloudStore;
+  final LegacyTodoKeyStore _legacyKeyStore;
+  // Used only to migrate existing task lists encrypted by older app versions.
   static final _cipher = AesGcm.with256bits();
 
   String _storageKey(int instructorId) =>
       '${storageNamespace}_todos_$instructorId';
 
-  String _encryptionKey(int ownerId) =>
+  String _legacyEncryptionKey(int ownerId) =>
       '$storageNamespace.todo.encryption_key.$ownerId';
 
-  SupabaseTodoEncryptedCloudStore get _database =>
-      SupabaseTodoEncryptedCloudStore(client: _client);
+  SupabaseTodoCloudStore get _database =>
+      SupabaseTodoCloudStore(client: _client);
 
-  TodoEncryptedCloudStore get _cloud => _cloudStore ?? _database;
+  TodoCloudStore get _cloud => _cloudStore ?? _database;
 
   String _reminderReadKey(int ownerId, String taskId) =>
       '${storageNamespace}_todo_reminder_read_${ownerId}_$taskId';
@@ -308,16 +299,19 @@ class InstructorTodoService
   @override
   Future<List<InstructorTodoTask>> listTasks(int instructorId) async {
     final token = await _requireSessionToken();
-    final encryptedTasks = await _cloud.load(token);
-    if (encryptedTasks != null) {
-      final secretKey = await _readKey(instructorId);
+    final cloudTasks = await _cloud.load(token);
+    if (cloudTasks != null) {
+      final decodedCloudTasks = _decodeCloudTasks(cloudTasks);
+      if (decodedCloudTasks case final tasks?) return tasks;
+
+      final secretKey = await _readLegacyKey(instructorId);
       if (secretKey == null) {
-        throw const TodoStorageException(
-          'This task list was encrypted on another device or its secure key '
-          'is missing. It cannot be decrypted on this device.',
-        );
+        await saveTasks(instructorId, const []);
+        return const [];
       }
-      return _decodeTasks(await _decrypt(encryptedTasks, secretKey));
+      final tasks = _decodeTasks(await _decrypt(cloudTasks, secretKey));
+      await saveTasks(instructorId, tasks);
+      return tasks;
     }
 
     final preferences = await SharedPreferences.getInstance();
@@ -341,9 +335,8 @@ class InstructorTodoService
     List<InstructorTodoTask> tasks,
   ) async {
     final token = await _requireSessionToken();
-    final secretKey = await _getOrCreateKey(instructorId);
     final tasksJson = jsonEncode(tasks.map((task) => task.toJson()).toList());
-    await _cloud.save(token, await _encrypt(tasksJson, secretKey));
+    await _cloud.save(token, tasksJson);
   }
 
   Future<String> _requireSessionToken() async {
@@ -356,17 +349,8 @@ class InstructorTodoService
     return token;
   }
 
-  Future<SecretKey> _getOrCreateKey(int ownerId) async {
-    final key = await _readKey(ownerId);
-    if (key != null) return key;
-
-    final bytes = List<int>.generate(32, (_) => Random.secure().nextInt(256));
-    await _keyStore.write(_encryptionKey(ownerId), base64Encode(bytes));
-    return SecretKey(bytes);
-  }
-
-  Future<SecretKey?> _readKey(int ownerId) async {
-    final encoded = await _keyStore.read(_encryptionKey(ownerId));
+  Future<SecretKey?> _readLegacyKey(int ownerId) async {
+    final encoded = await _legacyKeyStore.read(_legacyEncryptionKey(ownerId));
     if (encoded == null) return null;
     try {
       final bytes = base64Decode(encoded);
@@ -382,17 +366,21 @@ class InstructorTodoService
     }
   }
 
-  Future<String> _encrypt(String plaintext, SecretKey key) async {
-    final secretBox = await _cipher.encrypt(
-      utf8.encode(plaintext),
-      secretKey: key,
+  List<InstructorTodoTask>? _decodeCloudTasks(String value) {
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is List<dynamic>) return _decodeTasks(value);
+      if (decoded is Map<String, dynamic> && decoded['version'] == 1) {
+        return null;
+      }
+    } on FormatException {
+      throw const TodoStorageException(
+        'Your saved tasks could not be read. Please try again.',
+      );
+    }
+    throw const TodoStorageException(
+      'Your saved tasks could not be read. Please try again.',
     );
-    return jsonEncode({
-      'version': 1,
-      'nonce': base64Encode(secretBox.nonce),
-      'ciphertext': base64Encode(secretBox.cipherText),
-      'mac': base64Encode(secretBox.mac.bytes),
-    });
   }
 
   Future<String> _decrypt(String encrypted, SecretKey key) async {
@@ -454,6 +442,6 @@ class StudentTodoService extends InstructorTodoService {
     super.authService,
     super.sessionTokenProvider,
     super.cloudStore,
-    super.keyStore,
+    super.legacyKeyStore,
   }) : super(storageNamespace: 'student');
 }

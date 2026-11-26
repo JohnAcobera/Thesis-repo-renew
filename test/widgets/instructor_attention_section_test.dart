@@ -73,6 +73,9 @@ void main() {
 
     final messageField = find.byKey(const ValueKey('student-feedback-message'));
     expect(messageField, findsOneWidget);
+    expect(find.text('STUDENT PROGRESS'), findsOneWidget);
+    expect(find.text('Needs Support Student'), findsNWidgets(2));
+    expect(find.text('METRICS TO REVIEW'), findsOneWidget);
     expect(find.text('Send encouragement'), findsOneWidget);
     await tester.enterText(messageField, 'Hi Sam! You can do this.');
     await tester.tap(find.text('Send encouragement'));
