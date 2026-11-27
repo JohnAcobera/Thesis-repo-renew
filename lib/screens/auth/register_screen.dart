@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
@@ -168,6 +170,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
     field.didChange(otp);
   }
 
+  /// The edge function returns a JSON body with an `error` message and often a
+  /// machine-readable `code`. Surface those instead of a generic banner so the
+  /// user knows what to fix (e.g. an email that is already registered).
+  static String _registrationErrorMessage(FunctionException error) {
+    if (error.status == 0) {
+      return 'Unable to connect to the verification service. Please try again.';
+    }
+
+    Map<String, dynamic>? payload;
+    final details = error.details;
+    if (details is Map) {
+      payload = Map<String, dynamic>.from(details);
+    } else if (details is String) {
+      try {
+        final decoded = jsonDecode(details);
+        if (decoded is Map) payload = Map<String, dynamic>.from(decoded);
+      } on FormatException {
+        // Fall through to the generic message below.
+      }
+    }
+
+    final code = payload?['code'] as String?;
+    final serverMessage = payload?['error'] as String?;
+
+    switch (code) {
+      case 'email_registered':
+        return 'This email is already registered. Please log in instead.';
+      case 'weak_password':
+        return 'That password was rejected. Choose a stronger password.';
+    }
+
+    if (serverMessage != null && serverMessage.trim().isNotEmpty) {
+      return serverMessage;
+    }
+    return 'The verification service could not process your request. Please try again.';
+  }
+
   Future<Map<String, dynamic>> _invokeRegistrationOtp(
     Map<String, String> body,
   ) async {
@@ -185,11 +224,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'The verification service returned an invalid response.',
       );
     } on FunctionException catch (error) {
-      throw AuthException(
-        error.status == 0
-            ? 'Unable to connect to the verification service. Please try again.'
-            : 'The verification service could not process your request. Please try again.',
-      );
+      throw AuthException(_registrationErrorMessage(error));
     } on AuthException {
       rethrow;
     } on Exception {
