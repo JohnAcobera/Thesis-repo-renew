@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_service.dart';
 
 abstract interface class InstructorNotificationRepository {
   Future<List<InstructorNotification>> listNotifications();
+
+  Stream<List<InstructorNotification>> watchNotifications();
+
+  Future<void> refreshNotifications();
 
   Future<void> markNotificationsRead(List<String> notificationIds);
 }
@@ -73,8 +79,84 @@ class InstructorNotificationService
   final SupabaseClient? _client;
   final AuthService? _authService;
 
+  late final StreamController<List<InstructorNotification>> _updates =
+      StreamController<List<InstructorNotification>>.broadcast(
+        onListen: _startWatching,
+        onCancel: _stopWatching,
+      );
+  RealtimeChannel? _channel;
+  int _refreshRequest = 0;
+
   SupabaseClient get _supabase => _client ?? Supabase.instance.client;
   AuthService get _auth => _authService ?? AuthService();
+
+  @override
+  Stream<List<InstructorNotification>> watchNotifications() => _updates.stream;
+
+  // Widget tests (and any pre-initialize use) construct the service without a
+  // client. Realtime is optional there; the initial list fetch still works.
+  SupabaseClient? _tryGetClient() {
+    if (_client != null) return _client;
+    try {
+      return Supabase.instance.client;
+    } on Object {
+      return null;
+    }
+  }
+
+  void _startWatching() {
+    final client = _tryGetClient();
+    if (client == null) return;
+    _channel = client
+        .channel('instructor-notifications')
+        .onBroadcast(
+          event: 'instructor_notifications_changed',
+          callback: (_) => unawaited(_reloadNotifications()),
+        )
+        .subscribe((status, error) {
+          if (status == RealtimeSubscribeStatus.subscribed) {
+            unawaited(_reloadNotifications());
+          } else if (status == RealtimeSubscribeStatus.channelError ||
+              status == RealtimeSubscribeStatus.timedOut) {
+            _updates.addError(
+              const InstructorNotificationException(
+                'Live notification updates are temporarily unavailable.',
+              ),
+              StackTrace.current,
+            );
+          }
+        });
+  }
+
+  void _stopWatching() {
+    final channel = _channel;
+    _channel = null;
+    if (channel != null) {
+      final client = _tryGetClient();
+      if (client != null) unawaited(client.removeChannel(channel));
+    }
+  }
+
+  Future<void> _reloadNotifications() async {
+    final request = ++_refreshRequest;
+    try {
+      final notifications = await listNotifications();
+      if (request == _refreshRequest && _updates.hasListener) {
+        _updates.add(notifications);
+      }
+    } on Object catch (error, stackTrace) {
+      if (request == _refreshRequest && _updates.hasListener) {
+        _updates.addError(error, stackTrace);
+      }
+    }
+  }
+
+  @override
+  Future<void> refreshNotifications() async {
+    final request = ++_refreshRequest;
+    final notifications = await listNotifications();
+    if (request == _refreshRequest) _updates.add(notifications);
+  }
 
   @override
   Future<List<InstructorNotification>> listNotifications() async {

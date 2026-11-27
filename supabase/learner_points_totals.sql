@@ -32,9 +32,11 @@ begin
     raise exception 'Invalid or expired session';
   end if;
 
-  select total_learner_points::integer into point_balance
-  from public.user_learner_point_totals
-  where user_id = verified_user_id;
+  -- Aggregate only this user's ledger rows. The view aggregates every user
+  -- before filtering, which is a full scan on a busy project.
+  select coalesce(sum(lp.points_delta), 0)::integer into point_balance
+  from public.learner_point_transactions lp
+  where lp.user_id = verified_user_id;
 
   return coalesce(point_balance, 0);
 end;

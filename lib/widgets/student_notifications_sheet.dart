@@ -28,7 +28,6 @@ class _StudentNotificationsButtonState
   late Future<List<StudentNotification>> _notifications;
   late Stream<List<StudentNotification>> _notificationUpdates;
   StreamSubscription<List<StudentNotification>>? _notificationSubscription;
-  Timer? _refreshTimer;
   final LayerLink _teacherFeedbackLink = LayerLink();
   final OverlayPortalController _teacherFeedbackBubbleController =
       OverlayPortalController();
@@ -42,7 +41,9 @@ class _StudentNotificationsButtonState
     super.initState();
     _repository = widget.repository ?? StudentNotificationService();
     _startWatching();
-    _scheduleRefresh();
+    // No polling: the service listens for realtime broadcasts and the sheet
+    // explicitly refreshes when opened. Polling the full notification RPC
+    // every minute was issuing dozens of aggregate queries per hour.
   }
 
   @override
@@ -56,18 +57,6 @@ class _StudentNotificationsButtonState
       _latestNotifications = null;
       _startWatching();
     }
-  }
-
-  void _scheduleRefresh() {
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer(durationUntilNextMinute(), () {
-      if (!mounted) return;
-      unawaited(_reloadNotifications());
-      _refreshTimer = Timer.periodic(
-        const Duration(minutes: 1),
-        (_) => unawaited(_reloadNotifications()),
-      );
-    });
   }
 
   void _startWatching() {
@@ -133,7 +122,6 @@ class _StudentNotificationsButtonState
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
     unawaited(_notificationSubscription?.cancel());
     unawaited(_mergedUpdates.close());
     super.dispose();

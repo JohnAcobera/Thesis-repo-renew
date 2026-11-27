@@ -59,12 +59,14 @@ begin
         'email', coalesce(u.email, ''),
         'created_at', u.created_at,
         'is_active', u.is_active,
-        'classroom_count', (
-          select count(*) from public.classrooms c
-          where c.instructor_id = u.id
-        )
+        'classroom_count', coalesce(tc.classroom_count, 0)
       ) order by u.full_name)
       from public.users u
+      left join (
+        select instructor_id, count(*) as classroom_count
+        from public.classrooms
+        group by instructor_id
+      ) tc on tc.instructor_id = u.id
       where u.role = 'instructor'
     ), '[]'::jsonb),
     'students', coalesce((
@@ -74,13 +76,14 @@ begin
         'email', coalesce(u.email, ''),
         'created_at', u.created_at,
         'is_active', u.is_active,
-        'classroom_count', (
-          select count(distinct cs.classroom_id)
-          from public.classroom_students cs
-          where cs.student_id = u.id
-        )
+        'classroom_count', coalesce(sc.classroom_count, 0)
       ) order by u.full_name)
       from public.users u
+      left join (
+        select student_id, count(distinct classroom_id) as classroom_count
+        from public.classroom_students
+        group by student_id
+      ) sc on sc.student_id = u.id
       where u.role = 'student'
     ), '[]'::jsonb),
     'classrooms', coalesce((
@@ -92,13 +95,15 @@ begin
         'created_at', c.created_at,
         'teacher_name', u.full_name,
         'teacher_email', coalesce(u.email, ''),
-        'student_count', (
-          select count(*) from public.classroom_students cs
-          where cs.classroom_id = c.id
-        )
+        'student_count', coalesce(cc.student_count, 0)
       ) order by c.created_at desc)
       from public.classrooms c
       join public.users u on u.id = c.instructor_id
+      left join (
+        select classroom_id, count(*) as student_count
+        from public.classroom_students
+        group by classroom_id
+      ) cc on cc.classroom_id = c.id
     ), '[]'::jsonb),
     'activity', coalesce((
       select jsonb_agg(jsonb_build_object(

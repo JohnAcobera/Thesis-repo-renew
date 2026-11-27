@@ -630,7 +630,59 @@ void main() {
     expect(randomized[1].options[randomized[1].answerIndex], 'Mars');
     expect(randomized[3].options[randomized[3].answerIndex], 'Mercury');
   });
+
+  group('recentAttempts caching', () {
+    test('two readers share a single list_saved_quizzes request', () async {
+      var calls = 0;
+      final client = _supabaseClient((request) async {
+        calls++;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        return http.Response(
+          jsonEncode([_savedQuizRow()]),
+          200,
+          request: request,
+          headers: {'content-type': 'application/json', 'content-range': '0-0/1'},
+        );
+      });
+      final service = QuizService(
+        client: client,
+        authService: _TestAuthService(client),
+      );
+
+      final results = await Future.wait([
+        service.recentAttempts(),
+        service.recentAttempts(),
+      ]);
+
+      expect(calls, 1);
+      expect(results.first, same(results.last));
+      expect(results.first, hasLength(1));
+      await client.dispose();
+    });
+  });
 }
+
+Map<String, dynamic> _savedQuizRow() => {
+  'id': 'saved-quiz-id',
+  'title': 'Biology',
+  'source_file': 'biology.pdf',
+  'created_at': '2026-10-16T05:00:00Z',
+  'questions': [
+    {
+      'question': 'Question?',
+      'options': ['A', 'B', 'C', 'D'],
+      'answerIndex': 2,
+      'explanation': 'Because.',
+    },
+  ],
+  'attempts': [
+    {
+      'score': 6,
+      'total_questions': 10,
+      'created_at': '2026-10-16T06:00:00Z',
+    },
+  ],
+};
 
 SupabaseClient _supabaseClient(
   Future<http.Response> Function(http.Request request) handler,

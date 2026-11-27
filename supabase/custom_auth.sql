@@ -12,6 +12,13 @@ create unique index if not exists users_email_unique_idx
   on public.users (lower(email))
   where email is not null;
 
+-- Session checks and admin/leaderboard queries filter by role (and is_active)
+-- or sort by name on every request.
+create index if not exists users_role_is_active_idx
+  on public.users (role, is_active);
+create index if not exists users_role_full_name_id_idx
+  on public.users (role, full_name, id);
+
 alter table public.users drop constraint if exists users_role_check;
 alter table public.users add constraint users_role_check
   check (role in ('student', 'instructor', 'admin'));

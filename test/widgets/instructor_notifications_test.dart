@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/instructor_todo_task.dart';
@@ -18,6 +20,41 @@ void main() {
     });
 
     expect(notification.type, InstructorNotificationType.legacy);
+  });
+
+  testWidgets('badge updates from the realtime stream without polling', (
+    tester,
+  ) async {
+    final notifications = _FakeInstructorNotificationRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          appBar: StudentNavBar(
+            roleLabel: 'Instructor',
+            instructorNotificationRepository: notifications,
+          ),
+          body: const SizedBox.shrink(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2'), findsOneWidget);
+
+    await notifications.addNotification(
+      InstructorNotification(
+        id: 'student-joined:class-2:student-2',
+        type: InstructorNotificationType.studentJoined,
+        title: 'A student joined your classroom',
+        message: 'A new student joined.',
+        createdAt: DateTime(2026, 10, 18, 13),
+        isRead: false,
+        classroomId: 'class-2',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('3'), findsOneWidget);
   });
 
   testWidgets('instructor notifications use the shared navbar bell and panel', (
@@ -150,9 +187,17 @@ class _FakeInstructorNotificationRepository
     implements InstructorNotificationRepository {
   final Set<String> _readIds = {};
   final List<String> markedIds = [];
+  final StreamController<List<InstructorNotification>> _updates =
+      StreamController<List<InstructorNotification>>.broadcast();
 
   @override
-  Future<List<InstructorNotification>> listNotifications() async => [
+  Stream<List<InstructorNotification>> watchNotifications() => _updates.stream;
+
+  @override
+  Future<void> refreshNotifications() async =>
+      _updates.add(await listNotifications());
+
+  final List<InstructorNotification> _items = [
     InstructorNotification(
       id: 'quiz-answered:attempt-1',
       type: InstructorNotificationType.legacy,
@@ -160,7 +205,7 @@ class _FakeInstructorNotificationRepository
       message:
           'Ari Santos completed "Cell Structure" in Biology and scored 8 out of 10.',
       createdAt: DateTime(2026, 10, 18, 12),
-      isRead: _readIds.contains('quiz-answered:attempt-1'),
+      isRead: false,
       classroomId: 'class-1',
     ),
     InstructorNotification(
@@ -169,14 +214,36 @@ class _FakeInstructorNotificationRepository
       title: 'A student joined your classroom',
       message: 'Ari Santos joined Biology.',
       createdAt: DateTime(2026, 10, 18, 11),
-      isRead: _readIds.contains('student-joined:class-1:student-1'),
+      isRead: false,
       classroomId: 'class-1',
     ),
   ];
+
+  Future<void> addNotification(InstructorNotification notification) async {
+    _items.add(notification);
+    await refreshNotifications();
+  }
+
+  @override
+  Future<List<InstructorNotification>> listNotifications() async => _items
+      .map(
+        (notification) => InstructorNotification(
+          id: notification.id,
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          createdAt: notification.createdAt,
+          isRead: _readIds.contains(notification.id) || notification.isRead,
+          classroomId: notification.classroomId,
+          todoTaskId: notification.todoTaskId,
+        ),
+      )
+      .toList();
 
   @override
   Future<void> markNotificationsRead(List<String> notificationIds) async {
     markedIds.addAll(notificationIds);
     _readIds.addAll(notificationIds);
+    await refreshNotifications();
   }
 }

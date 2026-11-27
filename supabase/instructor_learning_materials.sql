@@ -17,6 +17,9 @@ create table if not exists public.instructor_learning_material_folder_items (
     references public.instructor_learning_material_folders(id) on delete cascade
 );
 
+create index if not exists instructor_learning_material_folder_items_folder_id_idx
+  on public.instructor_learning_material_folder_items (folder_id);
+
 alter table public.instructor_learning_material_folders enable row level security;
 alter table public.instructor_learning_material_folder_items enable row level security;
 revoke all on table public.instructor_learning_material_folders

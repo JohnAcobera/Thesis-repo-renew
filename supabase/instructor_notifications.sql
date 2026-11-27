@@ -62,6 +62,9 @@ begin
       join public.users student on student.id = membership.student_id
       where classroom.instructor_id = verified_user_id
         and membership.joined_at >= now() - interval '90 days'
+      -- Bound the result; this list is polled by the notification badge.
+      order by membership.joined_at desc
+      limit 100
 
     )
     select jsonb_agg(
@@ -132,3 +135,52 @@ grant execute on function public.list_instructor_notifications(text)
   to anon, authenticated;
 grant execute on function public.mark_instructor_notifications_read(text, text[])
   to anon, authenticated;
+
+-- Data-free Realtime broadcast used to refresh each instructor's notification
+-- badge and open panel. The payload is empty: every client re-runs the
+-- session-scoped list RPC, so no notification data leaks between accounts.
+create or replace function public.broadcast_instructor_notification_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform realtime.send(
+    '{}'::jsonb,
+    'instructor_notifications_changed',
+    'instructor-notifications',
+    false
+  );
+  return null;
+end;
+$$;
+
+revoke all on function public.broadcast_instructor_notification_change()
+  from public;
+
+do $$
+declare
+  source_table text;
+begin
+  foreach source_table in array array[
+    'classrooms',
+    'classroom_students',
+    'instructor_notification_reads'
+  ]
+  loop
+    execute format(
+      'drop trigger if exists instructor_notifications_broadcast on public.%I',
+      source_table
+    );
+    execute format(
+      'create trigger instructor_notifications_broadcast ' ||
+      'after insert or update or delete on public.%I ' ||
+      'for each statement execute function ' ||
+      'public.broadcast_instructor_notification_change()',
+      source_table
+    );
+  end loop;
+end $$;
+
+notify pgrst, 'reload schema';

@@ -43,6 +43,11 @@ create table if not exists public.classroom_students (
 
 create index if not exists classroom_students_student_idx
   on public.classroom_students (student_id);
+-- Membership lists and 90-day notification windows sort/filter by joined_at.
+create index if not exists classroom_students_student_joined_idx
+  on public.classroom_students (student_id, joined_at desc);
+create index if not exists classroom_students_classroom_joined_idx
+  on public.classroom_students (classroom_id, joined_at desc);
 
 alter table public.classrooms enable row level security;
 alter table public.classroom_students enable row level security;

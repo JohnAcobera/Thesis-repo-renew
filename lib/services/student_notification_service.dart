@@ -116,7 +116,9 @@ class StudentNotificationService implements StudentNotificationRepository {
             );
           }
         });
-    unawaited(_reloadNotifications());
+    // The subscriber callback above already performs the initial load. A
+    // second unconditional load here duplicates the heavy notification RPC
+    // (which also rebuilds the weekly leaderboard) on every widget mount.
   }
 
   void _stopWatching() {

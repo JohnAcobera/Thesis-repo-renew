@@ -437,11 +437,11 @@ create trigger learning_inventory_attempts_award_student_achievements
 after insert on public.learning_inventory_attempts
 for each row execute function public.award_student_achievement_badges();
 
+-- Ledger rows are only created by the quiz-attempt and login-day triggers,
+-- and both of those already refresh badges. Keeping an AFTER INSERT trigger on
+-- the ledger recomputed all ~20 badge aggregates 2-3 extra times per save.
 drop trigger if exists learner_point_transactions_award_student_achievements
   on public.learner_point_transactions;
-create trigger learner_point_transactions_award_student_achievements
-after insert on public.learner_point_transactions
-for each row execute function public.award_student_achievement_badges();
 
 drop trigger if exists user_login_days_award_student_achievements
   on public.user_login_days;

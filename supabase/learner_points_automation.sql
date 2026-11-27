@@ -38,22 +38,29 @@ declare
 begin
   if new.quiz_id is not null then
     quiz_group_key := 'quiz:' || new.quiz_id::text;
+    -- Index-backed range scan instead of computing an md5 key for every
+    -- previous attempt of this user.
+    select count(*) into attempt_number
+    from public.quiz_attempts a
+    where a.user_id = new.user_id
+      and a.quiz_id = new.quiz_id
+      and (a.created_at, a.id) <= (new.created_at, new.id);
   else
     quiz_group_key := 'legacy:' || md5(
       lower(trim(new.title)) || chr(31) || lower(trim(new.source_file))
     );
+    select count(*) into attempt_number
+    from public.quiz_attempts a
+    where a.user_id = new.user_id
+      and a.quiz_id is null
+      and case
+        when a.quiz_id is not null then 'quiz:' || a.quiz_id::text
+        else 'legacy:' || md5(
+          lower(trim(a.title)) || chr(31) || lower(trim(a.source_file))
+        )
+      end = quiz_group_key
+      and (a.created_at, a.id) <= (new.created_at, new.id);
   end if;
-
-  select count(*) into attempt_number
-  from public.quiz_attempts a
-  where a.user_id = new.user_id
-    and case
-      when a.quiz_id is not null then 'quiz:' || a.quiz_id::text
-      else 'legacy:' || md5(
-        lower(trim(a.title)) || chr(31) || lower(trim(a.source_file))
-      )
-    end = quiz_group_key
-    and (a.created_at, a.id) <= (new.created_at, new.id);
 
   if attempt_number = 1 then
     award_type := 'quiz_first_attempt';

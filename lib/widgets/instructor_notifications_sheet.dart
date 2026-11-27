@@ -24,26 +24,33 @@ class InstructorNotificationsButton extends StatefulWidget {
 class _InstructorNotificationsButtonState
     extends State<InstructorNotificationsButton> {
   late Future<List<InstructorNotification>> _notifications;
-  Timer? _refreshTimer;
+  late Stream<List<InstructorNotification>> _notificationUpdates;
+  StreamSubscription<List<InstructorNotification>>? _notificationSubscription;
+  final StreamController<List<InstructorNotification>> _mergedUpdates =
+      StreamController<List<InstructorNotification>>.broadcast();
+  List<InstructorNotification>? _latestNotifications;
 
   @override
   void initState() {
     super.initState();
-    _refresh();
-    _scheduleRefresh();
+    _load();
+    _startWatching();
   }
 
-  void _scheduleRefresh() {
-    _refreshTimer = Timer(durationUntilNextMinute(), () {
-      if (!mounted) return;
-      setState(_refresh);
-      _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-        if (mounted) setState(_refresh);
-      });
-    });
+  @override
+  void didUpdateWidget(covariant InstructorNotificationsButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository ||
+        oldWidget.todoRepository != widget.todoRepository ||
+        oldWidget.todoOwnerId != widget.todoOwnerId) {
+      unawaited(_notificationSubscription?.cancel());
+      _latestNotifications = null;
+      _load();
+      _startWatching();
+    }
   }
 
-  void _refresh() {
+  void _load() {
     _notifications = _listNotifications(
       widget.repository,
       widget.todoRepository,
@@ -51,8 +58,66 @@ class _InstructorNotificationsButtonState
     );
   }
 
+  void _startWatching() {
+    _notificationUpdates = _mergedUpdates.stream;
+    _notificationSubscription = widget.repository.watchNotifications().listen(
+      (notifications) => unawaited(_publishNotifications(notifications)),
+      onError: (Object error, StackTrace stackTrace) {
+        if (!_mergedUpdates.isClosed) {
+          _mergedUpdates.addError(error, stackTrace);
+        }
+      },
+    );
+  }
+
+  Future<void> _publishNotifications(
+    List<InstructorNotification> notifications,
+  ) async {
+    try {
+      final todoRepository = widget.todoRepository;
+      final todoOwnerId = widget.todoOwnerId;
+      final reminders = todoRepository == null || todoOwnerId == null
+          ? const <InstructorNotification>[]
+          : (await listTodoReminders(todoRepository, todoOwnerId))
+              .map(
+                (reminder) => InstructorNotification(
+                  id: reminder.id,
+                  type: InstructorNotificationType.todoDue,
+                  title: reminder.title,
+                  message: reminder.message,
+                  createdAt: reminder.createdAt,
+                  isRead: reminder.isRead,
+                  todoTaskId: reminder.taskId,
+                ),
+              )
+              .toList();
+      final combined = [
+        ...notifications,
+        ...reminders,
+      ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      if (_mergedUpdates.isClosed) return;
+      _latestNotifications = combined;
+      _mergedUpdates.add(combined);
+      if (mounted) setState(() {});
+    } on Object catch (error, stackTrace) {
+      if (!_mergedUpdates.isClosed) {
+        _mergedUpdates.addError(error, stackTrace);
+      }
+    }
+  }
+
+  Future<void> _reloadNotifications() async {
+    try {
+      await _publishNotifications(await widget.repository.listNotifications());
+    } on Object catch (error, stackTrace) {
+      if (!_mergedUpdates.isClosed) {
+        _mergedUpdates.addError(error, stackTrace);
+      }
+    }
+  }
+
   Future<void> _openNotifications() async {
-    _refreshTimer?.cancel();
+    unawaited(_reloadNotifications());
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -60,19 +125,18 @@ class _InstructorNotificationsButtonState
       backgroundColor: Colors.transparent,
       builder: (_) => InstructorNotificationsSheet(
         repository: widget.repository,
+        notifications: _notificationUpdates,
+        initialNotifications: _latestNotifications,
         todoRepository: widget.todoRepository,
         todoOwnerId: widget.todoOwnerId,
       ),
     );
-    if (mounted) {
-      setState(_refresh);
-      _scheduleRefresh();
-    }
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
+    unawaited(_notificationSubscription?.cancel());
+    unawaited(_mergedUpdates.close());
     super.dispose();
   }
 
@@ -81,11 +145,11 @@ class _InstructorNotificationsButtonState
       FutureBuilder<List<InstructorNotification>>(
         future: _notifications,
         builder: (context, snapshot) {
-          final unreadCount =
-              snapshot.data
-                  ?.where((notification) => !notification.isRead)
-                  .length ??
-              0;
+          final notifications =
+              _latestNotifications ?? snapshot.data ?? const [];
+          final unreadCount = notifications
+              .where((notification) => !notification.isRead)
+              .length;
           return IconButton(
             tooltip: 'Notifications',
             onPressed: _openNotifications,
@@ -128,12 +192,16 @@ class _InstructorNotificationsButtonState
 class InstructorNotificationsSheet extends StatefulWidget {
   const InstructorNotificationsSheet({
     required this.repository,
+    required this.notifications,
+    this.initialNotifications,
     this.todoRepository,
     this.todoOwnerId,
     super.key,
   });
 
   final InstructorNotificationRepository repository;
+  final Stream<List<InstructorNotification>> notifications;
+  final List<InstructorNotification>? initialNotifications;
   final InstructorTodoRepository? todoRepository;
   final int? todoOwnerId;
 
@@ -144,41 +212,17 @@ class InstructorNotificationsSheet extends StatefulWidget {
 
 class _InstructorNotificationsSheetState
     extends State<InstructorNotificationsSheet> {
-  late Future<List<InstructorNotification>> _notifications;
-  Timer? _refreshTimer;
   bool _isMarkingRead = false;
   String? _markingReadId;
   String? _markReadError;
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-    _scheduleRefresh();
-  }
-
-  void _scheduleRefresh() {
-    _refreshTimer = Timer(durationUntilNextMinute(), () {
-      if (!mounted) return;
-      setState(_load);
-      _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-        if (mounted) setState(_load);
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    super.dispose();
-  }
-
-  void _load() {
-    _notifications = _listNotifications(
-      widget.repository,
-      widget.todoRepository,
-      widget.todoOwnerId,
-    );
+  Future<void> _retry() async {
+    try {
+      setState(() => _markReadError = null);
+      await widget.repository.refreshNotifications();
+    } on InstructorNotificationException catch (error) {
+      if (mounted) setState(() => _markReadError = error.message);
+    }
   }
 
   Future<void> _markNotificationsRead(
@@ -227,7 +271,7 @@ class _InstructorNotificationsSheetState
             .where((notification) => unreadIds.contains(notification.id))
             .toList(growable: false),
       );
-      if (mounted) setState(_load);
+      await widget.repository.refreshNotifications();
     } on InstructorNotificationException catch (error) {
       if (mounted) setState(() => _markReadError = error.message);
     } on TodoReminderException catch (error) {
@@ -246,7 +290,7 @@ class _InstructorNotificationsSheetState
     });
     try {
       await _markNotificationsRead([notification]);
-      if (mounted) setState(_load);
+      await widget.repository.refreshNotifications();
     } on InstructorNotificationException catch (error) {
       if (mounted) setState(() => _markReadError = error.message);
     } on TodoReminderException catch (error) {
@@ -296,17 +340,19 @@ class _InstructorNotificationsSheetState
                 ),
                 IconButton(
                   tooltip: 'Refresh notifications',
-                  onPressed: () => setState(_load),
+                  onPressed: () => unawaited(_retry()),
                   icon: const Icon(Icons.refresh_rounded),
                 ),
               ],
             ),
           ),
           Expanded(
-            child: FutureBuilder<List<InstructorNotification>>(
-              future: _notifications,
+            child: StreamBuilder<List<InstructorNotification>>(
+              stream: widget.notifications,
+              initialData: widget.initialNotifications,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
                   return const Center(
                     child: CircularProgressIndicator(color: Color(0xFFF4773C)),
                   );
@@ -330,7 +376,7 @@ class _InstructorNotificationsSheetState
                           ),
                           const SizedBox(height: 12),
                           OutlinedButton(
-                            onPressed: () => setState(_load),
+                            onPressed: () => unawaited(_retry()),
                             child: const Text('Try again'),
                           ),
                         ],

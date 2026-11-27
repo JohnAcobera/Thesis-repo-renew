@@ -90,6 +90,10 @@ create index if not exists quiz_attempts_user_created_idx
   on public.quiz_attempts (user_id, created_at desc);
 create index if not exists quiz_attempts_quiz_created_idx
   on public.quiz_attempts (quiz_id, created_at desc);
+-- Supports the per-attempt award trigger and "latest attempt" lookups.
+create index if not exists quiz_attempts_user_quiz_latest_idx
+  on public.quiz_attempts (user_id, quiz_id, created_at desc, id desc)
+  where quiz_id is not null;
 create index if not exists student_generated_quizzes_user_created_idx
   on public.student_generated_quizzes (user_id, created_at desc);
 

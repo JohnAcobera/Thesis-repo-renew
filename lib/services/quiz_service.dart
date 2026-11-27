@@ -444,6 +444,17 @@ class QuizService implements QuizRepository {
   final SupabaseClient _client;
   final AuthService _authService;
 
+  // The dashboard renders the quiz list in two panels and the profile screen
+  // renders it again. All of them instantiate their own QuizService, so the
+  // de-duplication has to live at class level. Keyed by client + token so
+  // tests and account switches never share cached data.
+  static final Map<(SupabaseClient, String), _RecentAttemptsEntry>
+      _recentAttemptsCache = {};
+  static const _recentAttemptsTtl = Duration(seconds: 30);
+
+  void _invalidateRecentAttempts() =>
+      _recentAttemptsCache.removeWhere((key, _) => key.$1 == _client);
+
   Future<int> learnerPointsForAttempt({required String quizId}) async {
     final token = await _requireSessionToken();
     try {
@@ -471,7 +482,7 @@ class QuizService implements QuizRepository {
   }) async {
     final token = await _requireSessionToken();
     try {
-      return await _client.rpc<String>(
+      final quizId = await _client.rpc<String>(
         'save_quiz_draft',
         params: {
           'p_session_token': token,
@@ -482,6 +493,8 @@ class QuizService implements QuizRepository {
               .toList(),
         },
       );
+      _invalidateRecentAttempts();
+      return quizId;
     } on PostgrestException catch (error) {
       throw QuizServiceException(
         _databaseMessage(
@@ -625,6 +638,7 @@ class QuizService implements QuizRepository {
               : null,
         },
       );
+      _invalidateRecentAttempts();
       return savedQuizId;
     } on PostgrestException catch (error) {
       throw QuizServiceException(
@@ -640,6 +654,37 @@ class QuizService implements QuizRepository {
   @override
   Future<List<QuizActivity>> recentAttempts() async {
     final token = await _requireSessionToken();
+    final key = (_client, token);
+    final cached = _recentAttemptsCache[key];
+    if (cached != null) {
+      final completedAt = cached.completedAt;
+      if (completedAt != null &&
+          DateTime.now().difference(completedAt) < _recentAttemptsTtl) {
+        return cached.value!;
+      }
+      if (completedAt == null) {
+        // Another widget is already loading the same list; share that call.
+        return cached.future;
+      }
+    }
+
+    final future = _fetchRecentAttempts(token);
+    final entry = _RecentAttemptsEntry(future);
+    _recentAttemptsCache[key] = entry;
+    try {
+      final activities = await future;
+      entry.value = activities;
+      entry.completedAt = DateTime.now();
+      return activities;
+    } on Object {
+      if (identical(_recentAttemptsCache[key], entry)) {
+        _recentAttemptsCache.remove(key);
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<QuizActivity>> _fetchRecentAttempts(String token) async {
     try {
       final response = await _client.rpc<List<dynamic>>(
         'list_saved_quizzes',
@@ -690,6 +735,14 @@ class QuizService implements QuizRepository {
     }
     return failureMessage;
   }
+}
+
+class _RecentAttemptsEntry {
+  _RecentAttemptsEntry(this.future);
+
+  final Future<List<QuizActivity>> future;
+  List<QuizActivity>? value;
+  DateTime? completedAt;
 }
 
 class QuizServiceException implements Exception {

@@ -32,6 +32,21 @@ create table if not exists public.learner_point_transactions (
 create index if not exists learner_point_transactions_user_created_idx
   on public.learner_point_transactions (user_id, created_at desc);
 
+-- Partial indexes for the hot event types and JSONB attempt-id lookups.
+-- Keeping them partial avoids bloating this write-heavy ledger.
+create index if not exists learner_point_transactions_event_user_created_idx
+  on public.learner_point_transactions (user_id, event_type, created_at desc)
+  where event_type in (
+    'daily_login_streak', 'quiz_first_attempt', 'quiz_second_attempt',
+    'perfect_quiz', 'quiz_score_reward'
+  );
+create index if not exists learner_point_transactions_attempt_id_idx
+  on public.learner_point_transactions (user_id, (details->>'attempt_id'))
+  where details ? 'attempt_id';
+create index if not exists learner_point_transactions_perfect_attempt_id_idx
+  on public.learner_point_transactions (user_id, (details->>'perfect_attempt_id'))
+  where details ? 'perfect_attempt_id';
+
 alter table public.learner_point_transactions enable row level security;
 revoke all on table public.learner_point_transactions from anon, authenticated;
 
