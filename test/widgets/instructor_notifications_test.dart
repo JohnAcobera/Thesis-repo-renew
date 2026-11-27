@@ -151,7 +151,11 @@ void main() {
     expect(find.text('Mark all as read'), findsNothing);
     expect(
       todos.readTaskIds,
-      containsAll(['overdue-task', 'today-task', 'tomorrow-task']),
+      containsAll([
+        'todo-reminder:overdue-task:overdue',
+        'todo-reminder:today-task:due-today',
+        'todo-reminder:tomorrow-task:due-tomorrow',
+      ]),
     );
     expect(tester.takeException(), isNull);
   });

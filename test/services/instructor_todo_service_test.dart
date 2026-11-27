@@ -249,9 +249,36 @@ void main() {
     ]);
 
     final reminders = await listTodoReminders(repository, 12, now: seenAt);
+    final overdue = reminders.firstWhere((item) => item.kind == 'overdue');
 
-    expect(reminders.single.title, 'Task overdue');
-    expect(reminders.single.createdAt, deadline);
+    expect(overdue.title, 'Task overdue');
+    expect(overdue.createdAt, deadline);
+    expect(
+      reminders.map((item) => item.kind),
+      containsAll(['due-today', 'overdue']),
+    );
+    expect(reminders.map((item) => item.id).toSet(), hasLength(2));
+  });
+
+  test('legacy reminder keys still apply to stage-specific ids', () async {
+    SharedPreferences.setMockInitialValues({
+      'instructor_todo_reminder_read_12_task-1': true,
+      'instructor_todo_reminder_seen_12_task-1': '2026-11-27T09:00:00.000',
+    });
+    final service = _service(
+      cloudStore: _FakeTodoCloudStore(),
+      legacyKeyStore: _FakeLegacyTodoKeyStore(),
+      sessionToken: 'instructor-session',
+    );
+
+    expect(
+      await service.isReminderRead(12, 'todo-reminder:task-1:overdue'),
+      isTrue,
+    );
+    expect(
+      await service.reminderFirstSeen(12, 'todo-reminder:task-1:due-today'),
+      DateTime.parse('2026-11-27T09:00:00.000'),
+    );
   });
 
   test('reminder refresh aligns with the next minute boundary', () {

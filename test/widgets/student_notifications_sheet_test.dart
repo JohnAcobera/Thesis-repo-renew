@@ -170,7 +170,7 @@ void main() {
       'quiz-points:attempt-1',
       'daily-points:today',
     ]);
-    expect(todos.readTaskIds, ['due-tomorrow']);
+    expect(todos.readTaskIds, ['todo-reminder:due-tomorrow:due-tomorrow']);
     expect(find.text('Mark all as read'), findsNothing);
 
     await tester.tap(find.text('New classroom activity'));

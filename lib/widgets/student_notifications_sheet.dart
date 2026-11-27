@@ -422,7 +422,7 @@ class _StudentNotificationsSheetState extends State<StudentNotificationsSheet> {
       await markTodoRemindersRead(
         todoRepository,
         todoOwnerId,
-        reminders.map((notification) => notification.todoTaskId!).toList(),
+        reminders.map((notification) => notification.id).toList(),
       );
     }
 

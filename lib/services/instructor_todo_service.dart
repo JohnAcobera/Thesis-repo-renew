@@ -28,6 +28,7 @@ abstract interface class TodoReminderReadRepository {
 class TodoReminder {
   const TodoReminder({
     required this.taskId,
+    required this.kind,
     required this.title,
     required this.message,
     required this.createdAt,
@@ -35,12 +36,15 @@ class TodoReminder {
   });
 
   final String taskId;
+  // 'due-tomorrow', 'due-today' or 'overdue'. Each stage is a separate
+  // notification with its own read state and timestamp.
+  final String kind;
   final String title;
   final String message;
   final DateTime createdAt;
   final bool isRead;
 
-  String get id => 'todo-reminder:$taskId';
+  String get id => 'todo-reminder:$taskId:$kind';
 }
 
 class TodoReminderException implements Exception {
@@ -78,6 +82,41 @@ Future<List<TodoReminder>> listTodoReminders(
   final tomorrow = today.add(const Duration(days: 1));
   final reminders = <TodoReminder>[];
 
+  Future<TodoReminder> build({
+    required InstructorTodoTask task,
+    required String kind,
+    required String title,
+    required String message,
+    required DateTime timestamp,
+    bool useFirstSeen = false,
+  }) async {
+    final reminderId = 'todo-reminder:${task.id}:$kind';
+    var createdAt = timestamp;
+    if (useFirstSeen) {
+      createdAt = currentTime;
+      if (readRepository != null) {
+        createdAt =
+            await readRepository.reminderFirstSeen(ownerId, reminderId) ??
+            currentTime;
+        if (createdAt == currentTime) {
+          await readRepository.recordReminderSeen(
+            ownerId,
+            reminderId,
+            currentTime,
+          );
+        }
+      }
+    }
+    return TodoReminder(
+      taskId: task.id,
+      kind: kind,
+      title: title,
+      message: message,
+      createdAt: createdAt,
+      isRead: await readRepository?.isReminderRead(ownerId, reminderId) ?? false,
+    );
+  }
+
   for (final task in tasks) {
     if (task.isCompleted) continue;
     final dueDate = DateTime(
@@ -93,39 +132,39 @@ Future<List<TodoReminder>> listTodoReminders(
         : task.dueDate;
     final isOverdue =
         dueDate.isBefore(today) || !currentTime.isBefore(deadline);
-    final isDueTomorrow = dueDate == tomorrow;
-    // Reminders are rebuilt from local tasks on every load. Remember the
-    // first time each upcoming one appeared so its age grows normally instead
-    // of being reset to "Just now" on every refresh. Overdue reminders use the
-    // deadline, so their age reads as "how long past due" (e.g. 1m ago).
-    DateTime firstSeen = currentTime;
-    if (readRepository != null && !isOverdue) {
-      firstSeen =
-          await readRepository.reminderFirstSeen(ownerId, task.id) ??
-          currentTime;
-      if (firstSeen == currentTime) {
-        await readRepository.recordReminderSeen(ownerId, task.id, currentTime);
-      }
+
+    // Keep the original "due today/tomorrow" item intact. It must not be
+    // rewritten into the overdue item when the deadline passes.
+    if (!dueDate.isBefore(today)) {
+      final isDueTomorrow = dueDate == tomorrow;
+      reminders.add(
+        await build(
+          task: task,
+          kind: isDueTomorrow ? 'due-tomorrow' : 'due-today',
+          title: isDueTomorrow ? 'Task due tomorrow' : 'Task due today',
+          message: isDueTomorrow
+              ? '"${task.title}" is due tomorrow.'
+              : '"${task.title}" is due today.',
+          timestamp: currentTime,
+          useFirstSeen: true,
+        ),
+      );
     }
-    final title = isOverdue
-        ? 'Task overdue'
-        : isDueTomorrow
-        ? 'Task due tomorrow'
-        : 'Task due today';
-    final message = isOverdue
-        ? '"${task.title}" was due ${_formatReminderDeadline(task.dueDate, isDateOnly)}.'
-        : isDueTomorrow
-        ? '"${task.title}" is due tomorrow.'
-        : '"${task.title}" is due today.';
-    reminders.add(
-      TodoReminder(
-        taskId: task.id,
-        title: title,
-        message: message,
-        createdAt: isOverdue ? deadline : firstSeen,
-        isRead: await readRepository?.isReminderRead(ownerId, task.id) ?? false,
-      ),
-    );
+
+    // Overdue is a separate notification with its own read state and its own
+    // "how long past due" timestamp.
+    if (isOverdue) {
+      reminders.add(
+        await build(
+          task: task,
+          kind: 'overdue',
+          title: 'Task overdue',
+          message:
+              '"${task.title}" was due ${_formatReminderDeadline(task.dueDate, isDateOnly)}.',
+          timestamp: deadline,
+        ),
+      );
+    }
   }
   return reminders;
 }
@@ -297,10 +336,25 @@ class InstructorTodoService
   String _reminderFirstSeenKey(int ownerId, String taskId) =>
       '${storageNamespace}_todo_reminder_seen_${ownerId}_$taskId';
 
+  // Reminder IDs used to be 'todo-reminder:<taskId>'. New IDs add a stage
+  // suffix; fall back to the legacy key so previously read reminders do not
+  // reappear as unread after the ID change.
+  String _legacyTaskId(String reminderId) {
+    final parts = reminderId.split(':');
+    if (parts.length >= 3 && parts.first == 'todo-reminder') return parts[1];
+    return reminderId;
+  }
+
   @override
-  Future<bool> isReminderRead(int ownerId, String taskId) async {
+  Future<bool> isReminderRead(int ownerId, String reminderId) async {
     final preferences = await SharedPreferences.getInstance();
-    return preferences.getBool(_reminderReadKey(ownerId, taskId)) ?? false;
+    if (preferences.getBool(_reminderReadKey(ownerId, reminderId)) ?? false) {
+      return true;
+    }
+    return preferences.getBool(
+          _reminderReadKey(ownerId, _legacyTaskId(reminderId)),
+        ) ??
+        false;
   }
 
   @override
@@ -318,11 +372,14 @@ class InstructorTodoService
   }
 
   @override
-  Future<DateTime?> reminderFirstSeen(int ownerId, String taskId) async {
+  Future<DateTime?> reminderFirstSeen(int ownerId, String reminderId) async {
     final preferences = await SharedPreferences.getInstance();
     final stored = preferences.getString(
-      _reminderFirstSeenKey(ownerId, taskId),
-    );
+          _reminderFirstSeenKey(ownerId, reminderId),
+        ) ??
+        preferences.getString(
+          _reminderFirstSeenKey(ownerId, _legacyTaskId(reminderId)),
+        );
     return stored == null ? null : DateTime.tryParse(stored);
   }
 
