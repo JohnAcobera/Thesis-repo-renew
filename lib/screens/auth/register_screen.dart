@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 
 import '../../services/auth_service.dart';
 import '../../services/tutorial_service.dart';
+import '../home/student_home_screen.dart';
 import '../landing/landing_screen.dart';
 import 'login_screen.dart';
 
@@ -44,6 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _isLoading = true;
       _error = null;
     });
+    var accountCreated = false;
     try {
       final verification = await _invokeRegistrationOtp({
         'action': 'verify',
@@ -63,6 +65,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _passwordController.text,
         role: 'student',
       );
+      accountCreated = true;
       if (!mounted) return;
       try {
         await const TutorialService().markFirstLoginPending(
@@ -89,14 +92,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account created. You can now log in.')),
+      final result = await _service.login(
+        email: _emailController.text,
+        password: _passwordController.text,
       );
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+      if (!mounted) return;
+
+      var showTutorialOnOpen = false;
+      try {
+        showTutorialOnOpen = await const TutorialService()
+            .consumeFirstLoginPending(result.user.email);
+      } on Exception catch (error, stackTrace) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: 'registration',
+            context: ErrorDescription(
+              'while checking whether the new-user tutorial is pending',
+            ),
+          ),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Your tutorial could not be opened automatically. You can '
+                'start it from the dashboard.',
+              ),
+            ),
+          );
+        }
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(
+          builder: (_) => StudentHomeScreen(
+            user: result.user,
+            showTutorialOnOpen: showTutorialOnOpen,
+          ),
+        ),
+        (_) => false,
       );
     } on AuthException catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (mounted) {
+        setState(
+          () => _error = accountCreated
+              ? 'Your account was created, but automatic login failed. '
+                    'Please log in manually. ${error.message}'
+              : error.message,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -124,7 +170,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             content: Text(
               response['message'] as String? ??
                   'Verification code sent. Check your inbox and spam folder.',
-                  
             ),
           ),
         );
@@ -305,8 +350,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ] else
             const Padding(
               padding: EdgeInsets.only(top: 8),
-              child: Text('Enter the six-digit code sent to your email (Check spam folder).'),
-              
+              child: Text(
+                'Enter the six-digit code sent to your email (Check spam folder).',
+              ),
             ),
         ],
       ),
