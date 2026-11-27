@@ -191,6 +191,12 @@ void main() {
           dueDate: DateTime(now.year, now.month, now.day),
           priority: InstructorTodoPriority.low,
         ),
+        InstructorTodoTask(
+          id: 'tomorrow',
+          title: 'Prepare slides',
+          dueDate: DateTime(now.year, now.month, now.day + 1, 15),
+          priority: InstructorTodoPriority.normal,
+        ),
       ]);
 
       final reminders = await listTodoReminders(repository, 12, now: now);
@@ -205,6 +211,15 @@ void main() {
       );
       expect(byTaskId['deadline-later']?.title, 'Task due today');
       expect(byTaskId['date-only']?.title, 'Task due today');
+      expect(byTaskId['deadline-now']?.createdAt, now);
+      expect(
+        byTaskId['deadline-later']?.createdAt,
+        DateTime(now.year, now.month, now.day),
+      );
+      expect(
+        byTaskId['tomorrow']?.createdAt,
+        DateTime(now.year, now.month, now.day),
+      );
     },
   );
 

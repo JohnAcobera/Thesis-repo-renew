@@ -104,7 +104,9 @@ Future<List<TodoReminder>> listTodoReminders(
         taskId: task.id,
         title: title,
         message: message,
-        createdAt: currentTime,
+        createdAt: isOverdue
+            ? deadline
+            : DateTime(today.year, today.month, today.day),
         isRead: await readRepository?.isReminderRead(ownerId, task.id) ?? false,
       ),
     );
