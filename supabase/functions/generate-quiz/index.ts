@@ -42,7 +42,6 @@ const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
 const GROQ_KEY_NUMBERS = [5, 2, 1, 3, 4] as const;
 
-// This cap applies to extracted text, independently of the uploaded file's byte size.
 const MAX_SOURCE_TEXT_CHARS = 100_000;
 const TOTAL_REQUEST_BUDGET_MS = 55_000;
 const MIN_ATTEMPT_MS = 4_000; // don't start an attempt with less time left
@@ -1023,8 +1022,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     sourceText.length > MAX_SOURCE_TEXT_CHARS
   ) {
     return jsonResponse(400, {
-      error: "Extracted source text must be 100,000 characters or fewer. " +
-        "This limit is separate from the 3 MB file upload limit.",
+      error: "Provide extracted document text of 100,000 characters or less.",
     });
   }
 
