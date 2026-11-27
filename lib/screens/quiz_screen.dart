@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../services/achievement_service.dart';
+import '../services/instructor_todo_service.dart';
 import '../services/quiz_service.dart';
 import '../services/student_notification_service.dart';
 import '../widgets/student_side_menu.dart';
@@ -27,6 +28,8 @@ class QuizScreen extends StatefulWidget {
     this.quizService,
     this.achievementService,
     this.notificationRepository,
+    this.todoRepository,
+    this.todoOwnerId,
     this.isPracticeRound = false,
     super.key,
   });
@@ -44,6 +47,8 @@ class QuizScreen extends StatefulWidget {
   final QuizService? quizService;
   final AchievementService? achievementService;
   final StudentNotificationRepository? notificationRepository;
+  final InstructorTodoRepository? todoRepository;
+  final int? todoOwnerId;
   final bool isPracticeRound;
 
   @override
@@ -175,7 +180,10 @@ class _QuizScreenState extends State<QuizScreen> {
       username: widget.username,
       email: widget.email,
       role: _displayRole(widget.role),
+      showNotifications: false,
       notificationRepository: widget.notificationRepository,
+      todoRepository: widget.todoRepository,
+      todoOwnerId: widget.todoOwnerId,
       onBack: () => Navigator.of(context).maybePop(_isSaved),
       onMenuSelected: (item) {
         if (item == StudentMenuItem.dashboard) {
@@ -630,6 +638,8 @@ class _QuizScreenState extends State<QuizScreen> {
           onMenuSelected: widget.onMenuSelected,
           quizService: widget.quizService,
           notificationRepository: widget.notificationRepository,
+          todoRepository: widget.todoRepository,
+          todoOwnerId: widget.todoOwnerId,
           isPracticeRound: true,
         ),
       ),

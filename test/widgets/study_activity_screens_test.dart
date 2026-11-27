@@ -43,6 +43,7 @@ void main() {
       ),
     );
 
+    expect(find.byTooltip('Notifications'), findsNothing);
     BoxDecoration targetDecoration(int index) =>
         tester
                 .widget<AnimatedContainer>(
@@ -233,6 +234,7 @@ void main() {
       ),
     );
 
+    expect(find.byTooltip('Notifications'), findsNothing);
     expect(find.text('What is osmosis?'), findsOneWidget);
     expect(find.text('Need a hint?'), findsOneWidget);
     expect(find.textContaining('Think about water crossing'), findsNothing);
@@ -251,6 +253,53 @@ void main() {
     expect(find.text('Explanation'), findsOneWidget);
     expect(find.text('Review again'), findsOneWidget);
     expect(find.text('Got it'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('flashcard keeps the current answer until its flip completes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FlashcardsScreen(
+          activityId: 'activity-id',
+          username: 'Student',
+          email: 'student@example.com',
+          title: 'Cell biology',
+          sourceFile: 'biology.txt',
+          role: 'teacher',
+          cards: const [
+            Flashcard(
+              question: 'Question 1',
+              answer: 'Answer 1',
+              explanation: 'Explanation 1',
+            ),
+            Flashcard(
+              question: 'Question 2',
+              answer: 'Answer 2',
+              explanation: 'Explanation 2',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Question 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Got it'));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Answer 1'), findsOneWidget);
+    expect(find.text('Answer 2'), findsNothing);
+
+    await tester.pumpAndSettle();
+    expect(find.text('Question 2'), findsOneWidget);
+    expect(find.text('Answer 1'), findsNothing);
+    expect(find.text('Answer 2'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

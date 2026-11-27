@@ -33,12 +33,14 @@ void main() {
       'id': 'teacher-feedback:feedback-1',
       'type': 'teacherFeedback',
       'title': 'A message from your teacher',
-      'message': 'You have got this!',
+      'message': 'From john instructor: You have got this!',
       'created_at': DateTime(2026, 10, 17).toIso8601String(),
       'is_read': false,
     });
 
     expect(notification.type, StudentNotificationType.teacherFeedback);
+    expect(notification.senderName, 'john instructor');
+    expect(notification.message, 'You have got this!');
   });
 
   testWidgets('teacher-message bubble stays visible until feedback is read', (
@@ -66,6 +68,7 @@ void main() {
         message: 'You have got this!',
         createdAt: DateTime(2026, 10, 19),
         isRead: false,
+        senderName: 'john instructor',
       ),
     );
     await tester.pumpAndSettle();
@@ -84,6 +87,8 @@ void main() {
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
 
+    expect(find.text('From: John Instructor'), findsOneWidget);
+    expect(find.text('You have got this!'), findsOneWidget);
     await tester.tap(find.text('A message from your teacher').last);
     await tester.pumpAndSettle();
 
@@ -302,6 +307,7 @@ class _FakeStudentNotificationRepository
           message: notification.message,
           createdAt: notification.createdAt,
           isRead: _readIds.contains(notification.id),
+          senderName: notification.senderName,
         ),
       ),
     ];

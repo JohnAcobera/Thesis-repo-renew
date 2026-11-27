@@ -39,6 +39,7 @@ class StudentScaffold extends StatefulWidget {
     this.onMenuSelected,
     this.onBack,
     this.trailingAction,
+    this.showNotifications = true,
     this.notificationRepository,
     this.todoRepository,
     this.todoOwnerId,
@@ -54,6 +55,7 @@ class StudentScaffold extends StatefulWidget {
   final ValueChanged<StudentMenuItem>? onMenuSelected;
   final VoidCallback? onBack;
   final Widget? trailingAction;
+  final bool showNotifications;
   final StudentNotificationRepository? notificationRepository;
   final InstructorTodoRepository? todoRepository;
   final int? todoOwnerId;
@@ -121,6 +123,7 @@ class _StudentScaffoldState extends State<StudentScaffold> {
       email: widget.email,
       onProfileSelected: () => _selectMenuItem(StudentMenuItem.profile),
       trailingAction: widget.trailingAction,
+      showNotifications: widget.showNotifications,
       notificationRepository: widget.notificationRepository,
       todoRepository: widget.todoRepository,
       todoOwnerId: widget.todoOwnerId,

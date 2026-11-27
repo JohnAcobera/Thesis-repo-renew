@@ -20,6 +20,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
     this.onProfileSelected,
     this.onLogoutSelected,
     this.trailingAction,
+    this.showNotifications = true,
     this.notificationRepository,
     this.instructorNotificationRepository,
     this.todoRepository,
@@ -36,6 +37,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onProfileSelected;
   final VoidCallback? onLogoutSelected;
   final Widget? trailingAction;
+  final bool showNotifications;
   final StudentNotificationRepository? notificationRepository;
   final InstructorNotificationRepository? instructorNotificationRepository;
   final InstructorTodoRepository? todoRepository;
@@ -123,13 +125,13 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       actions: [
         ?trailingAction,
-        if (roleLabel.trim().toLowerCase() == 'student')
+        if (showNotifications && roleLabel.trim().toLowerCase() == 'student')
           StudentNotificationsButton(
             repository: notificationRepository ?? NotificationRepositories.student,
             todoRepository: todoRepository,
             todoOwnerId: todoOwnerId,
           ),
-        if (roleLabel.trim().toLowerCase() == 'instructor')
+        if (showNotifications && roleLabel.trim().toLowerCase() == 'instructor')
           InstructorNotificationsButton(
             repository:
                 instructorNotificationRepository ??

@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/admin/admin_login_screen.dart';
@@ -9,6 +10,7 @@ const _buttonColor = Color(0xFFFF7434);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  DesktopDrop.instance.init();
 
   const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
   const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');

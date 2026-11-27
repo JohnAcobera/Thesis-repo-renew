@@ -733,6 +733,18 @@ class _NotificationTile extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
+                  if (notification.senderName case final senderName?)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text(
+                        'From: ${_formatSenderName(senderName)}',
+                        style: const TextStyle(
+                          color: Color(0xFF765C4F),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   Text(
                     notification.message,
                     style: const TextStyle(
@@ -779,6 +791,16 @@ class _NotificationTile extends StatelessWidget {
     if (difference.inDays < 7) return '${difference.inDays}d ago';
     return '${localDate.month}/${localDate.day}/${localDate.year}';
   }
+
+  String _formatSenderName(String name) => name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .map(
+        (part) => part.isEmpty
+            ? part
+            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+      )
+      .join(' ');
 }
 
 Future<List<StudentNotification>> _listNotifications(

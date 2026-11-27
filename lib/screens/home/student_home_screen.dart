@@ -92,6 +92,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
           createdAt: user.createdAt,
           onMenuSelected: _selectMenuItem,
           notificationRepository: _notificationRepository,
+          todoRepository: _todoRepository,
+          todoOwnerId: user.id,
           achievementService: _achievementServiceFor(user.role),
           showTutorialOnOpen: true,
         ),
@@ -163,6 +165,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
             createdAt: user.createdAt,
             onMenuSelected: _selectMenuItem,
             notificationRepository: _notificationRepository,
+            todoRepository: _todoRepository,
+            todoOwnerId: user.id,
             achievementService: _achievementServiceFor(user.role),
             showTutorialOnOpen: previewTutorial,
           ),
@@ -227,6 +231,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen>
               user: user,
               onMenuSelected: onMenuSelected,
               notificationRepository: _notificationRepository,
+              todoRepository: _todoRepository,
               achievementService: _achievementServiceFor(user.role),
             )
           : _selectedMenu == StudentMenuItem.classroom

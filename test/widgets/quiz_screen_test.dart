@@ -7,7 +7,7 @@ import 'package:thesis_repo_renew/services/quiz_service.dart';
 import 'package:thesis_repo_renew/services/student_notification_service.dart';
 
 void main() {
-  testWidgets('quiz screen uses the injected notification repository', (
+  testWidgets('quiz screen hides notifications while taking a quiz', (
     tester,
   ) async {
     final notifications = _FakeStudentNotificationRepository();
@@ -32,10 +32,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(notifications.listCalls, 1);
-    await tester.tap(find.byTooltip('Notifications'));
-    await tester.pumpAndSettle();
-    expect(find.text('Quiz update'), findsOneWidget);
+    expect(find.byTooltip('Notifications'), findsNothing);
+    expect(notifications.listCalls, 0);
     expect(tester.takeException(), isNull);
   });
 

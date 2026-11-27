@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_model.dart';
 import '../services/achievement_service.dart';
+import '../services/instructor_todo_service.dart';
 import '../services/learning_mode_service.dart';
 import '../services/quiz_service.dart';
 import '../services/student_notification_service.dart';
@@ -37,6 +38,7 @@ class InventoryScreen extends StatefulWidget {
     this.quizRepository,
     this.learningModeService,
     this.notificationRepository,
+    this.todoRepository,
     this.achievementService,
     super.key,
   });
@@ -46,6 +48,7 @@ class InventoryScreen extends StatefulWidget {
   final QuizRepository? quizRepository;
   final LearningModeService? learningModeService;
   final StudentNotificationRepository? notificationRepository;
+  final InstructorTodoRepository? todoRepository;
   final AchievementService? achievementService;
 
   @override
@@ -457,6 +460,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
             createdAt: widget.user.createdAt,
             onMenuSelected: widget.onMenuSelected,
             notificationRepository: widget.notificationRepository,
+            todoRepository: widget.todoRepository,
+            todoOwnerId: widget.user.id,
             achievementService: widget.achievementService,
             title: record.quiz!.title,
             sourceFile: record.quiz!.sourceFile,

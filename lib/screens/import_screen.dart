@@ -13,6 +13,7 @@ import 'profile_screen.dart';
 import 'quiz_screen.dart';
 import 'study_activity_screens.dart';
 import '../services/achievement_service.dart';
+import '../services/instructor_todo_service.dart';
 import '../services/learning_mode_service.dart';
 import '../services/quiz_service.dart';
 import '../services/student_notification_service.dart';
@@ -33,6 +34,8 @@ class ImportScreen extends StatefulWidget {
     this.createdAt,
     this.onMenuSelected,
     this.notificationRepository,
+    this.todoRepository,
+    this.todoOwnerId,
     this.achievementService,
     this.showTutorialOnOpen = false,
     super.key,
@@ -44,6 +47,8 @@ class ImportScreen extends StatefulWidget {
   final DateTime? createdAt;
   final ValueChanged<StudentMenuItem>? onMenuSelected;
   final StudentNotificationRepository? notificationRepository;
+  final InstructorTodoRepository? todoRepository;
+  final int? todoOwnerId;
   final AchievementService? achievementService;
   final bool showTutorialOnOpen;
 
@@ -472,6 +477,8 @@ class _ImportScreenState extends State<ImportScreen> {
           createdAt: widget.createdAt,
           onMenuSelected: widget.onMenuSelected,
           notificationRepository: widget.notificationRepository,
+          todoRepository: widget.todoRepository,
+          todoOwnerId: widget.todoOwnerId,
           achievementService: widget.achievementService,
           title: title,
           sourceFile: sourceFile,
@@ -664,6 +671,8 @@ class _ImportScreenState extends State<ImportScreen> {
       email: widget.email,
       role: _displayRole(widget.role),
       notificationRepository: widget.notificationRepository,
+      todoRepository: widget.todoRepository,
+      todoOwnerId: widget.todoOwnerId,
       onMenuSelected: (item) {
         if (item == StudentMenuItem.dashboard) {
           Navigator.of(context).pop(true);

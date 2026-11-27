@@ -36,6 +36,7 @@ class StudentNotification {
     required this.message,
     required this.createdAt,
     required this.isRead,
+    this.senderName,
     this.todoTaskId,
   });
 
@@ -45,6 +46,7 @@ class StudentNotification {
   final String message;
   final DateTime createdAt;
   final bool isRead;
+  final String? senderName;
   final String? todoTaskId;
 
   factory StudentNotification.fromJson(Map<String, dynamic> json) {
@@ -57,13 +59,26 @@ class StudentNotification {
               'Unknown student notification type: $typeName',
             ),
           );
+    final rawMessage = json['message'] as String;
+    String? senderName;
+    var message = rawMessage;
+    if (type == StudentNotificationType.teacherFeedback &&
+        rawMessage.startsWith('From ')) {
+      final separator = rawMessage.indexOf(': ', 'From '.length);
+      if (separator > 'From '.length) {
+        senderName = rawMessage.substring('From '.length, separator);
+        message = rawMessage.substring(separator + 2);
+      }
+    }
+
     return StudentNotification(
       id: json['id'] as String,
       type: type,
       title: json['title'] as String,
-      message: json['message'] as String,
+      message: message,
       createdAt: DateTime.parse(json['created_at'] as String),
       isRead: json['is_read'] as bool,
+      senderName: senderName,
     );
   }
 }

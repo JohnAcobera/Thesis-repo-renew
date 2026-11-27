@@ -362,10 +362,12 @@ begin
         'teacher-feedback:' || feedback.id::text,
         'teacherFeedback'::text,
         'A message from your teacher'::text,
-        feedback.message,
+        format('From %s: %s', instructor.full_name, feedback.message),
         feedback.created_at,
         null::uuid
       from public.student_teacher_feedback feedback
+      join public.users instructor
+        on instructor.id = feedback.instructor_id
       where feedback.student_id = verified_user_id
         and feedback.created_at >= now() - interval '90 days'
     )

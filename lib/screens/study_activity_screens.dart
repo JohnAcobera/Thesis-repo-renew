@@ -55,6 +55,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   final Set<int> _mastered = {};
   final Set<int> _reviewAgainCardIndexes = {};
   bool _isFlipped = false;
+  bool _isAdvancing = false;
   bool _isHintVisible = false;
   bool _isFinished = false;
   bool _isSaving = false;
@@ -64,8 +65,20 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
 
   Flashcard get _card => widget.cards[_queue.first];
 
-  Future<void> _rateCard({required bool gotIt}) async {
-    if (_isFinished) return;
+  bool? _pendingRating;
+
+  void _rateCard({required bool gotIt}) {
+    if (_isFinished || _isAdvancing) return;
+    setState(() {
+      _isAdvancing = true;
+      _pendingRating = gotIt;
+      _isFlipped = false;
+    });
+  }
+
+  Future<void> _completeRating() async {
+    final gotIt = _pendingRating;
+    if (gotIt == null) return;
     final cardIndex = _queue.removeAt(0);
     setState(() {
       if (gotIt) {
@@ -76,10 +89,10 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         final requeueAt = math.min(2, _queue.length);
         _queue.insert(requeueAt, cardIndex);
       }
-      _isFlipped = false;
+      _pendingRating = null;
+      _isAdvancing = false;
       _isHintVisible = false;
     });
-
     if (_mastered.length == widget.cards.length) {
       setState(() => _isFinished = true);
       if (!widget.isReviewRound) await _saveResult();
@@ -141,6 +154,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     username: widget.username,
     email: widget.email,
     role: _displayRole(widget.role),
+    showNotifications: false,
     onBack: () => Navigator.of(context).maybePop(_isSaved),
     onMenuSelected: (item) => _handleMenuSelection(
       context,
@@ -203,9 +217,16 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         _FlipCard(
           card: _card,
           flipped: _isFlipped,
-          onFlip: () => setState(() => _isFlipped = !_isFlipped),
+          onFlip: () {
+            if (_isAdvancing) return;
+            setState(() => _isFlipped = !_isFlipped);
+          },
+          onFlipAnimationEnd: _completeRating,
           hintVisible: _isHintVisible,
-          onHintPressed: () => setState(() => _isHintVisible = true),
+          onHintPressed: () {
+            if (_isAdvancing) return;
+            setState(() => _isHintVisible = true);
+          },
         ),
         const SizedBox(height: 20),
         if (_isFlipped)
@@ -317,6 +338,7 @@ class _FlipCard extends StatelessWidget {
     required this.card,
     required this.flipped,
     required this.onFlip,
+    required this.onFlipAnimationEnd,
     required this.hintVisible,
     required this.onHintPressed,
   });
@@ -324,6 +346,7 @@ class _FlipCard extends StatelessWidget {
   final Flashcard card;
   final bool flipped;
   final VoidCallback onFlip;
+  final VoidCallback onFlipAnimationEnd;
   final bool hintVisible;
   final VoidCallback onHintPressed;
 
@@ -334,6 +357,7 @@ class _FlipCard extends StatelessWidget {
       tween: Tween<double>(begin: 0, end: flipped ? math.pi : 0),
       duration: const Duration(milliseconds: 460),
       curve: Curves.easeInOutCubic,
+      onEnd: onFlipAnimationEnd,
       builder: (context, angle, _) {
         final showAnswer = angle >= math.pi / 2;
         final content = showAnswer
@@ -684,6 +708,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
     username: widget.username,
     email: widget.email,
     role: _displayRole(widget.role),
+    showNotifications: false,
     onBack: () => Navigator.of(context).maybePop(_isSaved),
     onMenuSelected: (item) => _handleMenuSelection(
       context,
