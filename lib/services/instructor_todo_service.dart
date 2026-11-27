@@ -18,6 +18,11 @@ abstract interface class TodoReminderReadRepository {
   Future<bool> isReminderRead(int ownerId, String taskId);
 
   Future<void> markReminderRead(int ownerId, String taskId);
+
+  /// Timestamp of the first time a reminder for this task was surfaced.
+  Future<DateTime?> reminderFirstSeen(int ownerId, String taskId);
+
+  Future<void> recordReminderSeen(int ownerId, String taskId, DateTime seenAt);
 }
 
 class TodoReminder {
@@ -89,6 +94,19 @@ Future<List<TodoReminder>> listTodoReminders(
     final isOverdue =
         dueDate.isBefore(today) || !currentTime.isBefore(deadline);
     final isDueTomorrow = dueDate == tomorrow;
+    // Reminders are rebuilt from local tasks on every load. Remember the
+    // first time each upcoming one appeared so its age grows normally instead
+    // of being reset to "Just now" on every refresh. Overdue reminders use the
+    // deadline, so their age reads as "how long past due" (e.g. 1m ago).
+    DateTime firstSeen = currentTime;
+    if (readRepository != null && !isOverdue) {
+      firstSeen =
+          await readRepository.reminderFirstSeen(ownerId, task.id) ??
+          currentTime;
+      if (firstSeen == currentTime) {
+        await readRepository.recordReminderSeen(ownerId, task.id, currentTime);
+      }
+    }
     final title = isOverdue
         ? 'Task overdue'
         : isDueTomorrow
@@ -104,9 +122,7 @@ Future<List<TodoReminder>> listTodoReminders(
         taskId: task.id,
         title: title,
         message: message,
-        createdAt: isOverdue
-            ? deadline
-            : DateTime(today.year, today.month, today.day),
+        createdAt: isOverdue ? deadline : firstSeen,
         isRead: await readRepository?.isReminderRead(ownerId, task.id) ?? false,
       ),
     );
@@ -278,6 +294,9 @@ class InstructorTodoService
   String _reminderReadKey(int ownerId, String taskId) =>
       '${storageNamespace}_todo_reminder_read_${ownerId}_$taskId';
 
+  String _reminderFirstSeenKey(int ownerId, String taskId) =>
+      '${storageNamespace}_todo_reminder_seen_${ownerId}_$taskId';
+
   @override
   Future<bool> isReminderRead(int ownerId, String taskId) async {
     final preferences = await SharedPreferences.getInstance();
@@ -296,6 +315,28 @@ class InstructorTodoService
         'To-do reminders could not be marked as read on this device.',
       );
     }
+  }
+
+  @override
+  Future<DateTime?> reminderFirstSeen(int ownerId, String taskId) async {
+    final preferences = await SharedPreferences.getInstance();
+    final stored = preferences.getString(
+      _reminderFirstSeenKey(ownerId, taskId),
+    );
+    return stored == null ? null : DateTime.tryParse(stored);
+  }
+
+  @override
+  Future<void> recordReminderSeen(
+    int ownerId,
+    String taskId,
+    DateTime seenAt,
+  ) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      _reminderFirstSeenKey(ownerId, taskId),
+      seenAt.toIso8601String(),
+    );
   }
 
   @override

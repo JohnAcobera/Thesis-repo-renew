@@ -212,16 +212,47 @@ void main() {
       expect(byTaskId['deadline-later']?.title, 'Task due today');
       expect(byTaskId['date-only']?.title, 'Task due today');
       expect(byTaskId['deadline-now']?.createdAt, now);
-      expect(
-        byTaskId['deadline-later']?.createdAt,
-        DateTime(now.year, now.month, now.day),
-      );
-      expect(
-        byTaskId['tomorrow']?.createdAt,
-        DateTime(now.year, now.month, now.day),
-      );
+      expect(byTaskId['deadline-later']?.createdAt, now);
+      expect(byTaskId['tomorrow']?.createdAt, now);
     },
   );
+
+  test('upcoming reminder timestamp stays fixed across refreshes', () async {
+    final first = DateTime(2026, 11, 27, 15);
+    final later = first.add(const Duration(minutes: 10));
+    final repository = _FakeTodoRepositoryWithReminderStore([
+      InstructorTodoTask(
+        id: 'tomorrow',
+        title: 'Prepare slides',
+        dueDate: DateTime(first.year, first.month, first.day + 1, 15),
+        priority: InstructorTodoPriority.normal,
+      ),
+    ]);
+
+    final initial = await listTodoReminders(repository, 12, now: first);
+    final refreshed = await listTodoReminders(repository, 12, now: later);
+
+    expect(initial.single.createdAt, first);
+    expect(refreshed.single.createdAt, first);
+  });
+
+  test('overdue reminder timestamp is the deadline, not first-seen', () async {
+    final seenAt = DateTime(2026, 11, 27, 15, 33);
+    final deadline = DateTime(2026, 11, 27, 15, 32);
+    final repository = _FakeTodoRepositoryWithReminderStore([
+      InstructorTodoTask(
+        id: 'overdue',
+        title: 'Past due task',
+        dueDate: deadline,
+        priority: InstructorTodoPriority.normal,
+      ),
+    ]);
+
+    final reminders = await listTodoReminders(repository, 12, now: seenAt);
+
+    expect(reminders.single.title, 'Task overdue');
+    expect(reminders.single.createdAt, deadline);
+  });
 
   test('reminder refresh aligns with the next minute boundary', () {
     expect(
@@ -286,6 +317,43 @@ class _FakeTodoRepository implements InstructorTodoRepository {
     int instructorId,
     List<InstructorTodoTask> tasks,
   ) async {}
+}
+
+class _FakeTodoRepositoryWithReminderStore
+    implements InstructorTodoRepository, TodoReminderReadRepository {
+  _FakeTodoRepositoryWithReminderStore(this.tasks);
+
+  final List<InstructorTodoTask> tasks;
+  final Map<String, DateTime> firstSeen = {};
+  final Set<String> readIds = {};
+
+  @override
+  Future<List<InstructorTodoTask>> listTasks(int instructorId) async => tasks;
+
+  @override
+  Future<void> saveTasks(
+    int instructorId,
+    List<InstructorTodoTask> tasks,
+  ) async {}
+
+  @override
+  Future<bool> isReminderRead(int ownerId, String taskId) async =>
+      readIds.contains(taskId);
+
+  @override
+  Future<void> markReminderRead(int ownerId, String taskId) async =>
+      readIds.add(taskId);
+
+  @override
+  Future<DateTime?> reminderFirstSeen(int ownerId, String taskId) async =>
+      firstSeen[taskId];
+
+  @override
+  Future<void> recordReminderSeen(
+    int ownerId,
+    String taskId,
+    DateTime seenAt,
+  ) async => firstSeen[taskId] = seenAt;
 }
 
 Future<String> _encryptLegacyTasks(

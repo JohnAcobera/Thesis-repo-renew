@@ -305,6 +305,7 @@ begin
       join (
         select
           student.id,
+          student.created_at,
           row_number() over (
             order by coalesce(sum(lp.points_delta), 0) desc,
               student.full_name,
@@ -318,9 +319,13 @@ begin
            date_trunc('week', now()) - interval '1 week'
          and lp.created_at < date_trunc('week', now())
         where student.role = 'student'
-        group by student.id, student.full_name
+        group by student.id, student.full_name, student.created_at
       ) ranked on ranked.id = verified_user_id
       where ranked.position <= 99
+        and ranked.points > 0
+        -- The notification is dated at the start of the current week; don't
+        -- emit it for accounts created during or after the ranked week.
+        and ranked.created_at <= week_period.week_start
 
       union all
 

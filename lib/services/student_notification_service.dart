@@ -9,6 +9,8 @@ abstract interface class StudentNotificationRepository {
 
   Stream<List<StudentNotification>> watchNotifications();
 
+  Future<int> unreadCount();
+
   Future<void> refreshNotifications();
 
   Future<void> markNotificationsRead(List<String> notificationIds);
@@ -96,6 +98,24 @@ class StudentNotificationService implements StudentNotificationRepository {
   @override
   Stream<List<StudentNotification>> watchNotifications() => _updates.stream;
 
+  @override
+  Future<int> unreadCount() async {
+    final token = await _requireSessionToken();
+    try {
+      return await _supabase.rpc<int>(
+        'get_student_notification_unread_count',
+        params: {'p_session_token': token},
+      );
+    } on PostgrestException catch (error) {
+      throw StudentNotificationException(
+        _databaseMessage(
+          error,
+          fallback: 'Your notifications could not be loaded. Please try again.',
+        ),
+      );
+    }
+  }
+
   void _startWatching() {
     _channel = _supabase
         .channel('student-notifications')
@@ -116,9 +136,10 @@ class StudentNotificationService implements StudentNotificationRepository {
             );
           }
         });
-    // The subscriber callback above already performs the initial load. A
-    // second unconditional load here duplicates the heavy notification RPC
-    // (which also rebuilds the weekly leaderboard) on every widget mount.
+    // Load immediately as well as on the `subscribed` callback: if the
+    // realtime channel is unavailable, the badge would otherwise stay empty
+    // until the user opens the sheet.
+    unawaited(_reloadNotifications());
   }
 
   void _stopWatching() {

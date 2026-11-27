@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import '../services/auth_service.dart';
 import '../services/instructor_notification_service.dart';
 import '../services/instructor_todo_service.dart';
+import '../services/notification_repositories.dart';
 import '../services/student_notification_service.dart';
 import '../screens/auth/login_screen.dart';
 import 'instructor_notifications_sheet.dart';
@@ -47,6 +48,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
 
   Future<void> _logout(BuildContext context) async {
     await AuthService().logout();
+    NotificationRepositories.reset();
     if (context.mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
@@ -123,7 +125,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
         ?trailingAction,
         if (roleLabel.trim().toLowerCase() == 'student')
           StudentNotificationsButton(
-            repository: notificationRepository,
+            repository: notificationRepository ?? NotificationRepositories.student,
             todoRepository: todoRepository,
             todoOwnerId: todoOwnerId,
           ),
@@ -131,7 +133,7 @@ class StudentNavBar extends StatelessWidget implements PreferredSizeWidget {
           InstructorNotificationsButton(
             repository:
                 instructorNotificationRepository ??
-                InstructorNotificationService(),
+                NotificationRepositories.instructor,
             todoRepository: todoRepository,
             todoOwnerId: todoOwnerId,
           ),

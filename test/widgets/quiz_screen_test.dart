@@ -337,6 +337,9 @@ class _FakeStudentNotificationRepository
       Stream.value([notification]).asBroadcastStream();
 
   @override
+  Future<int> unreadCount() async => notification.isRead ? 0 : 1;
+
+  @override
   Future<void> refreshNotifications() async {}
 
   @override

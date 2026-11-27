@@ -49,7 +49,7 @@ begin
       'max_streak_multiplier', 7,
       'points_per_streak_day', 100
     ),
-    new.login_date::timestamptz
+    now()
   )
   on conflict (user_id, source_key) do nothing;
 

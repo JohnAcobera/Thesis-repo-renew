@@ -26,6 +26,8 @@ class _InstructorNotificationsButtonState
   late Future<List<InstructorNotification>> _notifications;
   late Stream<List<InstructorNotification>> _notificationUpdates;
   StreamSubscription<List<InstructorNotification>>? _notificationSubscription;
+  Timer? _fallbackTimer;
+  int? _unreadCount;
   final StreamController<List<InstructorNotification>> _mergedUpdates =
       StreamController<List<InstructorNotification>>.broadcast();
   List<InstructorNotification>? _latestNotifications;
@@ -35,6 +37,33 @@ class _InstructorNotificationsButtonState
     super.initState();
     _load();
     _startWatching();
+    unawaited(_loadUnreadCount());
+    // Refresh the badge on a fixed interval; realtime updates are optional.
+    _startBadgeRefresh();
+  }
+
+  void _startBadgeRefresh() {
+    _fallbackTimer?.cancel();
+    _fallbackTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) unawaited(_loadUnreadCount());
+    });
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final serverUnread = await widget.repository.unreadCount();
+      final todoRepository = widget.todoRepository;
+      final todoOwnerId = widget.todoOwnerId;
+      final localUnread = todoRepository == null || todoOwnerId == null
+          ? 0
+          : (await listTodoReminders(todoRepository, todoOwnerId))
+              .where((reminder) => !reminder.isRead)
+              .length;
+      if (!mounted) return;
+      setState(() => _unreadCount = serverUnread + localUnread);
+    } on Object {
+      // Keep the last known count if a refresh fails.
+    }
   }
 
   @override
@@ -45,8 +74,10 @@ class _InstructorNotificationsButtonState
         oldWidget.todoOwnerId != widget.todoOwnerId) {
       unawaited(_notificationSubscription?.cancel());
       _latestNotifications = null;
+      _unreadCount = null;
       _load();
       _startWatching();
+      unawaited(_loadUnreadCount());
     }
   }
 
@@ -97,6 +128,7 @@ class _InstructorNotificationsButtonState
       ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       if (_mergedUpdates.isClosed) return;
       _latestNotifications = combined;
+      _unreadCount = combined.where((item) => !item.isRead).length;
       _mergedUpdates.add(combined);
       if (mounted) setState(() {});
     } on Object catch (error, stackTrace) {
@@ -118,6 +150,7 @@ class _InstructorNotificationsButtonState
 
   Future<void> _openNotifications() async {
     unawaited(_reloadNotifications());
+    _fallbackTimer?.cancel();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -131,10 +164,12 @@ class _InstructorNotificationsButtonState
         todoOwnerId: widget.todoOwnerId,
       ),
     );
+    if (mounted) _startBadgeRefresh();
   }
 
   @override
   void dispose() {
+    _fallbackTimer?.cancel();
     unawaited(_notificationSubscription?.cancel());
     unawaited(_mergedUpdates.close());
     super.dispose();
@@ -147,9 +182,9 @@ class _InstructorNotificationsButtonState
         builder: (context, snapshot) {
           final notifications =
               _latestNotifications ?? snapshot.data ?? const [];
-          final unreadCount = notifications
-              .where((notification) => !notification.isRead)
-              .length;
+          final unreadCount =
+              _unreadCount ??
+              notifications.where((notification) => !notification.isRead).length;
           return IconButton(
             tooltip: 'Notifications',
             onPressed: _openNotifications,

@@ -50,6 +50,8 @@ begin
      and points.created_at < week_end
     where student.role = 'student'
     group by student.id, student.full_name
+    -- Only students who actually earned LP this week belong on the board.
+    having coalesce(sum(points.points_delta), 0) > 0
   ), ranked_totals as (
     select
       row_number() over (
@@ -115,6 +117,8 @@ begin
      and points.created_at < week_end
     where student.role = 'student'
     group by student.id, student.full_name
+    -- Only students who actually earned LP this week belong on the board.
+    having coalesce(sum(points.points_delta), 0) > 0
   ), ranked_totals as (
     select
       row_number() over (

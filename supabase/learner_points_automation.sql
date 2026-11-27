@@ -192,7 +192,9 @@ begin
       'max_streak_multiplier', 7,
       'points_per_streak_day', 100
     ),
-    new.login_date::timestamptz
+    -- The login_date is midnight, which made a login at 3 PM emit a
+    -- notification timestamped 15 hours before the account even existed.
+    now()
   )
   on conflict (user_id, source_key) do nothing;
 

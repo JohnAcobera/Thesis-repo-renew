@@ -9,6 +9,8 @@ abstract interface class InstructorNotificationRepository {
 
   Stream<List<InstructorNotification>> watchNotifications();
 
+  Future<int> unreadCount();
+
   Future<void> refreshNotifications();
 
   Future<void> markNotificationsRead(List<String> notificationIds);
@@ -93,6 +95,24 @@ class InstructorNotificationService
   @override
   Stream<List<InstructorNotification>> watchNotifications() => _updates.stream;
 
+  @override
+  Future<int> unreadCount() async {
+    final token = await _requireSessionToken();
+    try {
+      return await _supabase.rpc<int>(
+        'get_instructor_notification_unread_count',
+        params: {'p_session_token': token},
+      );
+    } on PostgrestException catch (error) {
+      throw InstructorNotificationException(
+        _databaseMessage(
+          error,
+          fallback: 'Your notifications could not be loaded. Please try again.',
+        ),
+      );
+    }
+  }
+
   // Widget tests (and any pre-initialize use) construct the service without a
   // client. Realtime is optional there; the initial list fetch still works.
   SupabaseClient? _tryGetClient() {
@@ -126,6 +146,9 @@ class InstructorNotificationService
             );
           }
         });
+    // Don't depend on the `subscribed` callback for the first load; the badge
+    // must be populated even when realtime is unavailable.
+    unawaited(_reloadNotifications());
   }
 
   void _stopWatching() {

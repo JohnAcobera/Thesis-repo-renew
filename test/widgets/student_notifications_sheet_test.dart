@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:thesis_repo_renew/models/instructor_todo_task.dart';
+import 'package:thesis_repo_renew/screens/profile_screen.dart';
+import 'package:thesis_repo_renew/services/achievement_service.dart';
+import 'package:thesis_repo_renew/services/auth_service.dart';
 import 'package:thesis_repo_renew/services/student_notification_service.dart';
 import 'package:thesis_repo_renew/services/instructor_todo_service.dart';
 import 'package:thesis_repo_renew/widgets/student_notifications_sheet.dart';
@@ -175,10 +178,85 @@ void main() {
     expect(find.text('New classroom activity'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('badge refreshes every 15 seconds without opening the sheet', (
+    tester,
+  ) async {
+    final notifications = _FakeStudentNotificationRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(
+            actions: [StudentNotificationsButton(repository: notifications)],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final callsBefore = notifications.unreadCountCalls;
+
+    await tester.pump(const Duration(seconds: 16));
+    await tester.pumpAndSettle();
+
+    expect(notifications.unreadCountCalls, greaterThan(callsBefore));
+    expect(find.byTooltip('Notifications'), findsOneWidget);
+  });
+
+  testWidgets('todo reminders appear in notifications opened from Profile', (
+    tester,
+  ) async {
+    final notifications = _FakeStudentNotificationRepository();
+    final todos = _FakeTodoRepository([
+      InstructorTodoTask(
+        id: 'profile-task',
+        title: 'Profile task',
+        dueDate: DateTime.now().add(const Duration(days: 1)),
+        priority: InstructorTodoPriority.normal,
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProfileScreen(
+          username: 'Student Name',
+          email: 'student@example.com',
+          role: 'student',
+          authService: _FakeProfileDataService(),
+          achievementService: _FakeAchievementRepository(),
+          notificationRepository: notifications,
+          todoRepository: todos,
+          todoOwnerId: 12,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Task due tomorrow'), findsOneWidget);
+  });
+}
+
+class _FakeProfileDataService implements ProfileDataService {
+  @override
+  Future<Set<DateTime>> loginDates() async => {};
+
+  @override
+  Future<int> learnerPoints() async => 100;
+
+  @override
+  Future<int?> weeklyRanking() async => 1;
+}
+
+class _FakeAchievementRepository implements AchievementRepository {
+  @override
+  Future<Set<String>> earnedBadges() async => {};
 }
 
 class _FakeStudentNotificationRepository
     implements StudentNotificationRepository {
+  int listCalls = 0;
+  int unreadCountCalls = 0;
   final List<String> markedIds = [];
   final Set<String> _readIds = {};
   final List<StudentNotification> _addedNotifications = [];
@@ -191,7 +269,14 @@ class _FakeStudentNotificationRepository
   Stream<List<StudentNotification>> watchNotifications() => _updates.stream;
 
   @override
+  Future<int> unreadCount() async {
+    unreadCountCalls++;
+    return (await listNotifications()).where((item) => !item.isRead).length;
+  }
+
+  @override
   Future<List<StudentNotification>> listNotifications() async {
+    listCalls++;
     final notifications = [
       StudentNotification(
         id: 'quiz-points:attempt-1',
@@ -247,10 +332,22 @@ class _FakeTodoRepository
 
   final List<InstructorTodoTask> tasks;
   final List<String> readTaskIds = [];
+  final Map<String, DateTime> firstSeen = {};
 
   @override
   Future<bool> isReminderRead(int ownerId, String taskId) async =>
       readTaskIds.contains(taskId);
+
+  @override
+  Future<DateTime?> reminderFirstSeen(int ownerId, String taskId) async =>
+      firstSeen[taskId];
+
+  @override
+  Future<void> recordReminderSeen(
+    int ownerId,
+    String taskId,
+    DateTime seenAt,
+  ) async => firstSeen[taskId] = seenAt;
 
   @override
   Future<List<InstructorTodoTask>> listTasks(int instructorId) async => tasks;

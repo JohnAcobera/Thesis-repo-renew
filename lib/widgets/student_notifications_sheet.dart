@@ -28,6 +28,8 @@ class _StudentNotificationsButtonState
   late Future<List<StudentNotification>> _notifications;
   late Stream<List<StudentNotification>> _notificationUpdates;
   StreamSubscription<List<StudentNotification>>? _notificationSubscription;
+  Timer? _fallbackTimer;
+  int? _unreadCount;
   final LayerLink _teacherFeedbackLink = LayerLink();
   final OverlayPortalController _teacherFeedbackBubbleController =
       OverlayPortalController();
@@ -41,9 +43,33 @@ class _StudentNotificationsButtonState
     super.initState();
     _repository = widget.repository ?? StudentNotificationService();
     _startWatching();
-    // No polling: the service listens for realtime broadcasts and the sheet
-    // explicitly refreshes when opened. Polling the full notification RPC
-    // every minute was issuing dozens of aggregate queries per hour.
+    unawaited(_loadUnreadCount());
+    // Refresh the badge on a fixed interval; realtime updates are optional.
+    _startBadgeRefresh();
+  }
+
+  void _startBadgeRefresh() {
+    _fallbackTimer?.cancel();
+    _fallbackTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) unawaited(_loadUnreadCount());
+    });
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final serverUnread = await _repository.unreadCount();
+      final todoRepository = widget.todoRepository;
+      final todoOwnerId = widget.todoOwnerId;
+      final localUnread = todoRepository == null || todoOwnerId == null
+          ? 0
+          : (await listTodoReminders(todoRepository, todoOwnerId))
+              .where((reminder) => !reminder.isRead)
+              .length;
+      if (!mounted) return;
+      setState(() => _unreadCount = serverUnread + localUnread);
+    } on Object {
+      // Keep the last known count if a refresh fails.
+    }
   }
 
   @override
@@ -55,7 +81,9 @@ class _StudentNotificationsButtonState
       unawaited(_notificationSubscription?.cancel());
       _repository = widget.repository ?? StudentNotificationService();
       _latestNotifications = null;
+      _unreadCount = null;
       _startWatching();
+      unawaited(_loadUnreadCount());
     }
   }
 
@@ -100,6 +128,7 @@ class _StudentNotificationsButtonState
       ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       if (_mergedUpdates.isClosed) return;
       _latestNotifications = combined;
+      _unreadCount = combined.where((item) => !item.isRead).length;
       _mergedUpdates.add(combined);
       if (mounted) setState(() {});
     } on Object catch (error, stackTrace) {
@@ -122,6 +151,7 @@ class _StudentNotificationsButtonState
 
   @override
   void dispose() {
+    _fallbackTimer?.cancel();
     unawaited(_notificationSubscription?.cancel());
     unawaited(_mergedUpdates.close());
     super.dispose();
@@ -129,6 +159,8 @@ class _StudentNotificationsButtonState
 
   Future<void> _openNotifications() async {
     unawaited(_reloadNotifications());
+    // The sheet has its own refresh button; don't double-fetch while open.
+    _fallbackTimer?.cancel();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -142,6 +174,7 @@ class _StudentNotificationsButtonState
         todoOwnerId: widget.todoOwnerId,
       ),
     );
+    if (mounted) _startBadgeRefresh();
   }
 
   void _updateTeacherFeedbackBubble(bool shouldShow) {
@@ -164,9 +197,9 @@ class _StudentNotificationsButtonState
         builder: (context, snapshot) {
           final notifications =
               _latestNotifications ?? snapshot.data ?? const [];
-          final unreadCount = notifications
-              .where((notification) => !notification.isRead)
-              .length;
+          final unreadCount =
+              _unreadCount ??
+              notifications.where((notification) => !notification.isRead).length;
           final hasUnreadTeacherFeedback = notifications.any(
             (notification) =>
                 notification.type == StudentNotificationType.teacherFeedback &&

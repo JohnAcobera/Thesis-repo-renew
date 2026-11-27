@@ -5,7 +5,11 @@ import 'package:material_ui/material_ui.dart';
 import 'auth/login_screen.dart';
 import '../services/achievement_service.dart';
 import '../services/auth_service.dart';
+import '../services/instructor_notification_service.dart';
+import '../services/instructor_todo_service.dart';
+import '../services/notification_repositories.dart';
 import '../services/quiz_service.dart';
+import '../services/student_notification_service.dart';
 import '../widgets/app_glass_surface.dart';
 import '../widgets/achievement_badge_grid.dart';
 import '../widgets/instructor_side_menu.dart';
@@ -24,6 +28,10 @@ class ProfileScreen extends StatefulWidget {
     this.streakDays,
     this.authService,
     this.achievementService,
+    this.todoRepository,
+    this.todoOwnerId,
+    this.notificationRepository,
+    this.instructorNotificationRepository,
     super.key,
   });
 
@@ -36,6 +44,10 @@ class ProfileScreen extends StatefulWidget {
   final Set<DateTime>? streakDays;
   final ProfileDataService? authService;
   final AchievementRepository? achievementService;
+  final InstructorTodoRepository? todoRepository;
+  final int? todoOwnerId;
+  final StudentNotificationRepository? notificationRepository;
+  final InstructorNotificationRepository? instructorNotificationRepository;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -71,6 +83,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           email: widget.email,
           role: _displayRole,
           selectedMenu: StudentMenuItem.profile,
+          todoRepository: widget.todoRepository,
+          todoOwnerId: widget.todoOwnerId,
+          notificationRepository: widget.notificationRepository,
           onMenuSelected: (item) {
             if (item == StudentMenuItem.dashboard ||
                 item == StudentMenuItem.classroom ||
@@ -91,6 +106,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       username: widget.username,
       email: widget.email,
       roleLabel: _displayRole,
+      todoRepository: widget.todoRepository,
+      todoOwnerId: widget.todoOwnerId,
+      instructorNotificationRepository: widget.instructorNotificationRepository,
       onLogoutSelected: _logout,
       leading: IconButton(
         tooltip: _isInstructorMenuOpen ? 'Close menu' : 'Open menu',
@@ -292,6 +310,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _logout() async {
     await AuthService().logout();
+    NotificationRepositories.reset();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(builder: (_) => const LoginScreen()),

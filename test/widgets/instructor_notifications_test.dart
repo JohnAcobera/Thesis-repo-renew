@@ -163,10 +163,22 @@ class _FakeTodoRepository
 
   final List<InstructorTodoTask> tasks;
   final Set<String> readTaskIds = {};
+  final Map<String, DateTime> firstSeen = {};
 
   @override
   Future<bool> isReminderRead(int ownerId, String taskId) async =>
       readTaskIds.contains(taskId);
+
+  @override
+  Future<DateTime?> reminderFirstSeen(int ownerId, String taskId) async =>
+      firstSeen[taskId];
+
+  @override
+  Future<void> recordReminderSeen(
+    int ownerId,
+    String taskId,
+    DateTime seenAt,
+  ) async => firstSeen[taskId] = seenAt;
 
   @override
   Future<List<InstructorTodoTask>> listTasks(int instructorId) async => tasks;
@@ -192,6 +204,10 @@ class _FakeInstructorNotificationRepository
 
   @override
   Stream<List<InstructorNotification>> watchNotifications() => _updates.stream;
+
+  @override
+  Future<int> unreadCount() async =>
+      (await listNotifications()).where((item) => !item.isRead).length;
 
   @override
   Future<void> refreshNotifications() async =>
